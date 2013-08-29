@@ -1,4 +1,4 @@
-AutoMagic
-=========
+# Auto
 
-An implementation of an auto tactic for Agda.
+An attempt at implementing an extensionable auto tactic for Agda.
+Initial code due to Wouter Swierstra.
