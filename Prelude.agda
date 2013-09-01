@@ -39,6 +39,11 @@ module Prelude where
     field
       witness : A
       proof   : P witness
+      
+  thin : {n : Nat} -> Fin (Succ n) -> Fin n -> Fin (Succ n)
+  thin Fz j = Fs j
+  thin (Fs i) Fz = Fz
+  thin (Fs i) (Fs j) = Fs (thin i j)
 
   thick : {n : Nat} -> (i j : Fin (Succ n)) -> Maybe (Fin n)
   thick Fz Fz = Nothing
