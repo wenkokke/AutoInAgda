@@ -1,83 +1,102 @@
 open import Prelude hiding (_++_)
+open import Function using (_∘_)
+open import Data.Fin using (raise)
+open import Data.String using (String)
+open import Data.Vec using (Vec; []; _∷_) renaming (map to vmap)
+open import Relation.Binary.PropositionalEquality using (cong)
 
-module Unification (A : Set) (arity : A -> Nat) (equal? : (x y : A) -> Either (x == y) (x <> y)) where
+module Unification (Op : Set) (arity : Op → ℕ) (equal? : (x y : Op) → Either (x == y) (x <> y)) where
 
-data Term (n : Nat) : Set where
-  Var : (i : Fin n) -> Term n
-  Con : (x : A) -> (xs : Vec (Term n) (arity x)) -> Term n
+  data Term (n : ℕ) : Set where
+    Var : Fin n → Term n
+    Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
 
-data Subst : (n m : Nat) -> Set where
-  Nil : {n : Nat} -> Subst n n
-  Cons : {n m : Nat} -> (i : Fin (Succ m)) -> (t : Term m) -> (subst : Subst m n) -> Subst (Succ m) n
+  data Subst : (n m : ℕ) → Set where
+    Nil  : {n : ℕ} → Subst n n
+    Cons : {n m : ℕ} → Fin (suc m) → Term m → Subst m n → Subst (suc m) n
 
-empty : {n : Nat} -> ∃ (Subst n)
-empty {n} = n , Nil
+  infixl 7 ►_
+  infixr 6 _◄_
 
-mutual
-  replace : {n m : Nat} -> (Fin n -> Term m) -> Term n -> Term m
-  replace f (Var i) = f i
-  replace f (Con x xs) = Con x (replaceChildren f xs)
+  mutual
+    replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
+    replace f (Var i) = f i
+    replace f (Con x xs) = Con x (replaceChildren f xs)
 
-  replaceChildren : {n m k : Nat} -> (Fin n -> Term m) -> Vec (Term n) k -> Vec (Term m) k
-  replaceChildren f Nil = Nil
-  replaceChildren f (Cons x xs) = Cons (replace f x) (replaceChildren f xs)
+    replaceChildren : {n m k : ℕ} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
+    replaceChildren f [] = []
+    replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
 
-_⋄_ : {k n m : Nat} -> (Fin m -> Term n) -> (Fin k -> Term m) -> Fin k -> Term n
-_⋄_ f g i = replace f (g i)
+  -- 'bracketing' functions as per McBride
 
-mutual
-  check : {n : Nat} -> (i : Fin (Succ n)) -> (t : Term (Succ n)) -> Maybe (Term n)
-  check i (Var j) = Var <$> thick i j
-  check i (Con x xs) = Con x <$> checkChildren i xs
+  ►_ : ∀ {m n} → (Fin m → Fin n) → (Fin m → Term n)
+  ►_ r = Var ∘ r
 
-  checkChildren : {n k : Nat} -> (i : Fin (Succ n)) -> (ts : Vec (Term (Succ n)) k) -> Maybe (Vec (Term n) k)
-  checkChildren i Nil = Just Nil
-  checkChildren i (Cons x xs) = check i x >>= \t ->
-                                checkChildren i xs >>= \ts ->
-                                Just (Cons t ts)
+  _◄_ : ∀ {m n} → (Fin m → Term n) → (Term m → Term n)
+  _◄_ = replace
+
+  ◄-correct : ∀ {n} {T : Term n} → Var ◄ T == T
+  ◄-correct {n} {Var x}    = Refl
+  ◄-correct {n} {Con x xs} = cong (Con x) {!vmap !}
+
+  empty : {n : ℕ} → ∃ (Subst n)
+  empty {n} = n , Nil
+
+  _⋄_ : {k n m : ℕ} → (Fin m → Term n) → (Fin k → Term m) → Fin k → Term n
+  _⋄_ f g i = replace f (g i)
+
+  mutual
+    check : {n : ℕ} → (i : Fin (suc n)) → (t : Term (suc n)) → Maybe (Term n)
+    check i (Var j) = Var <$> thick i j
+    check i (Con x xs) = Con x <$> checkChildren i xs
+
+    checkChildren : {n k : ℕ} → (i : Fin (suc n)) → (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
+    checkChildren i [] = Just []
+    checkChildren i (x ∷ xs) = check i x >>= λ t →
+                               checkChildren i xs >>= λ ts →
+                               Just (t ∷ ts)
 
 
-_for_ : {n : Nat} -> (t : Term n) -> (i j : Fin (Succ n)) -> Term n
-_for_ t' i j with thick i j
-_for_ t' i j | Nothing = t'
-_for_ t' i j | Just x = Var x
+  _for_ : {n : ℕ} → (t : Term n) → (i j : Fin (suc n)) → Term n
+  _for_ t' i j with thick i j
+  _for_ t' i j | Nothing = t'
+  _for_ t' i j | Just x = Var x
 
+  apply : {n m : ℕ} → Subst n m → Fin n → Term m
+  apply Nil = Var
+  apply (Cons i t subst) = apply subst ⋄ (t for i)
 
-apply : {n m : Nat} -> Subst n m -> Fin n -> Term m
-apply Nil = Var
-apply (Cons i t subst) = apply subst ⋄ (t for i)
+  _++_ : {n m k : ℕ} → Subst n m → Subst m k → Subst n k
+  Nil ++ subst' = subst'
+  Cons i t subst ++ subst' = Cons i t (subst ++ subst')
 
-_++_ : {n m k : Nat} -> Subst n m -> Subst m k -> Subst n k
-Nil ++ subst' = subst'
-Cons i t subst ++ subst' = Cons i t (subst ++ subst')
+  flexRigid : {n : ℕ} → Fin n → Term n → Maybe (∃ (Subst n))
+  flexRigid {zero} () t
+  flexRigid {suc k} i t with check i t
+  flexRigid {suc k} i t | Nothing = Nothing
+  flexRigid {suc k} i t | Just x  = Just (k , (Cons i x Nil))
 
-flexRigid : {n : Nat} -> Fin n -> Term n -> Maybe (∃ (Subst n))
-flexRigid {Zero} () t
-flexRigid {Succ k} i t with check i t
-flexRigid {Succ k} i t | Nothing = Nothing
-flexRigid {Succ k} i t | Just x = Just (k , (Cons i x Nil))
+  flexFlex : {n : ℕ} → (i j : Fin n) → ∃ (Subst n)
+  flexFlex {zero} () j
+  flexFlex {suc k} i j with thick i j
+  flexFlex {suc k} i j | Nothing = ((suc k) , Nil)
+  flexFlex {suc k} i j | Just x  = (k , Cons i (Var x) Nil)
 
-flexFlex : {n : Nat} -> (i j : Fin n) -> ∃ (Subst n)
-flexFlex {Zero} () j
-flexFlex {Succ k} i j with thick i j
-flexFlex {Succ k} i j | Nothing = ((Succ k) , Nil)
-flexFlex {Succ k} i j | Just x = (k , Cons i (Var x) Nil)
+  mutual
+    unifyAcc : {m : ℕ} → (s t : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
+    unifyAcc (Con  x xs) (Con y ys) acc with equal? x y
+    unifyAcc (Con .y xs) (Con y ys) acc | Inl Refl = unifyChildren xs ys acc
+    unifyAcc (Con  x xs) (Con y ys) acc | Inr y' = Nothing
+    unifyAcc (Var i) (Var j) (k , Nil) = Just (flexFlex i j)
+    unifyAcc (Var i) t (k , Nil) = flexRigid i t
+    unifyAcc t (Var j) (k , Nil) = flexRigid j t
+    unifyAcc s t (k , Cons i t' subst) =
+      (λ s → (∃.witness s) , (Cons i t' (∃.proof s)))
+        <$> unifyAcc (replace (t' for i) s) (replace (t' for i) t) (k , subst)
 
-mutual
-  unifyAcc : {m : Nat} -> (s t : Term m) -> ∃ (Subst m) -> Maybe (∃ (Subst m))
-  unifyAcc (Con  x xs) (Con y ys) acc with equal? x y
-  unifyAcc (Con .y xs) (Con y ys) acc | Inl Refl = unifyChildren xs ys acc
-  unifyAcc (Con  x xs) (Con y ys) acc | Inr y' = Nothing
-  unifyAcc (Var i) (Var j) (k , Nil) = Just (flexFlex i j)
-  unifyAcc (Var i) t (k , Nil) = flexRigid i t
-  unifyAcc t (Var j) (k , Nil) = flexRigid j t
-  unifyAcc s t (k , Cons i t' subst) =
-    (\s -> (∃.witness s) , (Cons i t' (∃.proof s)))
-      <$> unifyAcc (replace (t' for i) s) (replace (t' for i) t) (k , subst)
+    unifyChildren : {n k : ℕ} → (xs ys : Vec (Term n) k) → ∃ (Subst n) → Maybe (∃ (Subst n))
+    unifyChildren [] [] acc = Just acc
+    unifyChildren (x ∷ xs) (y ∷ ys) acc = unifyAcc x y acc >>= unifyChildren xs ys
 
-  unifyChildren : {n k : Nat} -> (xs ys : Vec (Term n) k) -> ∃ (Subst n) -> Maybe (∃ (Subst n))
-  unifyChildren Nil Nil acc = Just acc
-  unifyChildren (Cons x xs) (Cons y ys) acc = unifyAcc x y acc >>= unifyChildren xs ys
-
-unify  : {m : Nat} -> (s t : Term m) -> Maybe (∃ (Subst m))
-unify {m} s t = unifyAcc s t (m , Nil)
+  unify  : {m : ℕ} → (s t : Term m) → Maybe (∃ (Subst m))
+  unify {m} s t = unifyAcc s t (m , Nil)
