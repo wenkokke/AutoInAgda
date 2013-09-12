@@ -1,12 +1,12 @@
 import Level
-import Data.Colist using () renaming (Colist to CoList; [] to Nil; _∷_ to Cons)
+import Data.Colist using ([]; [_]; _∷_) renaming (Colist to CoList)
 import Data.Sum using () renaming (_⊎_ to Either; inj₁ to Inl; inj₂ to Inr)
 import Data.Empty using () renaming (⊥ to Empty)
-import Data.Fin using (Fin) renaming (zero to Fz; suc to Fs)
-import Data.List using (List; map; _++_) renaming ([] to Nil; _∷_ to Cons)
+import Data.Fin using (Fin; #_) renaming (zero to Fz; suc to Fs)
+import Data.List using (List; map; _++_; []; _∷_)
 import Data.Maybe using (Maybe; functor) renaming (just to Just; nothing to Nothing)
-import Data.Nat renaming (ℕ to Nat; zero to Zero; suc to Succ)
-import Data.Vec using (Vec) renaming ([] to Nil; _∷_ to Cons; map to vmap)
+import Data.Nat using (ℕ; zero; suc)
+import Data.Vec using (Vec; []; _∷_) renaming (map to vmap)
 import Relation.Binary.PropositionalEquality using () renaming (_≡_ to _==_; _≢_ to _<>_; refl to Refl)
 
 module Prelude where
@@ -39,15 +39,15 @@ module Prelude where
     field
       witness : A
       proof   : P witness
-      
-  thin : {n : Nat} -> Fin (Succ n) -> Fin n -> Fin (Succ n)
-  thin Fz j = Fs j
-  thin (Fs i) Fz = Fz
+
+  thin : {n : ℕ} -> Fin (suc n) -> Fin n -> Fin (suc n)
+  thin  Fz     j     = Fs j
+  thin (Fs i)  Fz    = Fz
   thin (Fs i) (Fs j) = Fs (thin i j)
 
-  thick : {n : Nat} -> (i j : Fin (Succ n)) -> Maybe (Fin n)
-  thick Fz Fz = Nothing
-  thick Fz (Fs i) = Just i
-  thick {Zero} (Fs ()) j
-  thick {Succ k} (Fs i) Fz = Just Fz
-  thick {Succ k} (Fs i) (Fs j) = Fs <$> thick i j
+  thick : {n : ℕ} -> (i j : Fin (suc n)) -> Maybe (Fin n)
+  thick          Fz      Fz    = Nothing
+  thick          Fz     (Fs i) = Just i
+  thick {zero}  (Fs ())  j
+  thick {suc k} (Fs i)   Fz    = Just Fz
+  thick {suc k} (Fs i)  (Fs j) = Fs <$> thick i j
