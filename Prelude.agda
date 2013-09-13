@@ -4,10 +4,13 @@ import Data.Sum using () renaming (_⊎_ to Either; inj₁ to Inl; inj₂ to Inr
 import Data.Empty using () renaming (⊥ to Empty)
 import Data.Fin using (Fin; #_) renaming (zero to Fz; suc to Fs)
 import Data.List using (List; map; _++_; []; _∷_)
-import Data.Maybe using (Maybe; functor) renaming (just to Just; nothing to Nothing)
+import Data.Maybe using (Maybe; functor; monad) renaming (just to Just; nothing to Nothing)
 import Data.Nat using (ℕ; zero; suc)
 import Data.Vec using (Vec; []; _∷_) renaming (map to vmap)
-import Relation.Binary.PropositionalEquality using () renaming (_≡_ to _==_; _≢_ to _<>_; refl to Refl)
+import Data.Product using (∃; Σ; _,_) renaming (proj₁ to witness; proj₂ to proof)
+import Relation.Nullary using (yes; no)
+import Relation.Binary using (Decidable)
+import Relation.Binary.PropositionalEquality using (_≡_; _≢_; refl; cong)
 
 module Prelude where
 
@@ -19,6 +22,7 @@ module Prelude where
   open Data.Maybe public
   open Data.Nat public
   open Data.Vec public
+  open Data.Product public
   open Relation.Binary.PropositionalEquality public
 
   _>>=_ : forall {ℓ} {A B : Set ℓ} -> Maybe A -> (A -> Maybe B) -> Maybe B
@@ -33,12 +37,6 @@ module Prelude where
   _<$>_ : forall {ℓ} {A B : Set ℓ} -> (A -> B) -> Maybe A -> Maybe B
   f <$> Nothing = Nothing
   f <$> Just x  = Just (f x)
-
-  record ∃ {ℓ} {A : Set ℓ} (P : A -> Set ℓ) : Set ℓ where
-    constructor _,_
-    field
-      witness : A
-      proof   : P witness
 
   thin : {n : ℕ} -> Fin (suc n) -> Fin n -> Fin (suc n)
   thin  Fz     j     = Fs j

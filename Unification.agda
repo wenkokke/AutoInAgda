@@ -3,9 +3,11 @@ open import Function using (_∘_)
 open import Data.Fin using (raise)
 open import Data.String using (String)
 open import Data.Vec using (Vec; []; _∷_) renaming (map to vmap)
+open import Relation.Nullary using (yes; no)
+open import Relation.Binary using (Decidable)
 open import Relation.Binary.PropositionalEquality using (cong)
 
-module Unification (Op : Set) (arity : Op → ℕ) (equal? : (x y : Op) → Either (x == y) (x <> y)) where
+module Unification (Op : Set) (arity : Op → ℕ) (equal? : (x y : Op) → Either (x ≡ y) (x ≢ y)) where
 
   data Term (n : ℕ) : Set where
     Var : Fin n → Term n
@@ -14,9 +16,6 @@ module Unification (Op : Set) (arity : Op → ℕ) (equal? : (x y : Op) → Eith
   data Subst : (n m : ℕ) → Set where
     Nil  : {n : ℕ} → Subst n n
     Cons : {n m : ℕ} → Fin (suc m) → Term m → Subst m n → Subst (suc m) n
-
-  infixl 7 ►_
-  infixr 6 _◄_
 
   mutual
     replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
@@ -27,17 +26,36 @@ module Unification (Op : Set) (arity : Op → ℕ) (equal? : (x y : Op) → Eith
     replaceChildren f [] = []
     replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
 
-  -- 'bracketing' functions as per McBride
+  replaceCorrect : ∀ {n} {T : Term n} → replace Var T ≡ T
+  replaceCorrect {n} {Var x}    = refl
+  replaceCorrect {n} {Con x xs} = cong (Con x) {!vmap !}
+    where
+    ≟-Fin : ∀ {n} → Decidable {A = Fin n} _≡_
+    ≟-Fin  Fz     Fz    = yes refl
+    ≟-Fin  Fz    (Fs y) = no (λ ())
+    ≟-Fin (Fs x)  Fz    = no (λ ())
+    ≟-Fin (Fs x) (Fs y) with ≟-Fin x y
+    ≟-Fin (Fs x) (Fs y) | yes p = yes (cong Fs p)
+    ≟-Fin (Fs x) (Fs y) | no ¬p = no {!!}
 
-  ►_ : ∀ {m n} → (Fin m → Fin n) → (Fin m → Term n)
-  ►_ r = Var ∘ r
+    mutual
+      ≟-Term : ∀ {n} → Decidable {A = Term n} _≡_
+      ≟-Term (Var x) (Var y) with ≟-Fin x y
+      ≟-Term (Var x) (Var y) | yes p = yes (cong Var p)
+      ≟-Term (Var x) (Var y) | no ¬p = no {!!}
 
-  _◄_ : ∀ {m n} → (Fin m → Term n) → (Term m → Term n)
-  _◄_ = replace
+      ≟-Term (Var x) (Con g ys)      = no (λ ())
+      ≟-Term (Con f xs) (Var y)      = no (λ ())
 
-  ◄-correct : ∀ {n} {T : Term n} → Var ◄ T == T
-  ◄-correct {n} {Var x}    = Refl
-  ◄-correct {n} {Con x xs} = cong (Con x) {!vmap !}
+      ≟-Term (Con  f  xs) (Con g ys) with equal? f g
+      ≟-Term (Con .f  xs) (Con f ys) | Inl refl with ≟-Vec xs ys
+      ≟-Term (Con .f .xs) (Con f xs) | Inl refl | yes refl = yes refl
+      ≟-Term (Con .f  xs) (Con f ys) | Inl refl | no ¬p = no {!!}
+      ≟-Term (Con  f  xs) (Con g ys) | Inr ¬p = no {!!}
+
+      ≟-Vec : ∀ {n k} → Decidable {A = Vec (Term n) k} _≡_
+      ≟-Vec [] [] = yes refl
+      ≟-Vec (x₀ ∷ v₀) (x₁ ∷ v₁) = {!!}
 
   empty : {n : ℕ} → ∃ (Subst n)
   empty {n} = n , Nil
@@ -85,13 +103,13 @@ module Unification (Op : Set) (arity : Op → ℕ) (equal? : (x y : Op) → Eith
   mutual
     unifyAcc : {m : ℕ} → (s t : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
     unifyAcc (Con  x xs) (Con y ys) acc with equal? x y
-    unifyAcc (Con .y xs) (Con y ys) acc | Inl Refl = unifyChildren xs ys acc
+    unifyAcc (Con .y xs) (Con y ys) acc | Inl refl = unifyChildren xs ys acc
     unifyAcc (Con  x xs) (Con y ys) acc | Inr y' = Nothing
     unifyAcc (Var i) (Var j) (k , Nil) = Just (flexFlex i j)
     unifyAcc (Var i) t (k , Nil) = flexRigid i t
     unifyAcc t (Var j) (k , Nil) = flexRigid j t
     unifyAcc s t (k , Cons i t' subst) =
-      (λ s → (∃.witness s) , (Cons i t' (∃.proof s)))
+      (λ s → (witness s) , (Cons i t' (proof s)))
         <$> unifyAcc (replace (t' for i) s) (replace (t' for i) t) (k , subst)
 
     unifyChildren : {n k : ℕ} → (xs ys : Vec (Term n) k) → ∃ (Subst n) → Maybe (∃ (Subst n))
