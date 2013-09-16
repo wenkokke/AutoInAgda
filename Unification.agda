@@ -1,120 +1,78 @@
-open import Prelude hiding (_++_)
 open import Function using (_∘_)
-open import Data.Fin using (raise)
-open import Data.String using (String)
-open import Data.Vec using (Vec; []; _∷_) renaming (map to vmap)
-open import Relation.Nullary using (yes; no)
+open import Category.Functor
+open import Data.Fin using (Fin; zero; suc; raise)
+open import Data.Maybe as Maybe using (Maybe; just; nothing)
+open import Data.Nat using (ℕ; zero; suc)
+open import Data.Vec using (Vec; []; _∷_)
 open import Relation.Binary using (Decidable)
-open import Relation.Binary.PropositionalEquality using (cong)
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; cong)
 
-module Unification (Op : Set) (arity : Op → ℕ) (equal? : (x y : Op) → Either (x ≡ y) (x ≢ y)) where
+module Unification (Op : Set) (arity : Op → ℕ) (decEqOp : Decidable {A = Op} _≡_) where
 
-  data Term (n : ℕ) : Set where
-    Var : Fin n → Term n
-    Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
+data Term (n : ℕ) : Set where
+  Var : Fin n → Term n
+  Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
 
-  data Subst : (n m : ℕ) → Set where
-    Nil  : {n : ℕ} → Subst n n
-    Cons : {n m : ℕ} → Fin (suc m) → Term m → Subst m n → Subst (suc m) n
+open RawFunctor {{...}}
 
-  mutual
-    replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
-    replace f (Var i) = f i
-    replace f (Con x xs) = Con x (replaceChildren f xs)
+-- defining thick and thin
 
-    replaceChildren : {n m k : ℕ} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
-    replaceChildren f [] = []
-    replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
+thin : {n : ℕ} -> Fin (suc n) -> Fin n -> Fin (suc n)
+thin  zero    y      = suc y
+thin (suc x)  zero   = zero
+thin (suc x) (suc y) = suc (thin x y)
 
-  replaceCorrect : ∀ {n} {T : Term n} → replace Var T ≡ T
-  replaceCorrect {n} {Var x}    = refl
-  replaceCorrect {n} {Con x xs} = cong (Con x) {!vmap !}
-    where
-    ≟-Fin : ∀ {n} → Decidable {A = Fin n} _≡_
-    ≟-Fin  Fz     Fz    = yes refl
-    ≟-Fin  Fz    (Fs y) = no (λ ())
-    ≟-Fin (Fs x)  Fz    = no (λ ())
-    ≟-Fin (Fs x) (Fs y) with ≟-Fin x y
-    ≟-Fin (Fs x) (Fs y) | yes p = yes (cong Fs p)
-    ≟-Fin (Fs x) (Fs y) | no ¬p = no {!!}
+thick : {n : ℕ} -> (x y : Fin (suc n)) -> Maybe (Fin n)
+thick          zero    zero   = nothing
+thick          zero   (suc y) = just y
+thick {zero}  (suc ()) _
+thick {suc n} (suc x)  zero   = just zero
+thick {suc n} (suc x) (suc y) = suc <$> thick x y
+  where
+  functor = Maybe.functor
 
-    mutual
-      ≟-Term : ∀ {n} → Decidable {A = Term n} _≡_
-      ≟-Term (Var x) (Var y) with ≟-Fin x y
-      ≟-Term (Var x) (Var y) | yes p = yes (cong Var p)
-      ≟-Term (Var x) (Var y) | no ¬p = no {!!}
+-- correctness of thin
 
-      ≟-Term (Var x) (Con g ys)      = no (λ ())
-      ≟-Term (Con f xs) (Var y)      = no (λ ())
+inject-thin : ∀ {n} → (x : Fin (suc n)) (y z : Fin n) → thin x y ≡ thin x z → y ≡ z
+inject-thin {zero}   zero    ()      _       _
+inject-thin {zero}  (suc _)  ()      _       _
+inject-thin {suc _}  zero    zero    zero    refl = refl
+inject-thin {suc _}  zero    zero   (suc _)  ()
+inject-thin {suc _}  zero   (suc _)  zero    ()
+inject-thin {suc _}  zero   (suc y) (suc .y) refl = refl
+inject-thin {suc _} (suc _)  zero    zero    refl = refl
+inject-thin {suc _} (suc _)  zero   (suc _)  ()
+inject-thin {suc _} (suc _) (suc _)  zero    ()
+inject-thin {suc n} (suc x) (suc y) (suc z)  p
+  = cong suc (inject-thin {n} x y z (cong pred p))
+  where
+  pred : ∀ {n} → Fin (suc (suc n)) → Fin (suc n)
+  pred  zero   = zero
+  pred (suc x) = x
 
-      ≟-Term (Con  f  xs) (Con g ys) with equal? f g
-      ≟-Term (Con .f  xs) (Con f ys) | Inl refl with ≟-Vec xs ys
-      ≟-Term (Con .f .xs) (Con f xs) | Inl refl | yes refl = yes refl
-      ≟-Term (Con .f  xs) (Con f ys) | Inl refl | no ¬p = no {!!}
-      ≟-Term (Con  f  xs) (Con g ys) | Inr ¬p = no {!!}
+thinxy≢x : ∀ {n} → (x : Fin (suc n)) (y z : Fin n) → thin x y ≢ x
+thinxy≢x  zero    _       _      = λ ()
+thinxy≢x (suc _)  zero    _      = λ ()
+thinxy≢x (suc x) (suc y)  zero   = {!!}
+thinxy≢x (suc x) (suc y) (suc z) = {!!}
 
-      ≟-Vec : ∀ {n k} → Decidable {A = Vec (Term n) k} _≡_
-      ≟-Vec [] [] = yes refl
-      ≟-Vec (x₀ ∷ v₀) (x₁ ∷ v₁) = {!!}
+-- defining substitutions (AList in McBride, 2003)
 
-  empty : {n : ℕ} → ∃ (Subst n)
-  empty {n} = n , Nil
+data Subst : ℕ → ℕ → Set where
+  Nil  : ∀ {n} → Subst n n
+  Snoc : ∀ {m n} → Subst m n → Term m → Fin (suc m) → Subst (suc m) n
 
-  _⋄_ : {k n m : ℕ} → (Fin m → Term n) → (Fin k → Term m) → Fin k → Term n
-  _⋄_ f g i = replace f (g i)
+-- defining substitution (**sub** in McBride, 2003)
 
-  mutual
-    check : {n : ℕ} → (i : Fin (suc n)) → (t : Term (suc n)) → Maybe (Term n)
-    check i (Var j) = Var <$> thick i j
-    check i (Con x xs) = Con x <$> checkChildren i xs
+-- apply : {n m : ℕ} → Subst n m → Fin n → Term m
+-- apply Nil = Var
+-- apply (Snoc σ t x) = apply subst ⋄ (t for i)
 
-    checkChildren : {n k : ℕ} → (i : Fin (suc n)) → (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
-    checkChildren i [] = Just []
-    checkChildren i (x ∷ xs) = check i x >>= λ t →
-                               checkChildren i xs >>= λ ts →
-                               Just (t ∷ ts)
+mutual
+  replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
+  replace f (Var i) = f i
+  replace f (Con x xs) = Con x (replaceChildren f xs)
 
-
-  _for_ : {n : ℕ} → (t : Term n) → (i j : Fin (suc n)) → Term n
-  _for_ t' i j with thick i j
-  _for_ t' i j | Nothing = t'
-  _for_ t' i j | Just x = Var x
-
-  apply : {n m : ℕ} → Subst n m → Fin n → Term m
-  apply Nil = Var
-  apply (Cons i t subst) = apply subst ⋄ (t for i)
-
-  _++_ : {n m k : ℕ} → Subst n m → Subst m k → Subst n k
-  Nil ++ subst' = subst'
-  Cons i t subst ++ subst' = Cons i t (subst ++ subst')
-
-  flexRigid : {n : ℕ} → Fin n → Term n → Maybe (∃ (Subst n))
-  flexRigid {zero} () t
-  flexRigid {suc k} i t with check i t
-  flexRigid {suc k} i t | Nothing = Nothing
-  flexRigid {suc k} i t | Just x  = Just (k , (Cons i x Nil))
-
-  flexFlex : {n : ℕ} → (i j : Fin n) → ∃ (Subst n)
-  flexFlex {zero} () j
-  flexFlex {suc k} i j with thick i j
-  flexFlex {suc k} i j | Nothing = ((suc k) , Nil)
-  flexFlex {suc k} i j | Just x  = (k , Cons i (Var x) Nil)
-
-  mutual
-    unifyAcc : {m : ℕ} → (s t : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
-    unifyAcc (Con  x xs) (Con y ys) acc with equal? x y
-    unifyAcc (Con .y xs) (Con y ys) acc | Inl refl = unifyChildren xs ys acc
-    unifyAcc (Con  x xs) (Con y ys) acc | Inr y' = Nothing
-    unifyAcc (Var i) (Var j) (k , Nil) = Just (flexFlex i j)
-    unifyAcc (Var i) t (k , Nil) = flexRigid i t
-    unifyAcc t (Var j) (k , Nil) = flexRigid j t
-    unifyAcc s t (k , Cons i t' subst) =
-      (λ s → (witness s) , (Cons i t' (proof s)))
-        <$> unifyAcc (replace (t' for i) s) (replace (t' for i) t) (k , subst)
-
-    unifyChildren : {n k : ℕ} → (xs ys : Vec (Term n) k) → ∃ (Subst n) → Maybe (∃ (Subst n))
-    unifyChildren [] [] acc = Just acc
-    unifyChildren (x ∷ xs) (y ∷ ys) acc = unifyAcc x y acc >>= unifyChildren xs ys
-
-  unify  : {m : ℕ} → (s t : Term m) → Maybe (∃ (Subst m))
-  unify {m} s t = unifyAcc s t (m , Nil)
+  replaceChildren : {n m k : ℕ} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
+  replaceChildren f [] = []
+  replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
