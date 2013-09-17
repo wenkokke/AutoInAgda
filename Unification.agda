@@ -3,7 +3,7 @@ open import Category.Functor
 open import Data.Fin using (Fin; zero; suc; raise)
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
 open import Data.Nat using (ℕ; zero; suc)
-open import Data.Product using (Σ; ∃; _,_)
+open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂)
 open import Data.Vec using (Vec; []; _∷_)
 open import Relation.Binary using (Decidable)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; cong)
@@ -58,13 +58,29 @@ thinxy≢x (suc x)  zero   ()
 thinxy≢x (suc x) (suc y) p
   = thinxy≢x x y (cong pred p)
 
-x≢y→thinxz≡y : ∀ {n} → (x y : Fin (suc n)) → x ≢ y → ∃ (λ z → thin x z ≡ y)
-x≢y→thinxz≡y  zero    zero   x≢y with x≢y refl
-x≢y→thinxz≡y  zero    zero   x≢y | ()
-x≢y→thinxz≡y  zero   (suc y) x≢y = y , refl
-x≢y→thinxz≡y (suc x)  zero   x≢y = {!!} , {!!}
-x≢y→thinxz≡y (suc x) (suc y) x≢y = {!!}
-
+x≢y→thinxz≡y : ∀ {n} → (x y : Fin (suc (suc n))) → x ≢ y → ∃ (λ z → thin x z ≡ y)
+x≢y→thinxz≡y  zero    zero   0≢0 with 0≢0 refl
+x≢y→thinxz≡y  zero    zero   0≢0 | ()
+x≢y→thinxz≡y  zero   (suc y) _ = y , refl
+x≢y→thinxz≡y (suc x)  zero   _ = zero , refl
+x≢y→thinxz≡y {zero} (suc (suc ())) _ _
+x≢y→thinxz≡y {zero} (suc zero) (suc (suc ())) _
+x≢y→thinxz≡y {zero} (suc zero) (suc zero) 1≢1 with 1≢1 refl
+x≢y→thinxz≡y {zero} (suc zero) (suc zero) 1≢1 | ()
+x≢y→thinxz≡y {suc n} (suc x) (suc y) sx≢sy
+  = suc (proj₁ prf) , lem x y (proj₁ prf) (proj₂ prf)
+  where
+  x≢y = sx≢sy ∘ cong suc
+  prf = x≢y→thinxz≡y x y x≢y
+  lem : ∀ {n}
+      → (x y : Fin (suc n)) (z : Fin n)
+      → thin x z ≡ y → thin (suc x) (suc z) ≡ suc y
+  lem zero zero _ ()
+  lem zero (suc .z) z refl = refl
+  lem (suc _) zero zero refl = refl
+  lem (suc _) zero (suc _) ()
+  lem (suc _) (suc _) zero ()
+  lem (suc x) (suc .(thin x z)) (suc z) refl = refl
 
 -- defining substitutions (AList in McBride, 2003)
 
