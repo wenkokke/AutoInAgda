@@ -13,10 +13,6 @@ open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_;
 
 module Unification (Op : Set) (arity : Op → ℕ) (decEqOp : Decidable {A = Op} _≡_) where
 
-data Term (n : ℕ) : Set where
-  Var : Fin n → Term n
-  Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
-
 open RawFunctor {{...}}
 
 -- * defining thick and thin
@@ -152,6 +148,53 @@ thick≡thin⁻¹ x  y .(thick x y) _ | no  x≢y  | refl
   prf₁ = x≢y→thinxz≡y x y x≢y
   prf₂ = thin≡thick⁻¹ x (proj₁ prf₁) y (proj₂ prf₁)
 
+
+-- defining terms
+
+data Term (n : ℕ) : Set where
+  Var : Fin n → Term n
+  Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
+
+-- defining replacement function (written _◂ in McBride, 2003)
+
+mutual
+  decEqTerm : ∀ {n} → Decidable {A = Term n} _≡_
+  decEqTerm (Var x) (Var  y) with decEqFin x y
+  decEqTerm (Var x) (Var .x) | yes refl = yes refl
+  decEqTerm (Var x) (Var  y) | no x≢y = no (x≢y ∘ lem)
+    where
+    lem : ∀ {n} {x y : Fin n} → Var x ≡ Var y → x ≡ y
+    lem {n} {x} {.x} refl = refl
+  decEqTerm (Var x) (Con y ys) = no (λ ())
+  decEqTerm (Con x xs) (Var y) = no (λ ())
+  decEqTerm (Con x xs) (Con y ys) with decEqOp x y
+  decEqTerm (Con x xs) (Con y ys)  | no x≢y = no (x≢y ∘ lem)
+    where
+    lem : ∀ {n} {x y} {xs : Vec (Term n) _} {ys : Vec (Term n) _} → Con x xs ≡ Con y ys → x ≡ y
+    lem {n} {x} {.x} refl = refl
+  decEqTerm (Con x xs) (Con .x ys) | yes refl with decEqVecTerm xs ys
+  decEqTerm (Con x xs) (Con .x ys) | yes refl | no xs≢ys = no (xs≢ys ∘ lem)
+    where
+    lem : ∀ {n} {x} {xs ys : Vec (Term n) _} → Con x xs ≡ Con x ys → xs ≡ ys
+    lem {n} {x} {xs} {.xs} refl = refl
+  decEqTerm (Con x xs) (Con .x .xs) | yes refl | yes refl = yes refl
+
+  decEqVecTerm : ∀ {n k} → Decidable {A = Vec (Term n) k} _≡_
+  decEqVecTerm xs ys = {!!}
+
+mutual
+  replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
+  replace f (Var i)    = f i
+  replace f (Con x xs) = Con x (replaceChildren f xs)
+
+  replaceChildren : {n m k : ℕ} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
+  replaceChildren f []       = []
+  replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
+
+replace-Var : ∀ {n} (t : Term n) → replace Var t ≡ t
+replace-Var (Var x)    = refl
+replace-Var (Con x xs) = {!!}
+
 -- defining substitutions (AList in McBride, 2003)
 
 data Subst : ℕ → ℕ → Set where
@@ -163,12 +206,3 @@ data Subst : ℕ → ℕ → Set where
 -- apply : {n m : ℕ} → Subst n m → Fin n → Term m
 -- apply Nil = Var
 -- apply (Snoc σ t x) = apply subst ⋄ (t for i)
-
-mutual
-  replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
-  replace f (Var i) = f i
-  replace f (Con x xs) = Con x (replaceChildren f xs)
-
-  replaceChildren : {n m k : ℕ} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
-  replaceChildren f [] = []
-  replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
