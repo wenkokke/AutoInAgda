@@ -3,6 +3,7 @@ open import Category.Functor
 open import Data.Fin using (Fin; zero; suc; raise)
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
 open import Data.Nat using (ℕ; zero; suc)
+open import Data.Product using (Σ; ∃; _,_)
 open import Data.Vec using (Vec; []; _∷_)
 open import Relation.Binary using (Decidable)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; cong)
@@ -33,28 +34,37 @@ thick {suc n} (suc x) (suc y) = suc <$> thick x y
 
 -- correctness of thin
 
-inject-thin : ∀ {n} → (x : Fin (suc n)) (y z : Fin n) → thin x y ≡ thin x z → y ≡ z
-inject-thin {zero}   zero    ()      _       _
-inject-thin {zero}  (suc _)  ()      _       _
-inject-thin {suc _}  zero    zero    zero    refl = refl
-inject-thin {suc _}  zero    zero   (suc _)  ()
-inject-thin {suc _}  zero   (suc _)  zero    ()
-inject-thin {suc _}  zero   (suc y) (suc .y) refl = refl
-inject-thin {suc _} (suc _)  zero    zero    refl = refl
-inject-thin {suc _} (suc _)  zero   (suc _)  ()
-inject-thin {suc _} (suc _) (suc _)  zero    ()
-inject-thin {suc n} (suc x) (suc y) (suc z)  p
-  = cong suc (inject-thin {n} x y z (cong pred p))
-  where
-  pred : ∀ {n} → Fin (suc (suc n)) → Fin (suc n)
-  pred  zero   = zero
-  pred (suc x) = x
+pred : ∀ {n} → Fin (suc (suc n)) → Fin (suc n)
+pred  zero   = zero
+pred (suc x) = x
 
-thinxy≢x : ∀ {n} → (x : Fin (suc n)) (y z : Fin n) → thin x y ≢ x
-thinxy≢x  zero    _       _      = λ ()
-thinxy≢x (suc _)  zero    _      = λ ()
-thinxy≢x (suc x) (suc y)  zero   = {!!}
-thinxy≢x (suc x) (suc y) (suc z) = {!!}
+thinxy≡thinxz→y≡z : ∀ {n} → (x : Fin (suc n)) (y z : Fin n) → thin x y ≡ thin x z → y ≡ z
+thinxy≡thinxz→y≡z {zero}   zero    ()      _       _
+thinxy≡thinxz→y≡z {zero}  (suc _)  ()      _       _
+thinxy≡thinxz→y≡z {suc _}  zero    zero    zero    refl = refl
+thinxy≡thinxz→y≡z {suc _}  zero    zero   (suc _)  ()
+thinxy≡thinxz→y≡z {suc _}  zero   (suc _)  zero    ()
+thinxy≡thinxz→y≡z {suc _}  zero   (suc y) (suc .y) refl = refl
+thinxy≡thinxz→y≡z {suc _} (suc _)  zero    zero    refl = refl
+thinxy≡thinxz→y≡z {suc _} (suc _)  zero   (suc _)  ()
+thinxy≡thinxz→y≡z {suc _} (suc _) (suc _)  zero    ()
+thinxy≡thinxz→y≡z {suc n} (suc x) (suc y) (suc z)  p
+  = cong suc (thinxy≡thinxz→y≡z {n} x y z (cong pred p))
+
+thinxy≢x : ∀ {n} → (x : Fin (suc n)) (y : Fin n) → thin x y ≢ x
+thinxy≢x  zero    zero   ()
+thinxy≢x  zero   (suc y) ()
+thinxy≢x (suc x)  zero   ()
+thinxy≢x (suc x) (suc y) p
+  = thinxy≢x x y (cong pred p)
+
+x≢y→thinxz≡y : ∀ {n} → (x y : Fin (suc n)) → x ≢ y → ∃ (λ z → thin x z ≡ y)
+x≢y→thinxz≡y  zero    zero   x≢y with x≢y refl
+x≢y→thinxz≡y  zero    zero   x≢y | ()
+x≢y→thinxz≡y  zero   (suc y) x≢y = y , refl
+x≢y→thinxz≡y (suc x)  zero   x≢y = {!!} , {!!}
+x≢y→thinxz≡y (suc x) (suc y) x≢y = {!!}
+
 
 -- defining substitutions (AList in McBride, 2003)
 
