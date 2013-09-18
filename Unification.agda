@@ -162,15 +162,15 @@ thin≡thick⁻¹
   → thin x y ≡ z
   → thick x z ≡ just y
 thin≡thick⁻¹ x y z p with p
-thin≡thick⁻¹ x y .(thin x y) _ | refl = thickthin x y
+thin≡thick⁻¹ x y .(thin x y) _ | refl = thickx∘thinx≡yes x y
   where
-  thickthin
+  thickx∘thinx≡yes
     : ∀ {n} (x : Fin (suc n)) (y : Fin n)
     → thick x (thin x y) ≡ just y
-  thickthin  zero    zero   = refl
-  thickthin  zero   (suc _) = refl
-  thickthin (suc _)  zero   = refl
-  thickthin (suc x) (suc y) = cong (_<$>_ suc) (thickthin x y)
+  thickx∘thinx≡yes  zero    zero   = refl
+  thickx∘thinx≡yes  zero   (suc _) = refl
+  thickx∘thinx≡yes (suc _)  zero   = refl
+  thickx∘thinx≡yes (suc x) (suc y) = cong (_<$>_ suc) (thickx∘thinx≡yes x y)
 
 -- | decidable equality for Fin (import from FinProps)
 -- decEqFin : ∀ {n} → Decidable {A = Fin n} _≡_
