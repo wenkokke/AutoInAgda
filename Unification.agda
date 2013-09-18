@@ -6,9 +6,10 @@ open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂) renaming (_×_ to _∧_)
 open import Data.Sum using (_⊎_; inj₁; inj₂)
-open import Data.Vec using (Vec; []; _∷_)
-open import Relation.Nullary using (yes; no)
-open import Relation.Binary
+open import Data.Vec as Vec using (Vec; []; _∷_)
+open import Data.Vec.Equality as VecEq
+open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Binary using (Decidable; DecSetoid)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; cong)
 
 module Unification (Op : Set) (arity : Op → ℕ) (decEqOp : Decidable {A = Op} _≡_) where
@@ -155,7 +156,7 @@ data Term (n : ℕ) : Set where
   Var : Fin n → Term n
   Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
 
--- defining replacement function (written _◂ in McBride, 2003)
+-- defining decidable equality on terms
 
 mutual
   decEqTerm : ∀ {n} → Decidable {A = Term n} _≡_
@@ -179,8 +180,21 @@ mutual
     lem {n} {x} {xs} {.xs} refl = refl
   decEqTerm (Con x xs) (Con .x .xs) | yes refl | yes refl = yes refl
 
+  decSetoid : ℕ → DecSetoid _ _
+  decSetoid n = PropEq.decSetoid (decEqTerm {n})
+
   decEqVecTerm : ∀ {n k} → Decidable {A = Vec (Term n) k} _≡_
-  decEqVecTerm xs ys = {!!}
+  decEqVecTerm {n} {k} = helper
+    where
+    open VecEq.Equality
+    open VecEq.DecidableEquality (decSetoid n) using (_≟_)
+    open VecEq.PropositionalEquality {_} {Term n} using (to-≡; from-≡)
+    helper : Decidable {A = Vec (Term n) k} _≡_
+    helper xs ys with xs ≟ ys
+    helper xs ys | yes p = yes (to-≡ p)
+    helper xs ys | no ¬p = no (¬p ∘ from-≡)
+
+-- defining replacement function (written _◂ in McBride, 2003)
 
 mutual
   replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
@@ -190,6 +204,8 @@ mutual
   replaceChildren : {n m k : ℕ} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
   replaceChildren f []       = []
   replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
+
+-- correctness of replacement function
 
 replace-Var : ∀ {n} (t : Term n) → replace Var t ≡ t
 replace-Var (Var x)    = refl
