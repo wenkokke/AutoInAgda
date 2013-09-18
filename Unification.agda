@@ -8,7 +8,7 @@ open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
 open import Data.Nat using (ℕ; zero; suc)
 open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂) renaming (_×_ to _∧_)
 open import Data.Sum using (_⊎_; inj₁; inj₂; [_,_])
-open import Data.Vec as Vec using (Vec; []; _∷_)
+open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
 open import Data.Vec.Equality as VecEq
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary as Bin using (Decidable; DecSetoid)
@@ -30,6 +30,50 @@ maybeMonad = Maybe.monad
 data Term (n : ℕ) : Set where
   Var : Fin n → Term n
   Con : (s : Symbol) → (ts : Vec (Term n) (arity s)) → Term n
+
+-- defining decidable equality on terms
+
+{- strangely, using the following definition doesn't pass the termination checker
+ - decEqVec : ∀ {ℓ} {n} {A : Set ℓ} (eq : Decidable {A = A} _≡_) → Decidable {A = Vec A n} _≡_
+ - decEqVec eq [] [] = yes refl
+ - decEqVec eq (x ∷ xs) ( y ∷  ys) with eq x y | decEqVec eq xs ys
+ - decEqVec eq (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
+ - decEqVec eq (x ∷ xs) (.x ∷  ys) | yes refl | no xs≢ys = no (xs≢ys ∘ cong tail)
+ - decEqVec eq (x ∷ xs) ( y ∷  ys) | no x≢y   | _        = no (x≢y ∘ cong head)
+ -}
+
+mutual
+  decEqTerm : ∀ {n} → Decidable {A = Term n} _≡_
+  decEqTerm (Var x₁) (Var x₂) with x₁ ≟ x₂
+  decEqTerm (Var .x₂) (Var x₂) | yes refl = yes refl
+  decEqTerm (Var x₁) (Var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ lem)
+    where
+    lem : ∀ {n} {x y : Fin n} → Var x ≡ Var y → x ≡ y
+    lem {n} {x} {.x} refl = refl
+  decEqTerm (Var _) (Con _ _) = no (λ ())
+  decEqTerm (Con _ _) (Var _) = no (λ ())
+  decEqTerm (Con s₁ ts₁) (Con  s₂ ts₂) with decEqSym s₁  s₂
+  decEqTerm (Con s₁ ts₁) (Con  s₂ ts₂) | no s₁≢s₂ = no (s₁≢s₂ ∘ lem)
+    where
+    lem : ∀ {n} {x y} {xs : Vec (Term n) _} {ys : Vec (Term n) _} → Con x xs ≡ Con y ys → x ≡ y
+    lem {n} {x} {.x} refl = refl
+  decEqTerm (Con s₁ ts₁) (Con .s₁ ts₂) | yes refl with decEqVecTerm ts₁ ts₂
+  decEqTerm (Con s₁ ts₁) (Con .s₁ ts₂) | yes refl | no ts₁≢ts₂ = no (ts₁≢ts₂ ∘ lem)
+    where
+    lem : ∀ {n} {x} {xs ys : Vec (Term n) _} → Con x xs ≡ Con x ys → xs ≡ ys
+    lem {n} {x} {xs} {.xs} refl = refl
+  decEqTerm (Con s₁ .ts₂) (Con .s₁ ts₂) | yes refl | yes refl = yes refl
+
+  decEqVecTerm : ∀ {n k} → Decidable {A = Vec (Term n) k} _≡_
+  decEqVecTerm [] [] = yes refl
+  decEqVecTerm (x ∷ xs) ( y ∷  ys) with decEqTerm x y | decEqVecTerm xs ys
+  decEqVecTerm (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
+  decEqVecTerm (x ∷ xs) ( y ∷  ys) | yes _    | no xs≢ys = no (xs≢ys ∘ cong tail)
+  decEqVecTerm (x ∷ xs) ( y ∷  ys) | no x≢y   | _        = no (x≢y ∘ cong head)
+
+
+termDecSetoid : ∀ {n} → DecSetoid _ _
+termDecSetoid {n} = PropEq.decSetoid (decEqTerm {n})
 
 -- defining replacement function (written _◂ in McBride, 2003)
 
@@ -82,8 +126,6 @@ mutual
   : ∀ {m n l} (f : Fin m → Term n) (r : Fin l → Fin m) (t : Term l)
   → f ◇ (Var ∘ r) ≡ f ∘ r
 ◇-id f r t = refl
-
-
 
 -- defining thick and thin
 
