@@ -9,12 +9,16 @@ open import Data.Sum using (_⊎_; inj₁; inj₂)
 open import Data.Vec as Vec using (Vec; []; _∷_)
 open import Data.Vec.Equality as VecEq
 open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary using (Decidable; DecSetoid)
-open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; cong)
+open import Relation.Binary as Bin using (Decidable; DecSetoid)
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong)
 
 module Unification (Op : Set) (arity : Op → ℕ) (decEqOp : Decidable {A = Op} _≡_) where
 
 open RawFunctor {{...}}
+open Bin.DecSetoid {{...}} using (_≟_)
+
+finDecSetoid : ∀ {n} → DecSetoid _ _
+finDecSetoid {n} = FinProps.decSetoid n
 
 -- * defining thick and thin
 
@@ -107,8 +111,8 @@ thin≡thick⁻¹ x y .(thin x y) _ | refl = thickthin x y
     functor = Maybe.functor
 
 -- | decidable equality for Fin (import from FinProps)
-decEqFin : ∀ {n} → Decidable {A = Fin n} _≡_
-decEqFin {n} = DecSetoid._≟_ (FinProps.decSetoid n)
+-- decEqFin : ∀ {n} → Decidable {A = Fin n} _≡_
+-- decEqFin {n} = DecSetoid._≟_ (FinProps.decSetoid n)
 
 -- | proof that `thick x x` returns nothing
 thickxx≡no
@@ -140,7 +144,7 @@ thick≡thin⁻¹ : ∀ {n} (x y : Fin (suc n)) (r : Maybe (Fin n))
   → thick x y ≡ r
   → x ≡ y ∧ r ≡ nothing
   ⊎ ∃ (λ z → thin x z ≡ y ∧ r ≡ just z)
-thick≡thin⁻¹ x  y _ thickxy≡r with decEqFin x y | thickxy≡r
+thick≡thin⁻¹ x  y _ thickxy≡r with x ≟ y | thickxy≡r
 thick≡thin⁻¹ x .x .(thick x x) _ | yes refl | refl
   = inj₁ (refl , thickxx≡no x)
 thick≡thin⁻¹ x  y .(thick x y) _ | no  x≢y  | refl
@@ -156,60 +160,29 @@ data Term (n : ℕ) : Set where
   Var : Fin n → Term n
   Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
 
--- defining decidable equality on terms
-
-mutual
-  decEqTerm : ∀ {n} → Decidable {A = Term n} _≡_
-  decEqTerm (Var x) (Var  y) with decEqFin x y
-  decEqTerm (Var x) (Var .x) | yes refl = yes refl
-  decEqTerm (Var x) (Var  y) | no x≢y = no (x≢y ∘ lem)
-    where
-    lem : ∀ {n} {x y : Fin n} → Var x ≡ Var y → x ≡ y
-    lem {n} {x} {.x} refl = refl
-  decEqTerm (Var x) (Con y ys) = no (λ ())
-  decEqTerm (Con x xs) (Var y) = no (λ ())
-  decEqTerm (Con x xs) (Con y ys) with decEqOp x y
-  decEqTerm (Con x xs) (Con y ys)  | no x≢y = no (x≢y ∘ lem)
-    where
-    lem : ∀ {n} {x y} {xs : Vec (Term n) _} {ys : Vec (Term n) _} → Con x xs ≡ Con y ys → x ≡ y
-    lem {n} {x} {.x} refl = refl
-  decEqTerm (Con x xs) (Con .x ys) | yes refl with decEqVecTerm xs ys
-  decEqTerm (Con x xs) (Con .x ys) | yes refl | no xs≢ys = no (xs≢ys ∘ lem)
-    where
-    lem : ∀ {n} {x} {xs ys : Vec (Term n) _} → Con x xs ≡ Con x ys → xs ≡ ys
-    lem {n} {x} {xs} {.xs} refl = refl
-  decEqTerm (Con x xs) (Con .x .xs) | yes refl | yes refl = yes refl
-
-  decSetoid : ℕ → DecSetoid _ _
-  decSetoid n = PropEq.decSetoid (decEqTerm {n})
-
-  decEqVecTerm : ∀ {n k} → Decidable {A = Vec (Term n) k} _≡_
-  decEqVecTerm {n} {k} = helper
-    where
-    open VecEq.Equality
-    open VecEq.DecidableEquality (decSetoid n) using (_≟_)
-    open VecEq.PropositionalEquality {_} {Term n} using (to-≡; from-≡)
-    helper : Decidable {A = Vec (Term n) k} _≡_
-    helper xs ys with xs ≟ ys
-    helper xs ys | yes p = yes (to-≡ p)
-    helper xs ys | no ¬p = no (¬p ∘ from-≡)
-
 -- defining replacement function (written _◂ in McBride, 2003)
 
 mutual
-  replace : {n m : ℕ} → (Fin n → Term m) → Term n → Term m
+  replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
   replace f (Var i)    = f i
   replace f (Con x xs) = Con x (replaceChildren f xs)
 
-  replaceChildren : {n m k : ℕ} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
+  replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
   replaceChildren f []       = []
   replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
 
 -- correctness of replacement function
 
-replace-Var : ∀ {n} (t : Term n) → replace Var t ≡ t
-replace-Var (Var x)    = refl
-replace-Var (Con x xs) = {!!}
+mutual
+  -- | proof that Var is the identity of replace
+  replace-id : ∀ {n} (t : Term n) → replace Var t ≡ t
+  replace-id (Var x)    = refl
+  replace-id (Con x xs) = cong (Con x) (replaceChildren-id xs)
+
+  -- | proof that Var is the identity of replaceChildren
+  replaceChildren-id : ∀ {n k} (ts : Vec (Term n) k) → replaceChildren Var ts ≡ ts
+  replaceChildren-id [] = refl
+  replaceChildren-id (t ∷ ts) rewrite replace-id t = cong (λ ts → t ∷ ts) (replaceChildren-id ts)
 
 -- defining substitutions (AList in McBride, 2003)
 
