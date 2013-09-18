@@ -1,5 +1,6 @@
 open import Function using (_∘_)
 open import Category.Functor
+open import Category.Monad
 open import Data.Fin as Fin using (Fin; zero; suc)
 open import Data.Fin.Props as FinProps using ()
 open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
@@ -15,10 +16,13 @@ open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_;
 module Unification (Op : Set) (arity : Op → ℕ) (decEqOp : Decidable {A = Op} _≡_) where
 
 open RawFunctor {{...}}
+open RawMonad {{...}} hiding (_<$>_)
 open Bin.DecSetoid {{...}} using (_≟_)
 
 finDecSetoid : ∀ {n} → DecSetoid _ _
 finDecSetoid {n} = FinProps.decSetoid n
+maybeFunctor = Maybe.functor
+maybeMonad = Maybe.monad
 
 -- defining terms
 
@@ -93,8 +97,6 @@ thick          zero   (suc y) = just y
 thick {zero}  (suc ()) _
 thick {suc n} (suc x)  zero   = just zero
 thick {suc n} (suc x) (suc y) = suc <$> thick x y
-  where
-  functor = Maybe.functor
 
 -- proving correctness of thick and thin
 
@@ -168,8 +170,6 @@ thin≡thick⁻¹ x y .(thin x y) _ | refl = thickthin x y
   thickthin  zero   (suc _) = refl
   thickthin (suc _)  zero   = refl
   thickthin (suc x) (suc y) = cong (_<$>_ suc) (thickthin x y)
-    where
-    functor = Maybe.functor
 
 -- | decidable equality for Fin (import from FinProps)
 -- decEqFin : ∀ {n} → Decidable {A = Fin n} _≡_
@@ -198,7 +198,6 @@ x≢y→thickxy≡yes {suc n} (suc x) (suc y) sx≢sy
   where
   x≢y = sx≢sy ∘ cong suc
   prf = x≢y→thickxy≡yes {n} x y x≢y
-  functor = Maybe.functor
 
 -- | proof that `thick` is the partial inverse of `thin`
 thick≡thin⁻¹ : ∀ {n} (x y : Fin (suc n)) (r : Maybe (Fin n))
@@ -213,6 +212,25 @@ thick≡thin⁻¹ x  y .(thick x y) _ | no  x≢y  | refl
   where
   prf₁ = x≢y→thinxz≡y x y x≢y
   prf₂ = thin≡thick⁻¹ x (proj₁ prf₁) y (proj₂ prf₁)
+
+-- defining an occurs check (**check** in McBride, 2003)
+
+mutual
+  check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
+  check x₁ (Var x₂) = Var <$> thick x₁ x₂
+  check x₁ (Con op xs) = Con op <$> checkChildren x₁ xs
+
+
+  checkChildren : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
+  checkChildren x₁ [] = just []
+  checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
+                              checkChildren x₁ ts >>= λ ts' →
+                              return (t' ∷ ts')
+
+checkCorrect
+  : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) (t' : Term n)
+  → check x t ≡ just t' → replace (Var ∘ thin x) t' ≡ t
+checkCorrect x t t' p = {!!}
 
 -- defining substitutions (AList in McBride, 2003)
 
