@@ -13,7 +13,7 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary as Bin using (Decidable; DecSetoid)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong)
 
-module Unification (Op : Set) (arity : Op → ℕ) (decEqOp : Decidable {A = Op} _≡_) where
+module Unification (Sym : Set) (decEqSym : Decidable {A = Sym} _≡_) where
 
 open RawFunctor {{...}}
 open RawMonad {{...}} hiding (_<$>_)
@@ -28,14 +28,14 @@ maybeMonad = Maybe.monad
 
 data Term (n : ℕ) : Set where
   Var : Fin n → Term n
-  Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
+  Con : (s : Sym) (k : ℕ) (ts : Vec (Term n) k) → Term n
 
 -- defining replacement function (written _◂ in McBride, 2003)
 
 mutual
   replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
   replace f (Var i)    = f i
-  replace f (Con x xs) = Con x (replaceChildren f xs)
+  replace f (Con s k ts) = Con s k (replaceChildren f ts)
 
   replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
   replaceChildren f []       = []
@@ -47,7 +47,7 @@ mutual
   -- | proof that Var is the identity of replace
   replace-id : ∀ {n} (t : Term n) → replace Var t ≡ t
   replace-id (Var x)    = refl
-  replace-id (Con x xs) = cong (Con x) (replaceChildren-id xs)
+  replace-id (Con s k ts) = cong (Con s k) (replaceChildren-id ts)
 
   -- | proof that Var is the identity of replaceChildren
   replaceChildren-id : ∀ {n k} (ts : Vec (Term n) k) → replaceChildren Var ts ≡ ts
@@ -67,7 +67,7 @@ mutual
     : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) (t : Term l)
     → replace (f ◇ g) t ≡ replace f (replace g t)
   replace-◇ f g (Var x) = refl
-  replace-◇ f g (Con x xs) = cong (Con x) (replaceChildren-◇ f g xs)
+  replace-◇ f g (Con s k ts) = cong (Con s k) (replaceChildren-◇ f g ts)
 
   -- | proof that ◇ rewrites to applications of replace
   replaceChildren-◇
@@ -218,7 +218,7 @@ thick≡thin⁻¹ x  y .(thick x y) _ | no  x≢y  | refl
 mutual
   check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
   check x₁ (Var x₂) = Var <$> thick x₁ x₂
-  check x₁ (Con op xs) = Con op <$> checkChildren x₁ xs
+  check x₁ (Con s k ts) = Con s k <$> checkChildren x₁ ts
 
 
   checkChildren : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
@@ -226,11 +226,14 @@ mutual
   checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
                               checkChildren x₁ ts >>= λ ts' →
                               return (t' ∷ ts')
+mutual
+  data Occurs {n : ℕ} (x : Fin n) : Term n → Set where
+    Here    : Occurs x (Var x)
+    Further : ∀ {s k ts} → OccursChildren x ts → Occurs x (Con s k ts)
 
-checkCorrect
-  : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) (t' : Term n)
-  → check x t ≡ just t' → replace (Var ∘ thin x) t' ≡ t
-checkCorrect x t t' p = {!!}
+  data OccursChildren {n : ℕ} (x : Fin n) : {k : ℕ} → Vec (Term n) k → Set where
+    Here    : ∀ {k t ts} → Occurs x t → OccursChildren x {suc k} (t ∷ ts)
+    Further : ∀ {k t ts} → OccursChildren x {k} ts → OccursChildren x {suc k} (t ∷ ts)
 
 -- defining substitutions (AList in McBride, 2003)
 
