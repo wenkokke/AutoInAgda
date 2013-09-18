@@ -20,7 +20,67 @@ open Bin.DecSetoid {{...}} using (_≟_)
 finDecSetoid : ∀ {n} → DecSetoid _ _
 finDecSetoid {n} = FinProps.decSetoid n
 
--- * defining thick and thin
+-- defining terms
+
+data Term (n : ℕ) : Set where
+  Var : Fin n → Term n
+  Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
+
+-- defining replacement function (written _◂ in McBride, 2003)
+
+mutual
+  replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
+  replace f (Var i)    = f i
+  replace f (Con x xs) = Con x (replaceChildren f xs)
+
+  replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
+  replaceChildren f []       = []
+  replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
+
+-- correctness of replacement function
+
+mutual
+  -- | proof that Var is the identity of replace
+  replace-id : ∀ {n} (t : Term n) → replace Var t ≡ t
+  replace-id (Var x)    = refl
+  replace-id (Con x xs) = cong (Con x) (replaceChildren-id xs)
+
+  -- | proof that Var is the identity of replaceChildren
+  replaceChildren-id : ∀ {n k} (ts : Vec (Term n) k) → replaceChildren Var ts ≡ ts
+  replaceChildren-id [] = refl
+  replaceChildren-id (t ∷ ts) rewrite replace-id t = cong (_∷_ _) (replaceChildren-id ts)
+
+-- defining substitution/replacement composition
+
+_◇_ : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) → Fin l → Term n
+_◇_ f g = replace f ∘ g
+
+-- correctness of substitution/replacement composition
+
+mutual
+  -- | proof that ◇ rewrites to applications of replace
+  replace-◇
+    : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) (t : Term l)
+    → replace (f ◇ g) t ≡ replace f (replace g t)
+  replace-◇ f g (Var x) = refl
+  replace-◇ f g (Con x xs) = cong (Con x) (replaceChildren-◇ f g xs)
+
+  -- | proof that ◇ rewrites to applications of replace
+  replaceChildren-◇
+    : ∀ {m n l k} (f : Fin m → Term n) (g : Fin l → Term m) (ts : Vec (Term l) k)
+    → replaceChildren (f ◇ g) ts ≡ replaceChildren f (replaceChildren g ts)
+  replaceChildren-◇ f g [] = refl
+  replaceChildren-◇ f g (t ∷ ts) rewrite replace-◇ f g t = cong (_∷_ _) (replaceChildren-◇ f g ts)
+
+-- | proof that `Var ∘ _` is the identity of ◇
+◇-id
+  : ∀ {m n l} (f : Fin m → Term n) (r : Fin l → Fin m) (t : Term l)
+  → f ◇ (Var ∘ r) ≡ f ∘ r
+◇-id f r t = refl
+
+
+
+-- defining thick and thin
 
 thin : {n : ℕ} -> Fin (suc n) -> Fin n -> Fin (suc n)
 thin  zero    y      = suc y
@@ -36,8 +96,9 @@ thick {suc n} (suc x) (suc y) = suc <$> thick x y
   where
   functor = Maybe.functor
 
--- * proving correctness of thick and thin
+-- proving correctness of thick and thin
 
+-- | predecessor function over finite numbers
 pred : ∀ {n} → Fin (suc (suc n)) → Fin (suc n)
 pred  zero   = zero
 pred (suc x) = x
@@ -152,37 +213,6 @@ thick≡thin⁻¹ x  y .(thick x y) _ | no  x≢y  | refl
   where
   prf₁ = x≢y→thinxz≡y x y x≢y
   prf₂ = thin≡thick⁻¹ x (proj₁ prf₁) y (proj₂ prf₁)
-
-
--- defining terms
-
-data Term (n : ℕ) : Set where
-  Var : Fin n → Term n
-  Con : (x : Op) → (xs : Vec (Term n) (arity x)) → Term n
-
--- defining replacement function (written _◂ in McBride, 2003)
-
-mutual
-  replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
-  replace f (Var i)    = f i
-  replace f (Con x xs) = Con x (replaceChildren f xs)
-
-  replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
-  replaceChildren f []       = []
-  replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
-
--- correctness of replacement function
-
-mutual
-  -- | proof that Var is the identity of replace
-  replace-id : ∀ {n} (t : Term n) → replace Var t ≡ t
-  replace-id (Var x)    = refl
-  replace-id (Con x xs) = cong (Con x) (replaceChildren-id xs)
-
-  -- | proof that Var is the identity of replaceChildren
-  replaceChildren-id : ∀ {n k} (ts : Vec (Term n) k) → replaceChildren Var ts ≡ ts
-  replaceChildren-id [] = refl
-  replaceChildren-id (t ∷ ts) rewrite replace-id t = cong (λ ts → t ∷ ts) (replaceChildren-id ts)
 
 -- defining substitutions (AList in McBride, 2003)
 
