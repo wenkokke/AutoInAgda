@@ -1,7 +1,7 @@
 open import Function using (_∘_)
 open import Category.Functor
 open import Category.Monad
-open import Data.Empty using (⊥)
+open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Fin as Fin using (Fin; zero; suc)
 open import Data.Fin.Props as FinProps using ()
 open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
@@ -10,7 +10,7 @@ open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂) renaming (_×_ t
 open import Data.Sum using (_⊎_; inj₁; inj₂; [_,_])
 open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
 open import Data.Vec.Equality as VecEq
-open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary as Bin using (Decidable; DecSetoid)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong)
 
@@ -107,25 +107,25 @@ _◇_ f g = replace f ∘ g
 -- correctness of substitution/replacement composition
 
 mutual
-  -- | proof that ◇ rewrites to applications of replace
-  replace-◇
+  -- | proof that _◇_ behaves as composition of replacements
+  ◇-replace
     : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) (t : Term l)
     → replace (f ◇ g) t ≡ replace f (replace g t)
-  replace-◇ f g (Var x) = refl
-  replace-◇ f g (Con s ts) = cong (Con s) (replaceChildren-◇ f g ts)
+  ◇-replace f g (Var x) = refl
+  ◇-replace f g (Con s ts) = cong (Con s) (◇-replaceChildren f g ts)
 
-  -- | proof that ◇ rewrites to applications of replace
-  replaceChildren-◇
+  -- | proof that _◇_ behaves as composition of replacements
+  ◇-replaceChildren
     : ∀ {m n l k} (f : Fin m → Term n) (g : Fin l → Term m) (ts : Vec (Term l) k)
     → replaceChildren (f ◇ g) ts ≡ replaceChildren f (replaceChildren g ts)
-  replaceChildren-◇ f g [] = refl
-  replaceChildren-◇ f g (t ∷ ts) rewrite replace-◇ f g t = cong (_∷_ _) (replaceChildren-◇ f g ts)
+  ◇-replaceChildren f g [] = refl
+  ◇-replaceChildren f g (t ∷ ts) rewrite ◇-replace f g t = cong (_∷_ _) (◇-replaceChildren f g ts)
 
 -- | proof that `Var ∘ _` is the identity of ◇
-◇-id
+◇-identity
   : ∀ {m n l} (f : Fin m → Term n) (r : Fin l → Fin m) (t : Term l)
   → f ◇ (Var ∘ r) ≡ f ∘ r
-◇-id f r t = refl
+◇-identity f r t = refl
 
 -- defining thick and thin
 
@@ -149,20 +149,20 @@ pred  zero   = zero
 pred (suc x) = x
 
 -- | proof of injectivity of thin
-thinxy≡thinxz→y≡z
+thin-injective
   : ∀ {n} (x : Fin (suc n)) (y z : Fin n)
   → thin x y ≡ thin x z → y ≡ z
-thinxy≡thinxz→y≡z {zero}   zero    ()      _       _
-thinxy≡thinxz→y≡z {zero}  (suc _)  ()      _       _
-thinxy≡thinxz→y≡z {suc _}  zero    zero    zero    refl = refl
-thinxy≡thinxz→y≡z {suc _}  zero    zero   (suc _)  ()
-thinxy≡thinxz→y≡z {suc _}  zero   (suc _)  zero    ()
-thinxy≡thinxz→y≡z {suc _}  zero   (suc y) (suc .y) refl = refl
-thinxy≡thinxz→y≡z {suc _} (suc _)  zero    zero    refl = refl
-thinxy≡thinxz→y≡z {suc _} (suc _)  zero   (suc _)  ()
-thinxy≡thinxz→y≡z {suc _} (suc _) (suc _)  zero    ()
-thinxy≡thinxz→y≡z {suc n} (suc x) (suc y) (suc z)  p
-  = cong suc (thinxy≡thinxz→y≡z x y z (cong pred p))
+thin-injective {zero}   zero    ()      _       _
+thin-injective {zero}  (suc _)  ()      _       _
+thin-injective {suc _}  zero    zero    zero    refl = refl
+thin-injective {suc _}  zero    zero   (suc _)  ()
+thin-injective {suc _}  zero   (suc _)  zero    ()
+thin-injective {suc _}  zero   (suc y) (suc .y) refl = refl
+thin-injective {suc _} (suc _)  zero    zero    refl = refl
+thin-injective {suc _} (suc _)  zero   (suc _)  ()
+thin-injective {suc _} (suc _) (suc _)  zero    ()
+thin-injective {suc n} (suc x) (suc y) (suc z)  p
+  = cong suc (thin-injective x y z (cong pred p))
 
 -- | proof that thin x will never map anything to x
 thinxy≢x
@@ -198,6 +198,15 @@ x≢y→thinxz≡y {suc _} (suc x)  (suc y)  sx≢sy
   lem (suc _) (suc _)            zero   ()
   lem (suc x) (suc .(thin x z)) (suc z) refl = refl
 
+-- | proof that thick x composed with thin x is the identity
+thickx∘thinx≡yes
+  : ∀ {n} (x : Fin (suc n)) (y : Fin n)
+  → thick x (thin x y) ≡ just y
+thickx∘thinx≡yes  zero    zero   = refl
+thickx∘thinx≡yes  zero   (suc _) = refl
+thickx∘thinx≡yes (suc _)  zero   = refl
+thickx∘thinx≡yes (suc x) (suc y) = cong (_<$>_ suc) (thickx∘thinx≡yes x y)
+
 -- | proof that `thin` is a partial inverse of `thick`
 thin≡thick⁻¹
   : ∀ {n} (x : Fin (suc n)) (y : Fin n) (z : Fin (suc n))
@@ -205,18 +214,6 @@ thin≡thick⁻¹
   → thick x z ≡ just y
 thin≡thick⁻¹ x y z p with p
 thin≡thick⁻¹ x y .(thin x y) _ | refl = thickx∘thinx≡yes x y
-  where
-  thickx∘thinx≡yes
-    : ∀ {n} (x : Fin (suc n)) (y : Fin n)
-    → thick x (thin x y) ≡ just y
-  thickx∘thinx≡yes  zero    zero   = refl
-  thickx∘thinx≡yes  zero   (suc _) = refl
-  thickx∘thinx≡yes (suc _)  zero   = refl
-  thickx∘thinx≡yes (suc x) (suc y) = cong (_<$>_ suc) (thickx∘thinx≡yes x y)
-
--- | decidable equality for Fin (import from FinProps)
--- decEqFin : ∀ {n} → Decidable {A = Fin n} _≡_
--- decEqFin {n} = DecSetoid._≟_ (FinProps.decSetoid n)
 
 -- | proof that `thick x x` returns nothing
 thickxx≡no
@@ -281,25 +278,25 @@ mutual
     Here    : ∀ {k t ts} → Occurs x t → OccursChildren x {suc k} (t ∷ ts)
     Further : ∀ {k t ts} → OccursChildren x {k} ts → OccursChildren x {suc k} (t ∷ ts)
 
-Occurs→≡ : ∀ {n} (x y : Fin n) → Occurs x (Var y) → x ≡ y
-Occurs→≡  zero    zero    _    = refl
-Occurs→≡  zero   (suc _)  ()
-Occurs→≡ (suc x)  zero    ()
-Occurs→≡ (suc x) (suc .x) Here = refl
-
-Occurs→OccursChildren : ∀ {n s ts} (x : Fin n) → Occurs x (Con s ts) → OccursChildren x ts
-Occurs→OccursChildren x (Further p) = p
-
 -- defining a decidable version of the occurs predicate
 
 mutual
   occurs? : ∀ {n} (x : Fin n) (t : Term n) → Dec (Occurs x t)
   occurs?  x₁ (Var x₂) with x₁ ≟ x₂
   occurs? .x₂ (Var x₂) | yes refl = yes Here
-  occurs?  x₁ (Var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ Occurs→≡ x₁ x₂)
+  occurs?  x₁ (Var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ lem x₁ x₂)
+    where
+    lem : ∀ {n} (x y : Fin n) → Occurs x (Var y) → x ≡ y
+    lem  zero    zero    _    = refl
+    lem  zero   (suc _)  ()
+    lem (suc x)  zero    ()
+    lem (suc x) (suc .x) Here = refl
   occurs?  x₁ (Con s ts) with occursChildren? x₁ ts
   occurs?  x₁ (Con s ts) | yes x₁∈ts = yes (Further x₁∈ts)
-  occurs?  x₁ (Con s ts) | no  x₁∉ts = no (x₁∉ts ∘ Occurs→OccursChildren x₁)
+  occurs?  x₁ (Con s ts) | no  x₁∉ts = no (x₁∉ts ∘ lem x₁)
+    where
+    lem : ∀ {n s ts} (x : Fin n) → Occurs x (Con s ts) → OccursChildren x ts
+    lem x (Further p) = p
 
   occursChildren? : ∀ {n k} (x : Fin n) (ts : Vec (Term n) k) → Dec (OccursChildren x ts)
   occursChildren? x₁ [] = no (λ ())
@@ -313,14 +310,75 @@ mutual
     lem (Here p)    = ¬h p
     lem (Further p) = ¬f p
 
+-- proving correctness of check
+
+mutual
+  -- | proving that if x occurs in t, check returns nothing
+  occurs→check≡no
+    : ∀ {n} (x : Fin (suc n)) (t : Term (suc n))
+    → Occurs x t → check x t ≡ nothing
+  occurs→check≡no x .(Var x) Here
+    rewrite thickxx≡no x = refl
+  occurs→check≡no x .(Con s ts) (Further {s} {ts} p)
+    rewrite occursChildren→checkChildren≡no x ts p = refl
+
+  -- | proving that if x occurs in ts, checkChildren returns nothing
+  occursChildren→checkChildren≡no
+    : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k)
+    → OccursChildren x ts → checkChildren x ts ≡ nothing
+  occursChildren→checkChildren≡no x .(t ∷ ts) (Here {k} {t} {ts} p)
+    rewrite occurs→check≡no x t p = refl
+  occursChildren→checkChildren≡no x .(t ∷ ts) (Further {k} {t} {ts} p)
+    with check x t
+  ... | just  _ rewrite occursChildren→checkChildren≡no x ts p = refl
+  ... | nothing rewrite occursChildren→checkChildren≡no x ts p = refl
+
+mutual
+  check≡no→occurs
+    : ∀ {n} (x : Fin (suc n)) (t : Term (suc n))
+    → check x t ≡ nothing → Occurs x t
+  check≡no→occurs  x₁ (Var x₂) p with x₁ ≟ x₂
+  check≡no→occurs .x₂ (Var x₂) p | yes refl = Here
+  check≡no→occurs  x₁ (Var x₂) p | no x₁≢x₂ = ⊥-elim (lem₂ p)
+    where
+    lem₁ : ∃ (λ z → thick x₁ x₂ ≡ just z)
+    lem₁ = x≢y→thickxy≡yes x₁ x₂ x₁≢x₂
+    lem₂ : Var <$> thick x₁ x₂ ≡ nothing → ⊥
+    lem₂ rewrite proj₂ lem₁ = λ ()
+  check≡no→occurs x₁ (Con s ts) p = {!!}
+
+  checkChildren≡no→occursChildren
+    : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k)
+    → checkChildren x ts ≡ nothing → OccursChildren x ts
+  checkChildren≡no→occursChildren x [] ()
+  checkChildren≡no→occursChildren x (t ∷ ts) p with check x t | checkChildren x ts
+  checkChildren≡no→occursChildren x (t ∷ ts) refl | nothing | _       = Here (check≡no→occurs x t {!!})
+  checkChildren≡no→occursChildren x (t ∷ ts) refl | just  _ | nothing = Further (checkChildren≡no→occursChildren x ts {!!})
+  checkChildren≡no→occursChildren x (t ∷ ts) ()   | just  _ | just  _
+
+
 -- defining substitutions (AList in McBride, 2003)
 
 data Subst : ℕ → ℕ → Set where
-  Nil  : ∀ {n} → Subst n n
-  Snoc : ∀ {m n} → Subst m n → Term m → Fin (suc m) → Subst (suc m) n
+  nil  : ∀ {n}   → Subst n n
+  snoc : ∀ {m n} → (s : Subst m n) → (t : Term m) → (x : Fin (suc m)) → Subst (suc m) n
 
--- defining substitution (**sub** in McBride, 2003)
+-- defining function substituting t for x (**for** in McBride, 2003)
 
--- apply : {n m : ℕ} → Subst n m → Fin n → Term m
--- apply Nil = Var
--- apply (Snoc σ t x) = apply subst ⋄ (t for i)
+_for_ : ∀ {n} (t : Term n) (x : Fin (suc n)) → Fin (suc n) → Term n
+_for_ t x y with thick x y
+_for_ t x y | just y' = Var y'
+_for_ t x y | nothing = t
+
+-- proving correctness of _for_
+
+for-identity
+  : ∀ {n} (t : Term n) (x : Fin (suc n)) (y : Fin n)
+  → (t for x) (thin x y) ≡ Var y
+for-identity t x y rewrite thickx∘thinx≡yes x y = refl
+
+-- defining substitution application (**sub** in McBride, 2003)
+
+apply : ∀ {m n} → Subst m n → Fin m → Term n
+apply nil = Var
+apply (snoc s t x) = (apply s) ◇ (t for x)
