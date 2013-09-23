@@ -12,7 +12,7 @@ open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
 open import Data.Vec.Equality as VecEq
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary as Bin using (Decidable; DecSetoid)
-open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong)
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong; inspect; Reveal_is_; [_])
 
 module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : Decidable {A = Symbol} _≡_) where
 
@@ -33,14 +33,15 @@ data Term (n : ℕ) : Set where
 
 -- defining decidable equality on terms
 
-{- strangely, using the following definition doesn't pass the termination checker
- - decEqVec : ∀ {ℓ} {n} {A : Set ℓ} (eq : Decidable {A = A} _≡_) → Decidable {A = Vec A n} _≡_
- - decEqVec eq [] [] = yes refl
- - decEqVec eq (x ∷ xs) ( y ∷  ys) with eq x y | decEqVec eq xs ys
- - decEqVec eq (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
- - decEqVec eq (x ∷ xs) (.x ∷  ys) | yes refl | no xs≢ys = no (xs≢ys ∘ cong tail)
- - decEqVec eq (x ∷ xs) ( y ∷  ys) | no x≢y   | _        = no (x≢y ∘ cong head)
- -}
+-- strangely, using the following definition doesn't pass the termination checker
+--
+--   decEqVec : ∀ {ℓ} {n} {A : Set ℓ} (eq : Decidable {A = A} _≡_) → Decidable {A = Vec A n} _≡_
+--   decEqVec eq [] [] = yes refl
+--   decEqVec eq (x ∷ xs) ( y ∷  ys) with eq x y | decEqVec eq xs ys
+--   decEqVec eq (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
+--   decEqVec eq (x ∷ xs) (.x ∷  ys) | yes refl | no xs≢ys = no (xs≢ys ∘ cong tail)
+--   decEqVec eq (x ∷ xs) ( y ∷  ys) | no x≢y   | _        = no (x≢y ∘ cong head)
+--
 
 mutual
   decEqTerm : ∀ {n} → Decidable {A = Term n} _≡_
@@ -74,6 +75,8 @@ mutual
 
 termDecSetoid : ∀ {n} → DecSetoid _ _
 termDecSetoid {n} = PropEq.decSetoid (decEqTerm {n})
+
+
 
 -- defining replacement function (written _◂ in McBride, 2003)
 
@@ -126,6 +129,8 @@ mutual
   : ∀ {m n l} (f : Fin m → Term n) (r : Fin l → Fin m) (t : Term l)
   → f ◇ (Var ∘ r) ≡ f ∘ r
 ◇-identity f r t = refl
+
+
 
 -- defining thick and thin
 
@@ -253,6 +258,8 @@ thick≡thin⁻¹ x  y .(thick x y) _ | no  x≢y  | refl
   prf₁ = x≢y→thinxz≡y x y x≢y
   prf₂ = thin≡thick⁻¹ x (proj₁ prf₁) y (proj₂ prf₁)
 
+
+
 -- defining an occurs check (**check** in McBride, 2003)
 
 mutual
@@ -334,6 +341,7 @@ mutual
   ... | nothing rewrite occursChildren→checkChildren≡no x ts p = refl
 
 mutual
+  -- | proof that if check x t returns nothing, x occurs in t
   check≡no→occurs
     : ∀ {n} (x : Fin (suc n)) (t : Term (suc n))
     → check x t ≡ nothing → Occurs x t
@@ -345,16 +353,25 @@ mutual
     lem₁ = x≢y→thickxy≡yes x₁ x₂ x₁≢x₂
     lem₂ : Var <$> thick x₁ x₂ ≡ nothing → ⊥
     lem₂ rewrite proj₂ lem₁ = λ ()
-  check≡no→occurs x₁ (Con s ts) p = {!!}
+  check≡no→occurs {n} x₁ (Con s ts) p
+    = Further (checkChildren≡no→occursChildren x₁ ts (lem p))
+    where
+    lem : Con s <$> checkChildren x₁ ts ≡ nothing → checkChildren x₁ ts ≡ nothing
+    lem p with checkChildren x₁ ts | inspect (checkChildren x₁) ts
+    lem () | just  _ | [ eq ]
+    lem p  | nothing | [ eq ] = refl
 
+  -- | proof that if checkChildren x ts returns nothing, x occurs in ts
   checkChildren≡no→occursChildren
     : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k)
     → checkChildren x ts ≡ nothing → OccursChildren x ts
   checkChildren≡no→occursChildren x [] ()
-  checkChildren≡no→occursChildren x (t ∷ ts) p with check x t | checkChildren x ts
-  checkChildren≡no→occursChildren x (t ∷ ts) refl | nothing | _       = Here (check≡no→occurs x t {!!})
-  checkChildren≡no→occursChildren x (t ∷ ts) refl | just  _ | nothing = Further (checkChildren≡no→occursChildren x ts {!!})
-  checkChildren≡no→occursChildren x (t ∷ ts) ()   | just  _ | just  _
+  checkChildren≡no→occursChildren x (t ∷ ts) p with check x t | inspect (check x) t
+  ... | nothing | [ e₁ ] = Here (check≡no→occurs x t e₁)
+  ... | just  _ | [ e₁ ] with checkChildren x ts | inspect (checkChildren x) ts
+  ... | nothing | [ e₂ ] = Further (checkChildren≡no→occursChildren x ts e₂)
+  checkChildren≡no→occursChildren x (t ∷ ts) () | just _ | [ e₁ ] | just _ | [ e₂ ]
+
 
 
 -- defining substitutions (AList in McBride, 2003)
@@ -376,6 +393,12 @@ for-identity
   : ∀ {n} (t : Term n) (x : Fin (suc n)) (y : Fin n)
   → (t for x) (thin x y) ≡ Var y
 for-identity t x y rewrite thickx∘thinx≡yes x y = refl
+
+for-unifies
+  : ∀ {n} (t : Term (suc n)) (x : Fin (suc n)) (t' : Term n)
+  → check x t ≡ just t'
+  → replace (t' for x) t  ≡ (t' for x) x
+for-unifies t x t' p = {!!}
 
 -- defining substitution application (**sub** in McBride, 2003)
 
