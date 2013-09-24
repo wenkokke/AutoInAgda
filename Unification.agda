@@ -274,6 +274,22 @@ mutual
                               checkChildren x₁ ts >>= λ ts' →
                               return (t' ∷ ts')
 
+-- | proof that if check returns nothing, checkChildren will too
+check≡no→checkChildren≡no
+  : ∀ {n} (x : Fin (suc n)) (s : Symbol) (ts : Vec (Term (suc n)) (arity s))
+  → check x (Con s ts) ≡ nothing → checkChildren x ts ≡ nothing
+check≡no→checkChildren≡no x s ts p with checkChildren x ts
+check≡no→checkChildren≡no x s ts p  | nothing = refl
+check≡no→checkChildren≡no x s ts () | just _
+
+-- | proof that if check returns something, checkChildren will too
+check≡yes→checkChildren≡yes
+  : ∀ {n} (x : Fin (suc n)) (s : Symbol) (ts : Vec (Term (suc n)) (arity s)) (ts' : Vec (Term n) (arity s))
+  → check x (Con s ts) ≡ just (Con s ts') → checkChildren x ts ≡ just ts'
+check≡yes→checkChildren≡yes x s ts ts' p with checkChildren x ts
+check≡yes→checkChildren≡yes x s ts ts' refl | just .ts' = refl
+check≡yes→checkChildren≡yes x s ts ts' ()   | nothing
+
 -- defining an occurs predicate that tests if x occurs in a term t
 
 mutual
@@ -373,6 +389,23 @@ mutual
   checkChildren≡no→occursChildren x (t ∷ ts) () | just _ | [ e₁ ] | just _ | [ e₂ ]
 
 
+-- | proof that if check returns just, x does not occur in t
+check≡yes→¬occurs
+  : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) (t' : Term n)
+  → check x t ≡ just t' → ¬ (Occurs x t)
+check≡yes→¬occurs x t t' p₁ x∈t with occurs→check≡no x t x∈t
+check≡yes→¬occurs x t t' p₁ _   | p₂  with check x t
+check≡yes→¬occurs x t t' p₁ _   | ()  | just _
+check≡yes→¬occurs x t t' () _   | p₂  | nothing
+
+-- | proof that x does not occur in t, check returns just
+¬occurs→check≡yes
+  : ∀ {n} (x : Fin (suc n)) (t : Term (suc n))
+  → ¬ (Occurs x t) → ∃ (λ t' → check x t ≡ just t')
+¬occurs→check≡yes x t x∉t with check x t | inspect (check x) t
+¬occurs→check≡yes x t x∉t | nothing | [ eq ] with x∉t (check≡no→occurs x t eq)
+¬occurs→check≡yes x t x∉t | nothing | [ eq ] | ()
+¬occurs→check≡yes x t x∉t | just t' | [ eq ] = t' , refl
 
 -- defining substitutions (AList in McBride, 2003)
 
@@ -389,16 +422,30 @@ _for_ t x y | nothing = t
 
 -- proving correctness of _for_
 
+-- | proof that if there is nothing to unify, _for_ is the identity
 for-identity
   : ∀ {n} (t : Term n) (x : Fin (suc n)) (y : Fin n)
   → (t for x) (thin x y) ≡ Var y
 for-identity t x y rewrite thickx∘thinx≡yes x y = refl
 
-for-unifies
-  : ∀ {n} (t : Term (suc n)) (x : Fin (suc n)) (t' : Term n)
-  → check x t ≡ just t'
-  → replace (t' for x) t  ≡ (t' for x) x
-for-unifies t x t' p = {!!}
+mutual
+  -- | proof that if there is something to unify, _for_ unifies
+  for-unifies
+    : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) (t' : Term n)
+    → check x t ≡ just t' → replace (t' for x) t ≡ (t' for x) x
+  for-unifies  x (Var y) _ _ with x ≟ y
+  for-unifies .y (Var y) _ _ | yes refl = refl
+  for-unifies  x (Var y) _ _ | no x≢y
+    with thick x y | x≢y→thickxy≡yes x y x≢y
+       | thick x x | thickxx≡no x
+  for-unifies  x (Var y) .(Var z) refl | no _
+       | .(just z) | z , refl
+       | .nothing  | refl = refl
+  for-unifies  x (Con s ts) _ _ with checkChildren x ts | inspect (checkChildren x) ts
+  for-unifies  x (Con s ts) _ () | nothing | _
+  for-unifies  x (Con s ts) .(Con s ts') refl | just ts' | [ checkChildren≡yes ] = {!!}
+
+  -- TODO: prove recursive case for _for_, for-unifiesChildren
 
 -- defining substitution application (**sub** in McBride, 2003)
 
