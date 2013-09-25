@@ -11,125 +11,159 @@ open import Data.Sum using (_⊎_; inj₁; inj₂; [_,_])
 open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
 open import Data.Vec.Equality as VecEq
 open import Relation.Nullary using (Dec; yes; no; ¬_)
-open import Relation.Binary as Bin using (Decidable; DecSetoid)
+open import Relation.Binary
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong; inspect; Reveal_is_; [_])
 
-module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : Decidable {A = Symbol} _≡_) where
+module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s₂ : Symbol) → Dec (s₁ ≡ s₂)) where
 
-open RawFunctor {{...}}
-open RawMonad {{...}} hiding (_<$>_)
-open Bin.DecSetoid {{...}} using (_≟_)
+  open RawFunctor {{...}}
+  open RawMonad {{...}} hiding (_<$>_)
+  open DecSetoid {{...}} using (_≟_)
 
-private maybeFunctor = Maybe.functor
-private maybeMonad = Maybe.monad
-private finDecSetoid : ∀ {n} → DecSetoid _ _
-        finDecSetoid {n} = FinProps.decSetoid n
+  private maybeFunctor = Maybe.functor
+  private maybeMonad = Maybe.monad
+  private finDecSetoid : ∀ {n} → DecSetoid _ _
+          finDecSetoid {n} = FinProps.decSetoid n
 
--- defining terms
+  -- defining terms
 
-data Term (n : ℕ) : Set where
-  Var : Fin n → Term n
-  Con : (s : Symbol) → (ts : Vec (Term n) (arity s)) → Term n
+  data Term (n : ℕ) : Set where
+    var : Fin n → Term n
+    con : (s : Symbol) → (ts : Vec (Term n) (arity s)) → Term n
 
--- defining decidable equality on terms
-mutual
-  decEqTerm : ∀ {n} → Decidable {A = Term n} _≡_
-  decEqTerm (Var  x₁) (Var x₂) with x₁ ≟ x₂
-  decEqTerm (Var .x₂) (Var x₂) | yes refl = yes refl
-  decEqTerm (Var  x₁) (Var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ lem)
-    where
-    lem : ∀ {n} {x y : Fin n} → Var x ≡ Var y → x ≡ y
-    lem {n} {x} {.x} refl = refl
-  decEqTerm (Var _) (Con _ _) = no (λ ())
-  decEqTerm (Con _ _) (Var _) = no (λ ())
-  decEqTerm (Con s₁ ts₁) (Con  s₂ ts₂) with decEqSym s₁  s₂
-  decEqTerm (Con s₁ ts₁) (Con  s₂ ts₂) | no s₁≢s₂ = no (s₁≢s₂ ∘ lem)
-    where
-    lem : ∀ {n} {x y} {xs : Vec (Term n) _} {ys : Vec (Term n) _} → Con x xs ≡ Con y ys → x ≡ y
-    lem {n} {x} {.x} refl = refl
-  decEqTerm (Con s₁ ts₁) (Con .s₁ ts₂) | yes refl with decEqVecTerm ts₁ ts₂
-  decEqTerm (Con s₁ ts₁) (Con .s₁ ts₂) | yes refl | no ts₁≢ts₂ = no (ts₁≢ts₂ ∘ lem)
-    where
-    lem : ∀ {n} {x} {xs ys : Vec (Term n) _} → Con x xs ≡ Con x ys → xs ≡ ys
-    lem {n} {x} {xs} {.xs} refl = refl
-  decEqTerm (Con s₁ .ts₂) (Con .s₁ ts₂) | yes refl | yes refl = yes refl
+  -- defining decidable equality on terms
+  mutual
+    decEqTerm : ∀ {n} → (t₁ t₂ : Term n) → Dec (t₁ ≡ t₂)
+    decEqTerm (var  x₁) (var x₂) with x₁ ≟ x₂
+    decEqTerm (var .x₂) (var x₂) | yes refl = yes refl
+    decEqTerm (var  x₁) (var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ lem)
+      where
+      lem : ∀ {n} {x y : Fin n} → var x ≡ var y → x ≡ y
+      lem {n} {x} {.x} refl = refl
+    decEqTerm (var _) (con _ _) = no (λ ())
+    decEqTerm (con _ _) (var _) = no (λ ())
+    decEqTerm (con s₁ ts₁) (con  s₂ ts₂) with decEqSym s₁  s₂
+    decEqTerm (con s₁ ts₁) (con  s₂ ts₂) | no s₁≢s₂ = no (s₁≢s₂ ∘ lem)
+      where
+      lem : ∀ {n} {x y} {xs : Vec (Term n) _} {ys : Vec (Term n) _} → con x xs ≡ con y ys → x ≡ y
+      lem {n} {x} {.x} refl = refl
+    decEqTerm (con s₁ ts₁) (con .s₁ ts₂) | yes refl with decEqVecTerm ts₁ ts₂
+    decEqTerm (con s₁ ts₁) (con .s₁ ts₂) | yes refl | no ts₁≢ts₂ = no (ts₁≢ts₂ ∘ lem)
+      where
+      lem : ∀ {n} {x} {xs ys : Vec (Term n) _} → con x xs ≡ con x ys → xs ≡ ys
+      lem {n} {x} {xs} {.xs} refl = refl
+    decEqTerm (con s₁ .ts₂) (con .s₁ ts₂) | yes refl | yes refl = yes refl
 
-  decEqVecTerm : ∀ {n k} → Decidable {A = Vec (Term n) k} _≡_
-  decEqVecTerm [] [] = yes refl
-  decEqVecTerm (x ∷ xs) ( y ∷  ys) with decEqTerm x y | decEqVecTerm xs ys
-  decEqVecTerm (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
-  decEqVecTerm (x ∷ xs) ( y ∷  ys) | yes _    | no xs≢ys = no (xs≢ys ∘ cong tail)
-  decEqVecTerm (x ∷ xs) ( y ∷  ys) | no x≢y   | _        = no (x≢y ∘ cong head)
+    decEqVecTerm : ∀ {n k} → (xs ys : Vec (Term n) k) → Dec (xs ≡ ys)
+    decEqVecTerm [] [] = yes refl
+    decEqVecTerm (x ∷ xs) ( y ∷  ys) with decEqTerm x y | decEqVecTerm xs ys
+    decEqVecTerm (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
+    decEqVecTerm (x ∷ xs) ( y ∷  ys) | yes _    | no xs≢ys = no (xs≢ys ∘ cong tail)
+    decEqVecTerm (x ∷ xs) ( y ∷  ys) | no x≢y   | _        = no (x≢y ∘ cong head)
 
-termDecSetoid : ∀ {n} → DecSetoid _ _
-termDecSetoid {n} = PropEq.decSetoid (decEqTerm {n})
+  termDecSetoid : ∀ {n} → DecSetoid _ _
+  termDecSetoid {n} = PropEq.decSetoid (decEqTerm {n})
 
--- defining replacement function (written _◂ in McBride, 2003)
+  -- defining replacement function (written _◂ in McBride, 2003)
 
-mutual
-  replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
-  replace f (Var i)    = f i
-  replace f (Con s ts) = Con s (replaceChildren f ts)
+  mutual
+    replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
+    replace f (var i)    = f i
+    replace f (con s ts) = con s (replaceChildren f ts)
 
-  replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
-  replaceChildren f []       = []
-  replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
-
--- defining substitution/replacement composition
-
-_◇_ : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) → Fin l → Term n
-_◇_ f g = replace f ∘ g
-
--- defining thick and thin
-
-thin : {n : ℕ} -> Fin (suc n) -> Fin n -> Fin (suc n)
-thin  zero    y      = suc y
-thin (suc x)  zero   = zero
-thin (suc x) (suc y) = suc (thin x y)
-
-thick : {n : ℕ} -> (x y : Fin (suc n)) -> Maybe (Fin n)
-thick          zero    zero   = nothing
-thick          zero   (suc y) = just y
-thick {zero}  (suc ()) _
-thick {suc n} (suc x)  zero   = just zero
-thick {suc n} (suc x) (suc y) = suc <$> thick x y
-
--- defining an occurs check (**check** in McBride, 2003)
-
-mutual
-  check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
-  check x₁ (Var x₂) = Var <$> thick x₁ x₂
-  check x₁ (Con s ts) = Con s <$> checkChildren x₁ ts
+    replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
+    replaceChildren f []       = []
+    replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
 
 
-  checkChildren : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
-  checkChildren x₁ [] = just []
-  checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
-                              checkChildren x₁ ts >>= λ ts' →
-                              return (t' ∷ ts')
+  -- defining replacement composition
 
--- defining substitutions (AList in McBride, 2003)
-
-data Subst : ℕ → ℕ → Set where
-  nil  : ∀ {n}   → Subst n n
-  snoc : ∀ {m n} → (s : Subst m n) → (t : Term m) → (x : Fin (suc m)) → Subst (suc m) n
-
--- defining function substituting t for x (**for** in McBride, 2003)
-
-_for_ : ∀ {n} (t : Term n) (x : Fin (suc n)) → Fin (suc n) → Term n
-_for_ t x y with thick x y
-_for_ t x y | just y' = Var y'
-_for_ t x y | nothing = t
+  _◇_ : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) → Fin l → Term n
+  _◇_ f g = replace f ∘ g
 
 
--- defining substitution application (**sub** in McBride, 2003)
+  -- defining thick and thin
 
-apply : ∀ {m n} → Subst m n → Fin m → Term n
-apply nil = Var
-apply (snoc s t x) = (apply s) ◇ (t for x)
+  thin : {n : ℕ} -> Fin (suc n) -> Fin n -> Fin (suc n)
+  thin  zero    y      = suc y
+  thin (suc x)  zero   = zero
+  thin (suc x) (suc y) = suc (thin x y)
 
--- defining substitution concatination
+  thick : {n : ℕ} -> (x y : Fin (suc n)) -> Maybe (Fin n)
+  thick          zero    zero   = nothing
+  thick          zero   (suc y) = just y
+  thick {zero}  (suc ()) _
+  thick {suc n} (suc x)  zero   = just zero
+  thick {suc n} (suc x) (suc y) = suc <$> thick x y
 
-_++_ : ∀ {l m n} → Subst m n → Subst l m → Subst l n
-s₁ ++ nil = s₁
-s₁ ++ (snoc s₂ t x) = snoc (s₁ ++ s₂) t x
+
+  -- defining an occurs check (**check** in McBride, 2003)
+  mutual
+    check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
+    check x₁ (var x₂) = var <$> thick x₁ x₂
+    check x₁ (con s ts) = con s <$> checkChildren x₁ ts
+
+    checkChildren : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
+    checkChildren x₁ [] = just []
+    checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
+                                checkChildren x₁ ts >>= λ ts' →
+                                return (t' ∷ ts')
+
+
+  -- datatype for substitutions (AList in McBride, 2003)
+  data Subst : ℕ → ℕ → Set where
+    nil  : ∀ {n}   → Subst n n
+    snoc : ∀ {m n} → (s : Subst m n) → (t : Term m) → (x : Fin (suc m)) → Subst (suc m) n
+
+
+  -- substitutes t for x (**for** in McBride, 2003)
+  _for_ : ∀ {n} (t : Term n) (x : Fin (suc n)) → Fin (suc n) → Term n
+  _for_ t x y with thick x y
+  _for_ t x y | just y' = var y'
+  _for_ t x y | nothing = t
+
+
+  -- substitution application (**sub** in McBride, 2003)
+  apply : ∀ {m n} → Subst m n → Fin m → Term n
+  apply nil = var
+  apply (snoc s t x) = (apply s) ◇ (t for x)
+
+
+  -- substitution concatination
+  _++_ : ∀ {l m n} → Subst m n → Subst l m → Subst l n
+  s₁ ++ nil = s₁
+  s₁ ++ (snoc s₂ t x) = snoc (s₁ ++ s₂) t x
+
+
+  flexRigid : ∀ {n} → Fin n → Term n → Maybe (∃ (Subst n))
+  flexRigid {zero} () t
+  flexRigid {suc n} x t with check x t
+  flexRigid {suc n} x t | nothing = nothing
+  flexRigid {suc n} x t | just t' = just (n , snoc nil t' x)
+
+
+  flexFlex : ∀ {n} → (x y : Fin n) → ∃ (Subst n)
+  flexFlex {zero} () j
+  flexFlex {suc n} x y with thick x y
+  flexFlex {suc n} x y | nothing = (suc n , nil)
+  flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
+
+
+  mutual
+    unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
+    unifyAcc (con s₁ ts₁) (con s₂ ts₂) acc with decEqSym s₁ s₂
+    unifyAcc (con .s ts₁) (con  s ts₂) acc | yes refl = unifyAccChildren ts₁ ts₂ acc
+    unifyAcc (con s₁ ts₁) (con s₂ ts₂) acc | no  _    = nothing
+    unifyAcc (var x₁) (var x₂) (n , nil) = just (flexFlex x₁ x₂)
+    unifyAcc (var x₁) t₂       (n , nil) = flexRigid x₁ t₂
+    unifyAcc t₁       (var x₂) (n , nil) = flexRigid x₂ t₁
+    unifyAcc t₁ t₂ (n , snoc σ t' x) =
+      ( λ σ → proj₁ σ , snoc (proj₂ σ) t' x )
+        <$> unifyAcc (replace (t' for x) t₁) (replace (t' for x) t₂) (n , σ)
+
+    unifyAccChildren : ∀ {n k} → (ts₁ ts₂ : Vec (Term n) k) → ∃ (Subst n) → Maybe (∃ (Subst n))
+    unifyAccChildren []         []         acc = just acc
+    unifyAccChildren (t₁ ∷ ts₁) (t₂ ∷ ts₂) acc = unifyAcc t₁ t₂ acc >>= unifyAccChildren ts₁ ts₂
+
+  unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ (Subst m))
+  unify {m} t₁ t₂ = unifyAcc t₁ t₂ (m , nil)
