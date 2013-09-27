@@ -1,7 +1,6 @@
 open import Function using (_∘_)
 open import Category.Functor
 open import Category.Monad
-open import Data.Empty using (⊥; ⊥-elim)
 open import Data.Fin as Fin using (Fin; zero; suc)
 open import Data.Fin.Props as FinProps using ()
 open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
@@ -12,16 +11,20 @@ open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
 open import Data.Vec.Equality as VecEq
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary
-open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong; inspect; Reveal_is_; [_])
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
 
-module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s₂ : Symbol) → Dec (s₁ ≡ s₂)) where
+module Unification
+  (Fun : Set)
+  (arity : Fun → ℕ)
+  (decEqFun : (f g : Fun) → Dec (f ≡ g))
+  where
 
   open RawFunctor {{...}}
   open RawMonad {{...}} hiding (_<$>_)
   open DecSetoid {{...}} using (_≟_)
 
   private maybeFunctor = Maybe.functor
-  private maybeMonad = Maybe.monad
+  private maybeMonad   = Maybe.monad
   private finDecSetoid : ∀ {n} → DecSetoid _ _
           finDecSetoid {n} = FinProps.decSetoid n
 
@@ -29,7 +32,7 @@ module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s�
 
   data Term (n : ℕ) : Set where
     var : Fin n → Term n
-    con : (s : Symbol) → (ts : Vec (Term n) (arity s)) → Term n
+    con : (s : Fun) → (ts : Vec (Term n) (arity s)) → Term n
 
   -- defining decidable equality on terms
   mutual
@@ -40,10 +43,10 @@ module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s�
       where
       lem : ∀ {n} {x y : Fin n} → var x ≡ var y → x ≡ y
       lem {n} {x} {.x} refl = refl
-    decEqTerm (var _) (con _ _) = no (λ ())
-    decEqTerm (con _ _) (var _) = no (λ ())
-    decEqTerm (con s₁ ts₁) (con  s₂ ts₂) with decEqSym s₁  s₂
-    decEqTerm (con s₁ ts₁) (con  s₂ ts₂) | no s₁≢s₂ = no (s₁≢s₂ ∘ lem)
+    decEqTerm (var _)   (con _ _) = no (λ ())
+    decEqTerm (con _ _) (var _)   = no (λ ())
+    decEqTerm (con s₁ ts₁) (con s₂ ts₂) with decEqFun s₁ s₂
+    decEqTerm (con s₁ ts₁) (con s₂ ts₂) | no s₁≢s₂ = no (s₁≢s₂ ∘ lem)
       where
       lem : ∀ {n} {x y} {xs : Vec (Term n) _} {ys : Vec (Term n) _} → con x xs ≡ con y ys → x ≡ y
       lem {n} {x} {.x} refl = refl
@@ -68,7 +71,7 @@ module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s�
 
   mutual
     replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
-    replace f (var i)    = f i
+    replace f (var i)  = f i
     replace f (con s ts) = con s (replaceChildren f ts)
 
     replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
@@ -100,7 +103,7 @@ module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s�
   -- defining an occurs check (**check** in McBride, 2003)
   mutual
     check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
-    check x₁ (var x₂) = var <$> thick x₁ x₂
+    check x₁ (var x₂)   = var <$> thick x₁ x₂
     check x₁ (con s ts) = con s <$> checkChildren x₁ ts
 
     checkChildren : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
@@ -151,7 +154,7 @@ module Unification (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s�
 
   mutual
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
-    unifyAcc (con s₁ ts₁) (con s₂ ts₂) acc with decEqSym s₁ s₂
+    unifyAcc (con s₁ ts₁) (con s₂ ts₂) acc with decEqFun s₁ s₂
     unifyAcc (con .s ts₁) (con  s ts₂) acc | yes refl = unifyAccChildren ts₁ ts₂ acc
     unifyAcc (con s₁ ts₁) (con s₂ ts₂) acc | no  _    = nothing
     unifyAcc (var x₁) (var x₂) (n , nil) = just (flexFlex x₁ x₂)
