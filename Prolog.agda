@@ -12,13 +12,9 @@ open import Data.Product using (∃; _,_; proj₁; proj₂)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
 
-module Prolog
-  (Fun : Set)
-  (arity : Fun → ℕ)
-  (decEqFun : (f g : Fun) → Dec (f ≡ g))
-  where
+module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
 
-  module UI = Unification Fun arity decEqFun
+  module UI = Unification Sym decEqSym
   open UI public hiding (_++_)
 
   -- | possibly infinite search tree with suspended computations
