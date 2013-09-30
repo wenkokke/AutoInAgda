@@ -4,7 +4,7 @@ open import Category.Monad
 open import Data.Fin as Fin using (Fin; zero; suc)
 open import Data.Fin.Props as FinProps using ()
 open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
-open import Data.Nat using (ℕ; zero; suc)
+open import Data.Nat as Nat using (ℕ; zero; suc)
 open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂) renaming (_×_ to _∧_)
 open import Data.Sum using (_⊎_; inj₁; inj₂; [_,_])
 open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
@@ -13,11 +13,7 @@ open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
 
-module Unification
-  (Fun : Set)
-  (arity : Fun → ℕ)
-  (decEqFun : (f g : Fun) → Dec (f ≡ g))
-  where
+module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
 
   open RawFunctor {{...}}
   open RawMonad {{...}} hiding (_<$>_)
@@ -25,37 +21,49 @@ module Unification
 
   private maybeFunctor = Maybe.functor
   private maybeMonad   = Maybe.monad
+  private natDecSetoid = PropEq.decSetoid Nat._≟_
   private finDecSetoid : ∀ {n} → DecSetoid _ _
           finDecSetoid {n} = FinProps.decSetoid n
+  private symDecSetoid : ∀ {k} → DecSetoid _ _
+          symDecSetoid {k} = PropEq.decSetoid (decEqSym {k})
 
   -- defining terms
 
   data Term (n : ℕ) : Set where
     var : Fin n → Term n
-    con : (s : Fun) → (ts : Vec (Term n) (arity s)) → Term n
+    con : ∀ {k} (s : Sym k) → (ts : Vec (Term n) k) → Term n
 
   -- defining decidable equality on terms
   mutual
     decEqTerm : ∀ {n} → (t₁ t₂ : Term n) → Dec (t₁ ≡ t₂)
     decEqTerm (var  x₁) (var x₂) with x₁ ≟ x₂
     decEqTerm (var .x₂) (var x₂) | yes refl = yes refl
-    decEqTerm (var  x₁) (var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ lem)
+    decEqTerm (var  x₁) (var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ elim)
       where
-      lem : ∀ {n} {x y : Fin n} → var x ≡ var y → x ≡ y
-      lem {n} {x} {.x} refl = refl
+      elim : ∀ {n} {x y : Fin n}
+           → var x ≡ var y → x ≡ y
+      elim {n} {x} {.x} refl = refl
     decEqTerm (var _)   (con _ _) = no (λ ())
     decEqTerm (con _ _) (var _)   = no (λ ())
-    decEqTerm (con s₁ ts₁) (con s₂ ts₂) with decEqFun s₁ s₂
-    decEqTerm (con s₁ ts₁) (con s₂ ts₂) | no s₁≢s₂ = no (s₁≢s₂ ∘ lem)
+    decEqTerm (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) with k₁ ≟ k₂
+    decEqTerm (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) | no k₁≢k₂ = no (k₁≢k₂ ∘ elim)
       where
-      lem : ∀ {n} {x y} {xs : Vec (Term n) _} {ys : Vec (Term n) _} → con x xs ≡ con y ys → x ≡ y
-      lem {n} {x} {.x} refl = refl
-    decEqTerm (con s₁ ts₁) (con .s₁ ts₂) | yes refl with decEqVecTerm ts₁ ts₂
-    decEqTerm (con s₁ ts₁) (con .s₁ ts₂) | yes refl | no ts₁≢ts₂ = no (ts₁≢ts₂ ∘ lem)
+      elim : ∀ {n k₁ k₂ s₁ s₂} {ts₁ : Vec (Term n) k₁} {ts₂ : Vec (Term n) k₂}
+           → con {n} {k₁} s₁ ts₁ ≡ con {n} {k₂} s₂ ts₂ → k₁ ≡ k₂
+      elim {n} {k} {.k} refl = refl
+    decEqTerm (con {.k} s₁ ts₁) (con { k} s₂ ts₂) | yes refl with s₁ ≟ s₂
+    decEqTerm (con s₁ ts₁) (con s₂ ts₂) | yes refl | no s₁≢s₂ = no (s₁≢s₂ ∘ elim)
       where
-      lem : ∀ {n} {x} {xs ys : Vec (Term n) _} → con x xs ≡ con x ys → xs ≡ ys
-      lem {n} {x} {xs} {.xs} refl = refl
-    decEqTerm (con s₁ .ts₂) (con .s₁ ts₂) | yes refl | yes refl = yes refl
+      elim : ∀ {n k s₁ s₂} {ts₁ ts₂ : Vec (Term n) k}
+           → con s₁ ts₁ ≡ con s₂ ts₂ → s₁ ≡ s₂
+      elim {n} {k} {s} {.s} refl = refl
+    decEqTerm (con .s ts₁) (con s ts₂) | yes refl | yes refl with decEqVecTerm ts₁ ts₂
+    decEqTerm (con .s ts₁) (con s ts₂) | yes refl | yes refl | no ts₁≢ts₂  = no (ts₁≢ts₂ ∘ elim)
+      where
+      elim : ∀ {n k s} {ts₁ ts₂ : Vec (Term n) k}
+           → con s ts₁ ≡ con s ts₂ → ts₁ ≡ ts₂
+      elim {n} {k} {s} {ts} {.ts} refl = refl
+    decEqTerm (con .s .ts) (con s ts) | yes refl | yes refl | yes refl = yes refl
 
     decEqVecTerm : ∀ {n k} → (xs ys : Vec (Term n) k) → Dec (xs ≡ ys)
     decEqVecTerm [] [] = yes refl
@@ -109,8 +117,7 @@ module Unification
     checkChildren : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
     checkChildren x₁ [] = just []
     checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
-                                checkChildren x₁ ts >>= λ ts' →
-                                return (t' ∷ ts')
+      checkChildren x₁ ts >>= λ ts' → return (t' ∷ ts')
 
 
   -- datatype for substitutions (AList in McBride, 2003)
@@ -151,18 +158,19 @@ module Unification
   flexFlex {suc n} x y | nothing = (suc n , nil)
   flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
 
-
   mutual
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
-    unifyAcc (con s₁ ts₁) (con s₂ ts₂) acc with decEqFun s₁ s₂
-    unifyAcc (con .s ts₁) (con  s ts₂) acc | yes refl = unifyAccChildren ts₁ ts₂ acc
-    unifyAcc (con s₁ ts₁) (con s₂ ts₂) acc | no  _    = nothing
+    unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc with k₁ ≟ k₂
+    unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc | no k₁≢k₂ = nothing
+    unifyAcc (con { k} s₁ ts₁) (con {.k} s₂ ts₂) acc | yes refl with s₁ ≟ s₂
+    unifyAcc (con { k} s₁ ts₁) (con {.k} s₂ ts₂) acc | yes refl | no s₁≢s₂ = nothing
+    unifyAcc (con { k} .s ts₁) (con {.k}  s ts₂) acc | yes refl | yes refl = unifyAccChildren ts₁ ts₂ acc
     unifyAcc (var x₁) (var x₂) (n , nil) = just (flexFlex x₁ x₂)
     unifyAcc (var x₁) t₂       (n , nil) = flexRigid x₁ t₂
     unifyAcc t₁       (var x₂) (n , nil) = flexRigid x₂ t₁
-    unifyAcc t₁ t₂ (n , snoc σ t' x) =
-      ( λ σ → proj₁ σ , snoc (proj₂ σ) t' x )
-        <$> unifyAcc (replace (t' for x) t₁) (replace (t' for x) t₂) (n , σ)
+    unifyAcc t₁ t₂ (n , snoc s t' x) =
+      ( λ s → proj₁ s , snoc (proj₂ s) t' x )
+        <$> unifyAcc (replace (t' for x) t₁) (replace (t' for x) t₂) (n , s)
 
     unifyAccChildren : ∀ {n k} → (ts₁ ts₂ : Vec (Term n) k) → ∃ (Subst n) → Maybe (∃ (Subst n))
     unifyAccChildren []         []         acc = just acc
