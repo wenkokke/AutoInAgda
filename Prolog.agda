@@ -77,12 +77,12 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   loop : ∀ {n} → SearchTree n
   loop = step (λ _ → ~ loop) []
 
-  solve : ∀ {m} → Rules → Goal (suc m) → ∃ SearchTree
+  solve : ∀ {m} → Rules → Goal m → ∃ SearchTree
   solve {m} rs g with join rs
-  ... | n    , rs' with replace (var ∘ injectᴸ n) g | map (raiseᴿ (suc m)) rs'
+  ... | n    , rs' with replace (var ∘ injectᴸ n) g | map (raiseᴿ m) rs'
   ... | goal | rules = mn , go (just (mn , nil)) (goal ∷ [])
     where
-    mn = suc m + n
+    mn = m + n
     go : Maybe (∃ (Subst mn)) → List (Goal mn) → SearchTree mn
     go nothing  _  = loop
     go (just s) [] = done s
