@@ -8,6 +8,7 @@ open import Data.Nat using (ℕ; suc; zero; _+_)
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
 open import Data.List as List using (List; []; _∷_; _++_; map)
+open import Data.Vec as Vec using (Vec; []; _∷_) renaming (map to vmap)
 open import Data.Product using (∃; _,_; proj₁; proj₂)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
@@ -54,20 +55,26 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   injectᴿ  zero   {suc n} (suc i) = suc (injectᴿ 0 {n} i)
   injectᴿ (suc m) {suc n} i       = suc (injectᴿ m {suc n} i)
 
-  raiseᴸ : {m : ℕ} → (n : ℕ) → Rule m → Rule (m + n)
-  raiseᴸ {m} n (conc :- prem) = dn conc :- map dn prem
-    where dn = replace (var ∘ injectᴸ {m} n)
+  -- | raises the domain of a `Rule m` into the lower half of `m + n`
+  raiseRuleᴸ : {m : ℕ} → (n : ℕ) → Rule m → Rule (m + n)
+  raiseRuleᴸ {m} n (conc :- prem) = down conc :- map down prem
+    where down = replace (var ∘ injectᴸ {m} n)
 
-  raiseᴿ : (m : ℕ) → {n : ℕ} → Rule n → Rule (m + n)
-  raiseᴿ m {n} (conc :- prem) = up conc :- map up prem
+  -- | raises the domain of a `Rule m` into the upper half of `m + n`
+  raiseRuleᴿ : (m : ℕ) → {n : ℕ} → Rule n → Rule (m + n)
+  raiseRuleᴿ m {n} (conc :- prem) = up conc :- map up prem
     where up = replace (var ∘ injectᴿ m {n})
 
-  -- | unifies two rules after raising their domain to include all
-  --   needed free variables
-  join : List (∃ Rule) → ∃ (List ∘ Rule)
-  join [] = zero , []
-  join ((m , r) ∷ rs) with join rs
-  ... | n , rs' = _ , raiseᴸ n r ∷ map (raiseᴿ m) rs'
+  -- | raises the domain of a `Goal m` into the lower half of `m + n`
+  raiseGoal : ∀ {m n} → Goal m → Goal (m + n)
+  raiseGoal {_} {n} = replace (var ∘ injectᴸ n)
+
+  -- | raises a list of rules of various domains to a list of rules
+  --   over a unified domain
+  joinRules : List (∃ Rule) → ∃ (List ∘ Rule)
+  joinRules [] = zero , []
+  joinRules ((m , r) ∷ rs) with joinRules rs
+  ... | n , rs' = _ , raiseRuleᴸ n r ∷ map (raiseRuleᴿ m) rs'
 
   -- | constructing a search tree and performing depth-first search
   data SearchTree (n : ℕ) : Set where
@@ -78,24 +85,37 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   loop = step (λ _ → ~ loop) []
 
   solve : ∀ {m} → Rules → Goal m → ∃ SearchTree
-  solve {m} rs g with join rs
-  ... | n    , rs' with replace (var ∘ injectᴸ n) g | map (raiseᴿ m) rs'
-  ... | goal | rules = mn , go (just (mn , nil)) (goal ∷ [])
+  solve {m} rs g with joinRules rs
+  ... | n    , rs' with raiseGoal g | map (raiseRuleᴿ m) rs'
+  ... | goal | rules = m + n , solveAcc (just (m + n , nil)) (goal ∷ [])
     where
-    mn = m + n
-    go : Maybe (∃ (Subst mn)) → List (Goal mn) → SearchTree mn
-    go nothing  _  = loop
-    go (just s) [] = done s
-    go (just s) (g ∷ gs) =
-      step (λ r → ~ go (unifyAcc g (conclusion r) s) (gs ++ premises r)) rules
+    solveAcc : Maybe (∃ (Subst (m + n))) → List (Goal (m + n)) → SearchTree (m + n)
+    solveAcc nothing  _  = loop
+    solveAcc (just s) [] = done s
+    solveAcc (just s) (g ∷ gs) =
+      step (λ r → ~ solveAcc (unifyAcc g (conclusion r) s) (gs ++ premises r)) rules
 
   dfs : ∀ {n} → SearchTree n → Search (∃ (Subst n))
   dfs (done s)          = return s
   dfs (step f [])       = fail
   dfs (step f (x ∷ xs)) = fork (~ dfs (! f x)) (~ dfs (step f xs))
 
-  toDepth : ∀ {A} → ℕ → Search A → List A
-  toDepth zero     _           = []
-  toDepth (suc k)  fail        = []
-  toDepth (suc k) (return x)   = x ∷ []
-  toDepth (suc k) (fork xs ys) = toDepth k (! xs) ++ toDepth k (! ys)
+  dfsToDepth : ∀ {A} → ℕ → Search A → List A
+  dfsToDepth zero     _           = []
+  dfsToDepth (suc k)  fail        = []
+  dfsToDepth (suc k) (return x)   = x ∷ []
+  dfsToDepth (suc k) (fork xs ys) = dfsToDepth k (! xs) ++ dfsToDepth k (! ys)
+
+  dom : ∀ {n} → Vec (Fin n) n
+  dom {zero}  = []
+  dom {suc n} = zero ∷ vmap (injectᴿ 1) (dom {n})
+
+  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (Vec (∃ Term) m)
+  solveToDepth {m} depth rules goal = map app subs
+    where
+    vars : Vec (Fin m) m
+    vars = dom
+    tree = solve rules goal
+    subs = dfsToDepth depth (dfs (proj₂ tree))
+    app : ∃ (Subst (m + _)) → Vec (∃ Term) m
+    app (n , s) = vmap (λ v → n , apply s v ) (vmap (injectᴸ _) vars )
