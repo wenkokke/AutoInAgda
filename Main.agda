@@ -61,7 +61,7 @@ module Main where
             x₂ = var (suc (suc zero))
 
   goal : Goal 2
-  goal = Add x₀ x₁ (Suc (Suc Zero))
+  goal = Add x₀ x₁ (Suc (Suc (Suc (Suc Zero))))
     where x₀ = var zero
           x₁ = var (suc zero)
 
@@ -95,11 +95,10 @@ module Main where
     showAns' (t₁ ∷ []) = showTerm∃ t₁
     showAns' (t₁ ∷ t₂ ∷ ts) = showTerm∃ t₁ ++ "; " ++ showAns' (t₂ ∷ ts)
 
-
   showList : ∀ {ℓ} {A : Set ℓ} (show : A → String) → List A → String
   showList show [] = ""
   showList show (x ∷ []) = show x
   showList show (x ∷ y ∷ xs) = show x ++ " , " ++ showList show (y ∷ xs)
 
   main : String
-  main = showList showAns (solveToDepth 10 rules goal)
+  main = showList showAns (solveToDepth 100 rules goal)
