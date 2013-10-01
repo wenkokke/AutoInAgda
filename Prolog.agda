@@ -1,4 +1,3 @@
-import Unification
 open import Function using (id; const; flip; _∘_)
 open import Coinduction using (∞) renaming (♯_ to ~_; ♭ to !_)
 open import Category.Functor
@@ -15,6 +14,7 @@ open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; 
 
 module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
 
+  import Unification
   module UI = Unification Sym decEqSym
   open UI public hiding (_++_)
 
@@ -118,4 +118,4 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
     tree = solve rules goal
     subs = dfsToDepth depth (dfs (proj₂ tree))
     app : ∃ (Subst (m + _)) → Vec (∃ Term) m
-    app (n , s) = vmap (λ v → n , apply s v ) (vmap (injectᴸ _) vars )
+    app (n , s) = vmap (λ v → n , apply s v ) (vmap (injectᴸ _) vars)
