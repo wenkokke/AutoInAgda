@@ -2,17 +2,20 @@ open import Function using (id; const; flip; _∘_)
 open import Coinduction using (∞) renaming (♯_ to ~_; ♭ to !_)
 open import Category.Functor
 open import Category.Monad
-open import Data.Maybe using (Maybe; just; nothing)
+open import Data.Maybe as Maybe using (Maybe; just; nothing)
 open import Data.Nat using (ℕ; suc; zero; _+_)
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
-open import Data.List as List using (List; []; _∷_; _++_; map)
+open import Data.List as List using (List; []; _∷_; _++_; map; concatMap; fromMaybe)
 open import Data.Vec as Vec using (Vec; []; _∷_) renaming (map to vmap)
 open import Data.Product using (∃; _,_; proj₁; proj₂)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
 
 module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
+
+  open RawMonad {{...}} renaming (return to mreturn)
+  maybeMonad = Maybe.monad
 
   import Unification
   module UI = Unification Sym decEqSym
@@ -110,12 +113,31 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   dom {zero}  = []
   dom {suc n} = zero ∷ vmap (injectᴿ 1) (dom {n})
 
-  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (Vec (∃ Term) m)
+  -- while we should be able to guarantee that the terms after substitution
+  -- contain no variables (and all free variables in the domain occur because
+  -- of unused rules), the required proof of this is currently still unimplemented
+  -- therefore, we have to resort to using maybe
+
+  mutual
+    noVars : ∀ {n} → Term n → Maybe (Term 0)
+    noVars (var x)    = nothing
+    noVars (con s ts) = con s <$> noVarsChildren ts
+
+    noVarsChildren : ∀ {n k} → Vec (Term n) k → Maybe (Vec (Term 0) k)
+    noVarsChildren [] = just []
+    noVarsChildren (t ∷ ts) = noVars t >>= λ t' →
+                              noVarsChildren ts >>= λ ts' →
+                              mreturn (t' ∷ ts')
+
+  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
+  filterWithVars = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
+
+  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m))
   solveToDepth {m} depth rules goal = map app subs
     where
     vars : Vec (Fin m) m
     vars = dom
     tree = solve rules goal
     subs = dfsToDepth depth (dfs (proj₂ tree))
-    app : ∃ (Subst (m + _)) → Vec (∃ Term) m
-    app (n , s) = vmap (λ v → n , apply s v ) (vmap (injectᴸ _) vars)
+    app : ∃ (Subst (m + _)) → ∃ (λ n → Vec (Term n) m)
+    app (n , s) = n , vmap (λ v → apply s v ) (vmap (injectᴸ _) vars)

@@ -29,9 +29,9 @@ module Main where
   decEqSym ZERO ZERO = yes refl
 
   showSym : ∀ {k} (s : Sym k) → String
-  showSym ADD  = "+"
-  showSym SUC  = "S"
-  showSym ZERO = "0"
+  showSym ADD  = "Add"
+  showSym SUC  = "Suc"
+  showSym ZERO = "Zero"
 
   import Prolog
   module PI = Prolog Sym decEqSym
@@ -47,6 +47,16 @@ module Main where
   Suc : ∀ {n} (x : Term n) → Term n
   Suc x = con SUC (x ∷ [])
 
+  fromℕ : ∀ {n} → ℕ → Term n
+  fromℕ zero = Zero
+  fromℕ (suc k) = Suc (fromℕ k)
+
+  toℕ : Term 0 → ℕ
+  toℕ (var ())
+  toℕ (con ADD  (x ∷ y ∷ z ∷ [])) = toℕ z
+  toℕ (con SUC  (x ∷ []))         = suc (toℕ x)
+  toℕ (con ZERO [])               = zero
+
   Add : ∀ {n} (x y z : Term n) → Term n
   Add x y z = con ADD (x ∷ y ∷ z ∷ [])
 
@@ -61,39 +71,17 @@ module Main where
             x₂ = var (suc (suc zero))
 
   goal : Goal 2
-  goal = Add x₀ x₁ (Suc (Suc (Suc (Suc Zero))))
+  goal = Add x₀ x₁ (fromℕ 4)
     where x₀ = var zero
           x₁ = var (suc zero)
 
-  mutual
-    noVars : ∀ {n} → Term n → Maybe (Term 0)
-    noVars (var x)    = nothing
-    noVars (con s ts) = con s <$> noVarsChildren ts
-
-    noVarsChildren : ∀ {n k} → Vec (Term n) k → Maybe (Vec (Term 0) k)
-    noVarsChildren [] = just []
-    noVarsChildren (t ∷ ts) = noVars t >>= λ t' →
-                              noVarsChildren ts >>= λ ts' →
-                              mreturn (t' ∷ ts')
-
-    toℕ : Term 0 → ℕ
-    toℕ (var ())
-    toℕ (con ZERO []) = zero
-    toℕ (con SUC (x ∷ [])) = suc (toℕ x)
-    toℕ (con ADD (x ∷ y ∷ z ∷ [])) = toℕ z
-
-  showAns : ∀ {m} → Vec (∃ Term) m → String
+  showAns : ∀ {m} → Vec (Term 0) m → String
   showAns ans = "{" ++ showAns' ans ++ "}"
     where
-    showTerm∃ : ∃ Term → String
-    showTerm∃ (n , t) with noVars t
-    ... | nothing = showTerm t
-    ... | just t' = showℕ (toℕ t')
-
-    showAns' : ∀ {m} → Vec (∃ Term) m → String
+    showAns' : ∀ {m} → Vec (Term 0) m → String
     showAns' [] = ""
-    showAns' (t₁ ∷ []) = showTerm∃ t₁
-    showAns' (t₁ ∷ t₂ ∷ ts) = showTerm∃ t₁ ++ "; " ++ showAns' (t₂ ∷ ts)
+    showAns' (t₁ ∷ []) = showℕ (toℕ t₁)
+    showAns' (t₁ ∷ t₂ ∷ ts) = showℕ (toℕ t₁) ++ "; " ++ showAns' (t₂ ∷ ts)
 
   showList : ∀ {ℓ} {A : Set ℓ} (show : A → String) → List A → String
   showList show [] = ""
@@ -101,4 +89,4 @@ module Main where
   showList show (x ∷ y ∷ xs) = show x ++ " , " ++ showList show (y ∷ xs)
 
   main : String
-  main = showList showAns (solveToDepth 100 rules goal)
+  main = showList showAns (filterWithVars (solveToDepth 100 rules goal))
