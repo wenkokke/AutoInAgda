@@ -89,4 +89,4 @@ module Main where
   showList show (x ∷ y ∷ xs) = show x ++ " , " ++ showList show (y ∷ xs)
 
   main : String
-  main = showList showAns (filterWithVars (solveToDepth 100 rules goal))
+  main = showList showAns (filterWithVars (solveToDepth 10 rules goal))
