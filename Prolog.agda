@@ -45,39 +45,39 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   Goal n = Term n
 
   -- | injects a Finᵐ into the lower half of Finᵐ⁺ⁿ
-  injectᴸ : {m : ℕ} → (n : ℕ) → Fin m → Fin (m + n)
-  injectᴸ {zero}  _  ()
-  injectᴸ {suc m} _  zero   = zero
-  injectᴸ {suc m} _ (suc i) = suc (injectᴸ {m} _ i)
+  injectL : {m : ℕ} → (n : ℕ) → Fin m → Fin (m + n)
+  injectL {zero}  _  ()
+  injectL {suc m} _  zero   = zero
+  injectL {suc m} _ (suc i) = suc (injectL {m} _ i)
 
   -- | injects a Finⁿ into the upper half of Finᵐ⁺ⁿ
-  injectᴿ : (m : ℕ) → {n : ℕ} → Fin n → Fin (m + n)
-  injectᴿ  zero   {zero}   ()
-  injectᴿ (suc m) {zero}   ()
-  injectᴿ  zero   {suc n}  zero    = zero
-  injectᴿ  zero   {suc n} (suc i) = suc (injectᴿ 0 {n} i)
-  injectᴿ (suc m) {suc n} i       = suc (injectᴿ m {suc n} i)
+  injectR : (m : ℕ) → {n : ℕ} → Fin n → Fin (m + n)
+  injectR  zero   {zero}   ()
+  injectR (suc m) {zero}   ()
+  injectR  zero   {suc n}  zero    = zero
+  injectR  zero   {suc n} (suc i) = suc (injectR 0 {n} i)
+  injectR (suc m) {suc n} i       = suc (injectR m {suc n} i)
 
-  -- | raises the domain of a `Rule m` into the lower half of `m + n`
-  raiseRuleᴸ : {m : ℕ} → (n : ℕ) → Rule m → Rule (m + n)
-  raiseRuleᴸ {m} n (conc :- prem) = down conc :- map down prem
-    where down = replace (var ∘ injectᴸ {m} n)
+  -- | raises the domain of a Ruleᵐ into the lower half of Ruleᵐ⁺ⁿ
+  raiseRuleL : {m : ℕ} → (n : ℕ) → Rule m → Rule (m + n)
+  raiseRuleL {m} n (conc :- prem) = down conc :- map down prem
+    where down = replace (var ∘ injectL {m} n)
 
-  -- | raises the domain of a `Rule m` into the upper half of `m + n`
-  raiseRuleᴿ : (m : ℕ) → {n : ℕ} → Rule n → Rule (m + n)
-  raiseRuleᴿ m {n} (conc :- prem) = up conc :- map up prem
-    where up = replace (var ∘ injectᴿ m {n})
+  -- | raises the domain of a Ruleⁿ into the upper half of Ruleᵐ⁺ⁿ
+  raiseRuleR : (m : ℕ) → {n : ℕ} → Rule n → Rule (m + n)
+  raiseRuleR m {n} (conc :- prem) = up conc :- map up prem
+    where up = replace (var ∘ injectR m {n})
 
-  -- | raises the domain of a `Goal m` into the lower half of `m + n`
-  raiseGoal : ∀ {m n} → Goal m → Goal (m + n)
-  raiseGoal {_} {n} = replace (var ∘ injectᴸ n)
+  -- | raises the domain of a Goalᵐ into the lower half of Goalᵐ⁺ⁿ
+  raiseGoalL : ∀ {m n} → Goal m → Goal (m + n)
+  raiseGoalL {_} {n} = replace (var ∘ injectL n)
 
   -- | raises a list of rules of various domains to a list of rules
   --   over a unified domain
   joinRules : List (∃ Rule) → ∃ (List ∘ Rule)
   joinRules [] = zero , []
   joinRules ((m , r) ∷ rs) with joinRules rs
-  ... | n , rs' = _ , raiseRuleᴸ n r ∷ map (raiseRuleᴿ m) rs'
+  ... | n , rs' = _ , raiseRuleL n r ∷ map (raiseRuleR m) rs'
 
   -- | constructing a search tree and performing depth-first search
   data SearchTree (n : ℕ) : Set where
@@ -89,7 +89,7 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
 
   solve : ∀ {m} → Rules → Goal m → ∃ SearchTree
   solve {m} rs g with joinRules rs
-  ... | n    , rs' with raiseGoal g | map (raiseRuleᴿ m) rs'
+  ... | n    , rs' with raiseGoalL g | map (raiseRuleR m) rs'
   ... | goal | rules = m + n , solveAcc (just (m + n , nil)) (goal ∷ [])
     where
     solveAcc : Maybe (∃ (Subst (m + n))) → List (Goal (m + n)) → SearchTree (m + n)
@@ -98,6 +98,7 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
     solveAcc (just s) (g ∷ gs) =
       step (λ r → ~ solveAcc (unifyAcc g (conclusion r) s) (gs ++ premises r)) rules
 
+  {-
   dfs : ∀ {n} → SearchTree n → Search (∃ (Subst n))
   dfs (done s)          = return s
   dfs (step f [])       = fail
@@ -108,16 +109,18 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   dfsToDepth (suc k)  fail        = []
   dfsToDepth (suc k) (return x)   = x ∷ []
   dfsToDepth (suc k) (fork xs ys) = dfsToDepth k (! xs) ++ dfsToDepth k (! ys)
+  -}
 
   dom : ∀ {n} → Vec (Fin n) n
   dom {zero}  = []
-  dom {suc n} = zero ∷ vmap (injectᴿ 1) (dom {n})
+  dom {suc n} = zero ∷ vmap (injectR 1) (dom {n})
 
   -- while we should be able to guarantee that the terms after substitution
   -- contain no variables (and all free variables in the domain occur because
   -- of unused rules), the required proof of this is currently still unimplemented
   -- therefore, we have to resort to using maybe
 
+  {-
   mutual
     noVars : ∀ {n} → Term n → Maybe (Term 0)
     noVars (var x)    = nothing
@@ -140,4 +143,5 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
     tree = solve rules goal
     subs = dfsToDepth depth (dfs (proj₂ tree))
     app : ∃ (Subst (m + _)) → ∃ (λ n → Vec (Term n) m)
-    app (n , s) = n , vmap (λ v → apply s v ) (vmap (injectᴸ _) vars)
+    app (n , s) = n , vmap (λ v → apply s v ) (vmap (injectL _) vars)
+  -}
