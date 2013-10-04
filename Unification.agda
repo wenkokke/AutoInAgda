@@ -4,7 +4,7 @@ open import Category.Monad
 open import Data.Fin as Fin using (Fin; zero; suc)
 open import Data.Fin.Props as FinProps using ()
 open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
-open import Data.Nat as Nat using (ℕ; zero; suc)
+open import Data.Nat as Nat using (ℕ; zero; suc; _+_; _⊔_)
 open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂) renaming (_×_ to _∧_)
 open import Data.Sum using (_⊎_; inj₁; inj₂; [_,_])
 open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
@@ -108,7 +108,7 @@ module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec
   thick {suc n} (suc x) (suc y) = suc <$> thick x y
 
 
-  -- defining an occurs check (**check** in McBride, 2003)
+  -- | defining an occurs check (**check** in McBride, 2003)
   mutual
     check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
     check x₁ (var x₂)   = var <$> thick x₁ x₂
@@ -120,30 +120,29 @@ module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec
       checkChildren x₁ ts >>= λ ts' → return (t' ∷ ts')
 
 
-  -- datatype for substitutions (AList in McBride, 2003)
+  -- | datatype for substitutions (AList in McBride, 2003)
   data Subst : ℕ → ℕ → Set where
     nil  : ∀ {n}   → Subst n n
     snoc : ∀ {m n} → (s : Subst m n) → (t : Term m) → (x : Fin (suc m)) → Subst (suc m) n
 
 
-  -- substitutes t for x (**for** in McBride, 2003)
+  -- | substitutes t for x (**for** in McBride, 2003)
   _for_ : ∀ {n} (t : Term n) (x : Fin (suc n)) → Fin (suc n) → Term n
   _for_ t x y with thick x y
   _for_ t x y | just y' = var y'
   _for_ t x y | nothing = t
 
 
-  -- substitution application (**sub** in McBride, 2003)
+  -- | substitution application (**sub** in McBride, 2003)
   apply : ∀ {m n} → Subst m n → Fin m → Term n
   apply nil = var
   apply (snoc s t x) = (apply s) ◇ (t for x)
 
 
-  -- substitution concatination
+  -- | composes two substitutions
   _++_ : ∀ {l m n} → Subst m n → Subst l m → Subst l n
   s₁ ++ nil = s₁
   s₁ ++ (snoc s₂ t x) = snoc (s₁ ++ s₂) t x
-
 
   flexRigid : ∀ {n} → Fin n → Term n → Maybe (∃ (Subst n))
   flexRigid {zero} () t
@@ -159,6 +158,11 @@ module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec
   flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
 
   mutual
+
+    -- unifyAcc : ∀ {m ε} (t₁ t₂ : Term (m + ε))
+    --          → ∃ (λ n → Subst (m + ε) (n + ε))
+    --          → Maybe (∃ (λ n → Subst (m + ε) (n + ε)))
+
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
     unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc with k₁ ≟ k₂
     unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc | no k₁≢k₂ = nothing
