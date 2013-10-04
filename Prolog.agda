@@ -46,17 +46,13 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
 
   -- | injects a Finᵐ into the lower half of Finᵐ⁺ⁿ
   injectᴸ : {m : ℕ} → (n : ℕ) → Fin m → Fin (m + n)
-  injectᴸ {zero}  _  ()
-  injectᴸ {suc m} _  zero   = zero
-  injectᴸ {suc m} _ (suc i) = suc (injectᴸ {m} _ i)
+  injectᴸ _  zero   = zero
+  injectᴸ _ (suc i) = suc (injectᴸ _ i)
 
   -- | injects a Finⁿ into the upper half of Finᵐ⁺ⁿ
   injectᴿ : (m : ℕ) → {n : ℕ} → Fin n → Fin (m + n)
-  injectᴿ  zero   {zero}   ()
-  injectᴿ (suc m) {zero}   ()
-  injectᴿ  zero   {suc n}  zero    = zero
-  injectᴿ  zero   {suc n} (suc i) = suc (injectᴿ 0 {n} i)
-  injectᴿ (suc m) {suc n} i       = suc (injectᴿ m {suc n} i)
+  injectᴿ zero   i = i
+  injectᴿ (suc m) i = suc (injectᴿ m i)
 
   -- | raises the domain of a `Rule m` into the lower half of `m + n`
   raiseRuleᴸ : {m : ℕ} → (n : ℕ) → Rule m → Rule (m + n)
@@ -89,7 +85,7 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
 
   solve : ∀ {m} → Rules → Goal m → ∃ SearchTree
   solve {m} rs g with joinRules rs
-  ... | n    , rs' with raiseGoal g | map (raiseRuleᴿ m) rs'
+  ... | n    , rs' with raiseGoal {m} {n} g | map (raiseRuleᴿ m) rs'
   ... | goal | rules = m + n , solveAcc (just (m + n , nil)) (goal ∷ [])
     where
     solveAcc : Maybe (∃ (Subst (m + n))) → List (Goal (m + n)) → SearchTree (m + n)
