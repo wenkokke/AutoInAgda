@@ -12,12 +12,12 @@ open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
 open import Data.Vec.Equality as VecEq
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary
-open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; cong; inspect; Reveal_is_; [_])
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; _≢_; refl; sym; trans; cong; cong₂; inspect; Reveal_is_; [_])
 
-module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym : (s₁ s₂ : Symbol) → Dec (s₁ ≡ s₂)) where
+module Unification.Correctness (Symbol : ℕ -> Set) (decEqSym : ∀ {k} (f g : Symbol k) → Dec (f ≡ g)) where
 
   import Unification
-  module UI = Unification Symbol arity decEqSym
+  module UI = Unification Symbol decEqSym
   open UI
 
   open RawFunctor {{...}}
@@ -64,7 +64,6 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
       → replaceChildren (f ◇ g) ts ≡ replaceChildren f (replaceChildren g ts)
     composeChildren-thm₂ f g [] = refl
     composeChildren-thm₂ f g (t ∷ ts) rewrite compose-thm₂ f g t = cong (_∷_ _) (composeChildren-thm₂ f g ts)
-
 
 
   -- * proving correctness of thick and thin
@@ -181,7 +180,7 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
 
   -- | proof that if check returns nothing, checkChildren will too
   check≡no→checkChildren≡no
-    : ∀ {n} (x : Fin (suc n)) (s : Symbol) (ts : Vec (Term (suc n)) (arity s))
+    : ∀ {n} (x : Fin (suc n)) (s : Symbol (suc n)) (ts : Vec (Term (suc n)) (suc n))
     → check x (con s ts) ≡ nothing → checkChildren x ts ≡ nothing
   check≡no→checkChildren≡no x s ts p with checkChildren x ts
   check≡no→checkChildren≡no x s ts p  | nothing = refl
@@ -189,7 +188,7 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
 
   -- | proof that if check returns something, checkChildren will too
   check≡yes→checkChildren≡yes
-    : ∀ {n} (x : Fin (suc n)) (s : Symbol) (ts : Vec (Term (suc n)) (arity s)) (ts' : Vec (Term n) (arity s))
+    : ∀ {n} (x : Fin (suc n)) (s : Symbol (suc n)) (ts : Vec (Term (suc n)) (suc n)) (ts' : Vec (Term n) (suc n))
     → check x (con s ts) ≡ just (con s ts') → checkChildren x ts ≡ just ts'
   check≡yes→checkChildren≡yes x s ts ts' p with checkChildren x ts
   check≡yes→checkChildren≡yes x s ts ts' refl | just .ts' = refl
@@ -199,7 +198,7 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
   mutual
     data Occurs {n : ℕ} (x : Fin n) : Term n → Set where
       Here    : Occurs x (var x)
-      Further : ∀ {s ts} → OccursChildren x ts → Occurs x (con s ts)
+      Further : ∀ {k ts} {s : Symbol k} → OccursChildren x {k} ts → Occurs x (con s ts)
 
     data OccursChildren {n : ℕ} (x : Fin n) : {k : ℕ} → Vec (Term n) k → Set where
       Here    : ∀ {k t ts} → Occurs x t → OccursChildren x {suc k} (t ∷ ts)
@@ -222,7 +221,7 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
     occurs?  x₁ (con s ts) | no  x₁∉ts = no (x₁∉ts ∘ lem x₁)
       where
       lem : ∀ {n s ts} (x : Fin n) → Occurs x (con s ts) → OccursChildren x ts
-      lem x (Further p) = p
+      lem x (Further x₂) = x₂
 
     occursChildren? : ∀ {n k} (x : Fin n) (ts : Vec (Term n) k) → Dec (OccursChildren x ts)
     occursChildren? x₁ [] = no (λ ())
@@ -243,9 +242,9 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
     occurs→check≡no
       : ∀ {n} (x : Fin (suc n)) (t : Term (suc n))
       → Occurs x t → check x t ≡ nothing
-    occurs→check≡no x .(var x) Here
-      rewrite thickxx≡no x = refl
-    occurs→check≡no x .(con s ts) (Further {s} {ts} p)
+    occurs→check≡no x .(Unification.var x) Here 
+      rewrite thickxx≡no x = refl 
+    occurs→check≡no x .(Unification.con s ts) (Further {k} {ts} {s} p) 
       rewrite occursChildren→checkChildren≡no x ts p = refl
 
     -- | proving that if x occurs in ts, checkChildren returns nothing
@@ -335,10 +334,22 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
          | .nothing  | refl = refl
     for-thm₂  x (con s ts) _ _ with checkChildren x ts | inspect (checkChildren x) ts
     for-thm₂  x (con s ts) _ ()              | nothing  | _
-    for-thm₂  x (con s ts) .(con s ts') refl | just ts' | [ checkChildren≡yes ] = {!!}
+    for-thm₂  x (con s ts) .(con s ts') refl | just ts' | [ checkChildren≡yes ] 
+      rewrite thickxx≡no x = cong (con s) (forChildren-thm₂ x s ts ts' checkChildren≡yes) 
 
-    forChildren-thm₂ : {!!}
-    forChildren-thm₂ = {!!}
+    forChildren-thm₂ : ∀ {n k} -> (x : Fin (suc n)) (s : Symbol k) 
+     (ts : Vec (Term (suc n)) k) (ts' : Vec (Term n) k) ->
+     checkChildren x ts ≡ just ts' -> 
+     replaceChildren (\y -> (con s ts' for x) y) ts ≡ ts'
+    forChildren-thm₂ x s [] [] eq rewrite thickxx≡no x = refl
+    forChildren-thm₂ x s (t1 ∷ ts) (t2 ∷ ts') eq 
+      with check x t1 | inspect (check x) t1 | checkChildren x ts |  inspect (checkChildren x) ts
+    forChildren-thm₂ x s (t1 ∷ ts) (t2 ∷ ts') refl | just .t2 | [ eq1 ] | just .ts' | [ eq2 ] 
+      = cong₂ (\hd tl -> hd ∷ tl) {!lemma₁!} {!!}
+      where
+      lemma₁ = for-thm₂ x t1 t2 eq1
+    forChildren-thm₂ x s (t1 ∷ ts) (t2 ∷ ts') () | just x₁ | _ | nothing | _
+    forChildren-thm₂ x s (t1 ∷ ts) (t2 ∷ ts') () | nothing | _ | cs | _
 
   -- * proving correctness of apply, concat and compose
 
@@ -350,9 +361,8 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
     : ∀ {l m n} (s₁ : Subst m n) (s₂ : Subst l m) (t : Term l)
     → replace (apply (s₁ ++ s₂)) t ≡ replace (apply s₁) (replace (apply s₂) t)
   ++-lem₂ s₁ nil t rewrite replace-thm₁ t = refl
-  ++-lem₂ s₁ (snoc s₂ t₂ x) t = {!!}
+  ++-lem₂ {.(suc k)} {m} {n} s₁ (snoc {k} s₂ t₂ x) t = {!!}
     where
-    lem : {!replace (apply (s₁ ++ s₂)) t ≡ !}
     lem = ++-lem₂ s₁ s₂ (replace (t₂ for x) t)
 
   ++-thm₂
@@ -361,18 +371,4 @@ module Unification.Correctness (Symbol : Set) (arity : Symbol → ℕ) (decEqSym
   ++-thm₂ s₁ nil x = refl
   ++-thm₂ s₁ (snoc s₂ t y) x with thick y x
   ++-thm₂ s₁ (snoc s₂ t y) x | just t' = ++-thm₂ s₁ s₂ t'
-  ++-thm₂ s₁ (snoc s₂ t y) x | nothing = lem
-    where
-    lem : replace (apply (s₁ ++ s₂)) t ≡ replace (apply s₁) (replace (apply s₂) t)
-    lem = {!!}
-
-{-
-  ++-thm₂ .n       .n       n nil                 nil                 x = refl
-  ++-thm₂ .(suc m) .(suc m) n (snoc {m} s₁ t₁ y₁) nil                 x = refl
-  ++-thm₂ .(suc m) .n       n nil                 (snoc {m} s₂ t₂ y₂) x with thick y₂ x
-  ++-thm₂ .(suc m) .n n nil (snoc {m} s₂ t₂ y₂) x | just t'
-    rewrite ++-thm₁ s₂ | replace-thm₁ (apply s₂ t') = refl
-  ++-thm₂ .(suc m) .n n nil (snoc {m} s₂ t₂ y₂) x | nothing
-    rewrite ++-thm₁ s₂ | replace-thm₁ (replace (apply s₂) t₂) = refl
-  ++-thm₂ .(suc l) .(suc m) n (snoc {m} s₁ t₁ y₁) (snoc {l} s₂ t₂ y₂) x = {!!}
--}
+  ++-thm₂ s₁ (snoc s₂ t y) x | nothing = ++-lem₂ s₁ s₂ t
