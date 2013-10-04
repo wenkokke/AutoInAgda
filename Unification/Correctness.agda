@@ -340,12 +340,12 @@ module Unification.Correctness (Symbol : ℕ -> Set) (decEqSym : ∀ {k} (f g : 
     forChildren-thm₂ : ∀ {n k} -> (x : Fin (suc n)) (s : Symbol k) 
      (ts : Vec (Term (suc n)) k) (ts' : Vec (Term n) k) ->
      checkChildren x ts ≡ just ts' -> 
-     replaceChildren (\y -> (con s ts' for x) y) ts ≡ ts'
+     replaceChildren (con s ts' for x) ts ≡ ts'
     forChildren-thm₂ x s [] [] eq rewrite thickxx≡no x = refl
     forChildren-thm₂ x s (t1 ∷ ts) (t2 ∷ ts') eq 
       with check x t1 | inspect (check x) t1 | checkChildren x ts |  inspect (checkChildren x) ts
     forChildren-thm₂ x s (t1 ∷ ts) (t2 ∷ ts') refl | just .t2 | [ eq1 ] | just .ts' | [ eq2 ] 
-      = cong₂ (\hd tl -> hd ∷ tl) {!lemma₁!} {!!}
+      = cong₂ _∷_ {!!} {!!}
       where
       lemma₁ = for-thm₂ x t1 t2 eq1
     forChildren-thm₂ x s (t1 ∷ ts) (t2 ∷ ts') () | just x₁ | _ | nothing | _
@@ -356,6 +356,34 @@ module Unification.Correctness (Symbol : ℕ -> Set) (decEqSym : ∀ {k} (f g : 
   ++-thm₁ : ∀ {m n} (s : Subst m n) → nil ++ s ≡ s
   ++-thm₁ nil = refl
   ++-thm₁ (snoc s t x) = cong (λ s → snoc s t x) (++-thm₁ s)
+
+  mutual
+    replace-var-id : ∀ {m} (t : Term m) -> replace var t ≡ t
+    replace-var-id (Unification.var x) = refl
+    replace-var-id (Unification.con s ts) = cong (con s) (replaceChildren-var-id ts)
+
+    replaceChildren-var-id : ∀ {m n} -> (ts : Vec (Term m) n) -> replaceChildren var ts ≡ ts
+    replaceChildren-var-id [] = refl
+    replaceChildren-var-id (x ∷ ts) = cong₂ _∷_ (replace-var-id x) (replaceChildren-var-id ts)
+
+  mutual
+
+    replace-var-id' : ∀ {n m} (f : Fin n -> Term m) (t : Term n)  -> 
+      replace (\x -> replace var (f x)) t ≡ replace f t
+    replace-var-id' f (Unification.var x) = replace-var-id (f x)
+    replace-var-id' f (Unification.con s ts) = cong (con s) (replaceChildren-var-id' f ts)
+
+    replaceChildren-var-id' : ∀ {m n k} -> (f : Fin m -> Term k) (ts : Vec (Term m) n) ->
+      replaceChildren (\x -> replace var (f x)) ts ‌≡ replaceChildren f ts
+    replaceChildren-var-id' f [] = refl
+    replaceChildren-var-id' f (x ∷ ts) = cong₂ _∷_ (replace-var-id' f x) (replaceChildren-var-id' f ts)
+
+  ++-lem₁ : ∀ {m n} (s : Subst m n) (t : Term (suc m)) (t' : Term m) (x : Fin (suc m)) ->
+       replace (apply s) (replace (t' for x) t) ≡ replace (\x' -> replace (apply s) (_for_ t' x x')) t 
+  ++-lem₁ Unification.nil t t' x
+    rewrite replace-var-id (replace (t' for x) t) 
+    | replace-var-id' (t' for x) t = refl
+  ++-lem₁ (Unification.snoc s t x) t₁ t' x₁ = {!!}
 
   ++-lem₂
     : ∀ {l m n} (s₁ : Subst m n) (s₂ : Subst l m) (t : Term l)
