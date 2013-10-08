@@ -121,6 +121,8 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
       next : ∃ Rule → ∞ (SearchTree m)
       next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (gs' ++ prm)
         where
+        lem : (m + (δ₁ + δ₂)) ≡ ((m + δ₁) + δ₂)
+        lem = sym (+-assoc m δ₁ δ₂)
 
         -- compute an mgu for the current sub-goal and the chosen rule
         mgu : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
@@ -130,18 +132,18 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
           -- lift arguments for unify into the new finite domain, making room for
           -- the variables used in the chosen rule.
           g'  : Term (m + (δ₁ + δ₂))
-          g'  rewrite sym (+-assoc m δ₁ δ₂) = injectTermL δ₂ g
+          g'  rewrite lem = injectTermL δ₂ g
           s'  : ∃ (Subst (m + (δ₁ + δ₂)))
-          s'  rewrite sym (+-assoc m δ₁ δ₂) = n + δ₂ , injectSubstL δ₂ s
+          s'  rewrite lem = n + δ₂ , injectSubstL δ₂ s
           cnc : Term (m + (δ₁ + δ₂))
-          cnc rewrite sym (+-assoc m δ₁ δ₂) = injectTermR (m + δ₁) (conclusion r)
+          cnc rewrite lem = injectTermR (m + δ₁) (conclusion r)
 
         -- lift arguments for the recursive call to solve into the new finite domain,
         -- making room for the variables used in the chosen rule.
         gs' : List (Term (m + (δ₁ + δ₂)))
-        gs' rewrite sym (+-assoc m δ₁ δ₂) = map (injectTermL δ₂) gs
+        gs' rewrite lem = map (injectTermL δ₂) gs
         prm : List (Term (m + (δ₁ + δ₂)))
-        prm rewrite sym (+-assoc m δ₁ δ₂) = map (injectTermR (m + δ₁)) (premises r)
+        prm rewrite lem = map (injectTermR (m + δ₁)) (premises r)
 
   dfs : ∀ {m} → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n))
   dfs (done s)          = return s
