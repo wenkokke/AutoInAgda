@@ -157,13 +157,7 @@ module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec
   flexFlex {suc n} x y | nothing = (suc n , nil)
   flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
 
-  sumzeroʳ : (x y : ℕ) → x + y ≡ 0 → y ≡ 0
-  sumzeroʳ (suc _) _ ()
-  sumzeroʳ zero (suc _) ()
-  sumzeroʳ zero zero refl = refl
-
   mutual
-
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
     unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc with k₁ ≟ k₂
     unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc | no k₁≢k₂ = nothing
