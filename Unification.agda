@@ -11,7 +11,7 @@ open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
 open import Data.Vec.Equality as VecEq
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary
-open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; inspect; [_])
 
 module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
 
@@ -157,11 +157,12 @@ module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec
   flexFlex {suc n} x y | nothing = (suc n , nil)
   flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
 
-  mutual
+  sumzeroʳ : (x y : ℕ) → x + y ≡ 0 → y ≡ 0
+  sumzeroʳ (suc _) _ ()
+  sumzeroʳ zero (suc _) ()
+  sumzeroʳ zero zero refl = refl
 
-    -- unifyAcc : ∀ {m ε} (t₁ t₂ : Term (m + ε))
-    --          → ∃ (λ n → Subst (m + ε) (n + ε))
-    --          → Maybe (∃ (λ n → Subst (m + ε) (n + ε)))
+  mutual
 
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
     unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc with k₁ ≟ k₂
