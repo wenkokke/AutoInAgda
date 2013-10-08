@@ -95,58 +95,55 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   --   n is always equal to 0.
 
   data SearchTree (m : ℕ) : Set where
-    done : ∃₂ (λ n ε → Subst (m + ε) (n + ε)) → SearchTree m
+    done : ∃₂ (λ δ n → Subst (m + δ) n) → SearchTree m
     step : (∃ Rule → ∞ (SearchTree m)) → Rules → SearchTree m
 
   loop : ∀ {m} → SearchTree m
   loop = step (λ _ → ~ loop) []
 
   solve : ∀ {m} → Rules → Goal m → SearchTree m
-  solve {m} rules goal = {!!}
+  solve {m} rs g = solveAcc {m} {0} (just (m , s₀)) (g₀ ∷ [])
     where
-    solveAcc : ∀ {m ε} → Maybe (∃ (λ n → Subst (m + ε) (n + ε))) → List (Goal (m + ε)) → SearchTree m
-    solveAcc {m} {ε} nothing _ = loop
-    solveAcc {m} {ε} (just (n , s)) [] = done (n , ε , s)
-    solveAcc {m} {ε} (just (n , s)) (g ∷ gs) = step next rules
+    open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
+
+    -- small proofs that the initial domain (with room for m goal variables and
+    -- 0 auxiliary variables) is equal to just the goal domain (with m variables)
+    s₀ : Subst (m + 0) m
+    s₀ rewrite proj₂ +-identity m = nil
+    g₀ : Goal (m + 0)
+    g₀ rewrite proj₂ +-identity m = g
+
+    solveAcc : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n)) → List (Goal (m + δ₁)) → SearchTree m
+    solveAcc {m} {δ₁} nothing _ = loop
+    solveAcc {m} {δ₁} (just (n , s)) [] = done (δ₁ , n , s)
+    solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next rs
       where
       next : ∃ Rule → ∞ (SearchTree m)
-      next (δ , r) = ~ solveAcc {m} {ε + δ} mgu (gs' ++ prm)
+      next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (gs' ++ prm)
         where
 
-        open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc)
+        -- compute an mgu for the current sub-goal and the chosen rule
+        mgu : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
+        mgu = unifyAcc g' cnc s'
+          where
 
-        -- unifyAcc : ∀ {m ε} (t₁ t₂ : Term (m + ε))
-        --            → ∃ (λ n → Subst (m + ε) (n + ε))
-        --            → Maybe (∃ (λ n → Subst (m + ε) (n + ε)))
+          -- lift arguments for unify into the new finite domain, making room for
+          -- the variables used in the chosen rule.
+          g'  : Term (m + (δ₁ + δ₂))
+          g'  rewrite sym (+-assoc m δ₁ δ₂) = injectTermL δ₂ g
+          s'  : ∃ (Subst (m + (δ₁ + δ₂)))
+          s'  rewrite sym (+-assoc m δ₁ δ₂) = n + δ₂ , injectSubstL δ₂ s
+          cnc : Term (m + (δ₁ + δ₂))
+          cnc rewrite sym (+-assoc m δ₁ δ₂) = injectTermR (m + δ₁) (conclusion r)
 
-        mgu : Maybe (∃ (λ n → Subst (m + (ε + δ)) (n + (ε + δ))))
-        mgu = {!!}
+        -- lift arguments for the recursive call to solve into the new finite domain,
+        -- making room for the variables used in the chosen rule.
+        gs' : List (Term (m + (δ₁ + δ₂)))
+        gs' rewrite sym (+-assoc m δ₁ δ₂) = map (injectTermL δ₂) gs
+        prm : List (Term (m + (δ₁ + δ₂)))
+        prm rewrite sym (+-assoc m δ₁ δ₂) = map (injectTermR (m + δ₁)) (premises r)
 
-        -- | subgoals lifted to (m + ε + δ)
-        gs' : List (Term (m + (ε + δ)))
-        gs' rewrite sym (+-assoc m ε δ) = map (injectTermL δ) gs
-
-        -- | premises for the chosen rule lifted to (m + ε + δ)
-        prm : List (Term (m + (ε + δ)))
-        prm rewrite sym (+-assoc m ε δ) = map (injectTermR (m + ε)) (premises r)
-
-
-
-
-  {-
-  solve : ∀ {m} → Rules → Goal m → SearchTree
-  solve {m} rs g with joinRules rs
-  ... | n    , rs' with raiseGoalL g | map (raiseRuleR m) rs'
-  ... | goal | rules = m + n , solveAcc (just (m + n , nil)) (goal ∷ [])
-    where
-    solveAcc : Maybe (∃ (Subst (m + n))) → List (Goal (m + n)) → SearchTree (m + n)
-    solveAcc nothing  _  = loop
-    solveAcc (just s) [] = done s
-    solveAcc (just s) (g ∷ gs) =
-      step (λ r → ~ solveAcc (unifyAcc g (conclusion r) s) (gs ++ premises r)) rules
-  -}
-
-  dfs : ∀ {m} → SearchTree m → Search (∃₂ (λ n ε → Subst (m + ε) (n + ε)))
+  dfs : ∀ {m} → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n))
   dfs (done s)          = return s
   dfs (step f [])       = fail
   dfs (step f (x ∷ xs)) = fork (~ dfs (! f x)) (~ dfs (step f xs))
@@ -166,7 +163,6 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   -- of unused rules), the required proof of this is currently still unimplemented
   -- therefore, we have to resort to using maybe
 
-  {-
   mutual
     noVars : ∀ {n} → Term n → Maybe (Term 0)
     noVars (var x)    = nothing
@@ -182,12 +178,12 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   filterWithVars = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
 
   solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m))
-  solveToDepth {m} depth rules goal = map app subs
+  solveToDepth {m} depth rules goal = map appl subs
     where
     vars : Vec (Fin m) m
     vars = dom
     tree = solve rules goal
-    subs = dfsToDepth depth (dfs (proj₂ tree))
-    app : ∃ (Subst (m + _)) → ∃ (λ n → Vec (Term n) m)
-    app (n , s) = n , vmap (λ v → apply s v ) (vmap (injectL _) vars)
-  -}
+    subs : List (∃₂ (λ δ n → Subst (m + δ) n))
+    subs = dfsToDepth depth (dfs tree)
+    appl : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
+    appl (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
