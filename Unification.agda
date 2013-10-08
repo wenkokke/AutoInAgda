@@ -144,12 +144,12 @@ module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec
   s₁ ++ nil = s₁
   s₁ ++ (snoc s₂ t x) = snoc (s₁ ++ s₂) t x
 
+
   flexRigid : ∀ {n} → Fin n → Term n → Maybe (∃ (Subst n))
   flexRigid {zero} () t
   flexRigid {suc n} x t with check x t
   flexRigid {suc n} x t | nothing = nothing
   flexRigid {suc n} x t | just t' = just (n , snoc nil t' x)
-
 
   flexFlex : ∀ {n} → (x y : Fin n) → ∃ (Subst n)
   flexFlex {zero} () j
