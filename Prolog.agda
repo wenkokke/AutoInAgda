@@ -10,7 +10,7 @@ open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
 open import Data.List as List using (List; []; _∷_; _++_; map; concatMap; fromMaybe)
-open import Data.Vec as Vec using (Vec; []; _∷_) renaming (map to vmap)
+open import Data.Vec as Vec using (Vec; []; _∷_; allFin) renaming (map to vmap)
 open import Data.Product using (∃; ∃₂; _,_; proj₁; proj₂)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
@@ -156,10 +156,6 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   dfsToDepth (suc k) (return x)   = x ∷ []
   dfsToDepth (suc k) (fork xs ys) = dfsToDepth k (! xs) ++ dfsToDepth k (! ys)
 
-  dom : ∀ {n} → Vec (Fin n) n
-  dom {zero}  = []
-  dom {suc n} = zero ∷ vmap (injectR 1) (dom {n})
-
   -- while we should be able to guarantee that the terms after substitution
   -- contain no variables (and all free variables in the domain occur because
   -- of unused rules), the required proof of this is currently still unimplemented
@@ -182,10 +178,8 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
   solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m))
   solveToDepth {m} depth rules goal = map appl subs
     where
-    vars : Vec (Fin m) m
-    vars = dom
+    vars = allFin m
     tree = solve rules goal
-    subs : List (∃₂ (λ δ n → Subst (m + δ) n))
     subs = dfsToDepth depth (dfs tree)
     appl : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
     appl (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
