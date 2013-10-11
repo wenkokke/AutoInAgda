@@ -13,7 +13,7 @@ open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; inspect; [_])
 
-module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
+module Unification (Name : ℕ → Set) (decEqName : ∀ {k} (x y : Name k) → Dec (x ≡ y)) where
 
   open RawFunctor {{...}}
   open RawMonad {{...}} hiding (_<$>_)
@@ -24,14 +24,13 @@ module Unification (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec
   private natDecSetoid = PropEq.decSetoid Nat._≟_
   private finDecSetoid : ∀ {n} → DecSetoid _ _
           finDecSetoid {n} = FinProps.decSetoid n
-  private symDecSetoid : ∀ {k} → DecSetoid _ _
-          symDecSetoid {k} = PropEq.decSetoid (decEqSym {k})
+  private nameDecSetoid : ∀ {k} → DecSetoid _ _
+          nameDecSetoid {k} = PropEq.decSetoid (decEqName {k})
 
   -- defining terms
-
   data Term (n : ℕ) : Set where
     var : Fin n → Term n
-    con : ∀ {k} (s : Sym k) → (ts : Vec (Term n) k) → Term n
+    con : ∀ {k} (s : Name k) → (ts : Vec (Term n) k) → Term n
 
   -- defining decidable equality on terms
   mutual
