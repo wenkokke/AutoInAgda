@@ -15,13 +15,13 @@ open import Data.Product using (∃; ∃₂; _,_; proj₁; proj₂)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 
-module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
+module Prolog (Rul : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) → Dec (f ≡ g)) where
 
   open RawMonad {{...}} renaming (return to mreturn)
   maybeMonad = Maybe.monad
 
   import Unification
-  module UI = Unification Sym decEqSym
+  module UI = Unification Con decEqCon
   open UI public hiding (_++_)
 
   -- | possibly infinite search tree with suspended computations
@@ -32,8 +32,9 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
 
   -- | encoding of prolog-style rules indexed by their number of variables
   record Rule (n : ℕ) : Set where
-    constructor _:-_
+    constructor rule
     field
+      name       : Rul
       conclusion : Term n
       premises   : List (Term n)
 
@@ -67,12 +68,12 @@ module Prolog (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f �
 
   -- | injects a Ruleᵐ into the lower half of Ruleᵐ⁺ⁿ
   injectRuleL : {m : ℕ} → (n : ℕ) → Rule m → Rule (m + n)
-  injectRuleL {m} n (conc :- prem) = inj conc :- map inj prem
+  injectRuleL {m} n (rule name conc prem) = rule name (inj conc) (map inj prem)
     where inj = injectTermL n
 
   -- | injects a Ruleⁿ into the upper half of Ruleᵐ⁺ⁿ
   injectRuleR : (m : ℕ) → {n : ℕ} → Rule n → Rule (m + n)
-  injectRuleR m {n} (conc :- prem) = inj conc :- map inj prem
+  injectRuleR m {n} (rule name conc prem) = rule name (inj conc) (map inj prem)
     where inj = injectTermR m
 
   -- | injects a Substᵐⁿ into the lower half of Subst⁽ᵐ⁺ᵉ⁾⁽ⁿ⁺ᵉ⁾
