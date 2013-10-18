@@ -11,11 +11,11 @@ open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
 open import Data.List as List using (List; []; _∷_; _++_; map; concatMap; fromMaybe)
 open import Data.Vec as Vec using (Vec; []; _∷_; allFin) renaming (map to vmap)
-open import Data.Product using (∃; ∃₂; _,_; proj₁; proj₂)
+open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂) renaming (map to pmap)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 
-module Prolog (Rul : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) → Dec (f ≡ g)) where
+module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) → Dec (f ≡ g)) where
 
   open RawMonad {{...}} renaming (return to mreturn)
   maybeMonad = Maybe.monad
@@ -24,17 +24,11 @@ module Prolog (Rul : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) 
   module UI = Unification Con decEqCon
   open UI public hiding (_++_)
 
-  -- | possibly infinite search tree with suspended computations
-  data Search (A : Set) : Set where
-    fail   : Search A
-    return : A → Search A
-    fork   : ∞ (Search A) → ∞ (Search A) → Search A
-
   -- | encoding of prolog-style rules indexed by their number of variables
   record Rule (n : ℕ) : Set where
     constructor rule
     field
-      name       : Rul
+      name       : Name
       conclusion : Term n
       premises   : List (Term n)
 
@@ -81,7 +75,7 @@ module Prolog (Rul : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) 
   injectSubstL _ nil = nil
   injectSubstL ε (snoc s t x) = snoc (injectSubstL ε s) (injectTermL ε t) (injectL ε x)
 
-  -- Search Trees
+  -- Abstract Search Trees
   --
   -- What can we guarantee about the final `Subst m n`?
   --
@@ -145,6 +139,18 @@ module Prolog (Rul : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) 
         gs' rewrite lem = map (injectTermL δ₂) gs
         prm : List (Term (m + (δ₁ + δ₂)))
         prm rewrite lem = map (injectTermR (m + δ₁)) (premises r)
+
+  -- Concrete Search Tree
+  --
+  -- A concrete search tree is a realization of an abstract search tree, by explicit
+  -- branching and rule applications. Aside from applying each rule, the transformation
+  -- from abstract to concrete also maintains a list of each applied rule.
+
+  -- | possibly infinite search tree with suspended computations
+  data Search (A : Set) : Set where
+    fail   : Search A
+    return : A → Search A
+    fork   : ∞ (Search A) → ∞ (Search A) → Search A
 
   dfs : ∀ {m} → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n))
   dfs (done s)          = return s
