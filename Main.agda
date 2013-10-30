@@ -34,7 +34,7 @@ module Main where
   showSym ZERO = "Zero"
 
   import Prolog
-  module PI = Prolog Sym decEqSym
+  module PI = Prolog String Sym decEqSym
   open PI
 
   import Unification.Show
@@ -63,9 +63,9 @@ module Main where
   rules : Rules
   rules = Add₀ ∷ Add₁ ∷ []
     where
-    Add₀ = 1 , Add Zero x₀ x₀ :- []
+    Add₀ = 1 , rule "Add" (Add Zero x₀ x₀) []
       where x₀ = var zero
-    Add₁ = 3 , Add (Suc x₀) x₁ (Suc x₂) :- (Add x₀ x₁ x₂ ∷ [])
+    Add₁ = 3 , rule "Add" (Add (Suc x₀) x₁ (Suc x₂)) (Add x₀ x₁ x₂ ∷ [])
       where x₀ = var zero
             x₁ = var (suc zero)
             x₂ = var (suc (suc zero))
