@@ -9,7 +9,7 @@ open import Data.Nat using (ℕ; suc; zero; _+_)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
-open import Data.List as List using (List; []; _∷_; _++_; map; concatMap; fromMaybe)
+open import Data.List as List using (List; []; _∷_; _++_; map; concatMap; fromMaybe; length)
 open import Data.Vec as Vec using (Vec; []; _∷_; allFin) renaming (map to vmap)
 open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂) renaming (map to pmap)
 open import Relation.Nullary using (Dec; yes; no)
@@ -33,6 +33,10 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
       premises   : List (Term n)
 
   open Rule using (conclusion; premises)
+
+  -- | compute the arity of a rule
+  arity : ∀ {n} → Rule n → ℕ
+  arity = length ∘ premises
 
   -- | alias for lists of rules
   Rules : Set
@@ -94,8 +98,14 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   --                      _____g____
   --                 r₁  /     ⋯    \ rₙ
   --                  [g]            [g]
-  --             [r₁ / ⋯ \ rₙ ] [r₁ / ⋯ \ rₙ ]
+  --             [r₁ / ⋯ \ rₙ]  [r₁ / ⋯ \ rₙ]
   --                 ⋮    ⋮        ⋮   ⋮
+
+  -- data GoalTree (m : ℕ) : Set where
+  --   node : Goal m → List (Σ (∃ Rule) (λ r → Vec (GoalTree m) (arity r))
+
+  -- data GoalTree (m : ℕ) : Set where
+  --   step : Goal m → (∀ {n} (r : Rule n) → ...
 
   -- Abstract Search Trees
   --
