@@ -75,6 +75,28 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   injectSubstL _ nil = nil
   injectSubstL ε (snoc s t x) = snoc (injectSubstL ε s) (injectTermL ε t) (injectL ε x)
 
+  -- Calculating Proof Terms
+  --
+  -- Two possible solutions for computing proof terms with proof search:
+  --
+  -- * Reconstruct the function/argument structure from the final proof tree,
+  --   using the arity of the used rules and the fact that therefore the next
+  --   `n` rule applications will go towards computing the arguments for the
+  --   chosen rule.
+  --   This would probably be done best by extending the `dfs` function with
+  --   an accumulating parameter that represents terms that can contain holes,
+  --   and is initialized with a hole.
+  --
+  -- * We can also adapt the SearchTree structure to encode the term structure.
+  --   At every node there should be the current goal. Edges should then connect
+  --   this goal (via a rule) to the subgoals required by that rule. As below.
+  --
+  --                      _____g____
+  --                 r₁  /     ⋯    \ rₙ
+  --                  [g]            [g]
+  --             [r₁ / ⋯ \ rₙ ] [r₁ / ⋯ \ rₙ ]
+  --                 ⋮    ⋮        ⋮   ⋮
+
   -- Abstract Search Trees
   --
   -- What can we guarantee about the final `Subst m n`?
