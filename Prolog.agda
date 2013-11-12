@@ -38,10 +38,6 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   arity : ∀ {n} → Rule n → ℕ
   arity = length ∘ premises
 
-  -- | compute the arity of an existentially quantified rule
-  arity′ : ∃ Rule → ℕ
-  arity′ = arity ∘ proj₂
-
   -- | alias for lists of rules
   Rules : Set
   Rules = List (∃ Rule)
@@ -182,23 +178,24 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
     retn : A → Search A
     fork : ∞ (Search A) → ∞ (Search A) → Search A
 
-  dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
-  dfsAcc rs₀ (done s) rs       ap = retn (s , ap)
-  dfsAcc rs₀ (step f) []       ap = fail
-  dfsAcc rs₀ (step f) (r ∷ rs) ap = fork (~ here) (~ further)
-    where
-      -- apply the current rule, and continue searching for a solution for
-      -- the next sub-goal (the first parameter of the selected rule); reset
-      -- the set of possible rules to its initial values; append the applied
-      -- rule to the current rule trace
-      here    = dfsAcc rs₀ (! f r) rs₀ (ap ∷ʳ r)
+  mutual
+    dfs : ∀ {m} → Rules → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+    dfs rs₀ s = dfsAcc rs₀ s rs₀ []
 
-      -- discard the current rule, and continue the search for a solution to
-      -- the current sub-goal using the remaining rules
-      further = dfsAcc rs₀ (step f) rs ap
+    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+    dfsAcc rs₀ (done s) rs       ap = retn (s , ap)
+    dfsAcc rs₀ (step f) []       ap = fail
+    dfsAcc rs₀ (step f) (r ∷ rs) ap = fork (~ here) (~ further)
+      where
+        -- apply the current rule, and continue searching for a solution for
+        -- the next sub-goal (the first parameter of the selected rule); reset
+        -- the set of possible rules to its initial values; append the applied
+        -- rule to the current rule trace
+        here = dfsAcc rs₀ (! f r) rs₀ (ap ∷ʳ r)
 
-  dfs : ∀ {m} → Rules → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
-  dfs rs₀ s = dfsAcc rs₀ s rs₀ []
+        -- discard the current rule, and continue the search for a solution to
+        -- the current sub-goal using the remaining rules
+        further = dfsAcc rs₀ (step f) rs ap
 
   dfsToDepth : ∀ {A} → ℕ → Search A → List A
   dfsToDepth zero     _           = []
@@ -246,3 +243,32 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
     subs = dfsToDepth depth (dfs rules tree)
     envOf : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
     envOf (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
+
+  data Proof : Set where
+    con : Name → (k : ℕ) → Vec Proof k → Proof
+
+  {-# NO_TERMINATION_CHECK #-}
+  mutual
+    toProofAcc : Rules → Maybe (Proof × Rules)
+    toProofAcc [] = nothing
+    toProofAcc (r ∷ rs₀) =
+      toProofChildrenAcc k rs₀ >>= λ { (ps , rs₁) →
+        return (con n _ ps , rs₁)
+      }
+      where
+        n = name (proj₂ r)
+        k = arity (proj₂ r)
+
+    toProofChildrenAcc : (k : ℕ) → Rules → Maybe (Vec Proof k × Rules)
+    toProofChildrenAcc  zero   rs₀ = just ([] , rs₀)
+    toProofChildrenAcc (suc k) rs₀ =
+      toProofAcc rs₀ >>= λ { (p , rs₁) →
+        toProofChildrenAcc k rs₁ >>= λ { (ps , rs₂) →
+          return (p ∷ ps , rs₂)
+        }
+      }
+
+  toProof : Rules → Maybe Proof
+  toProof rs with toProofAcc rs
+  ... | just (p , []) = just p
+  ... | _             = nothing

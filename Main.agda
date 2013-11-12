@@ -1,11 +1,11 @@
-open import Function using (_∘_)
+open import Function using (_∘_; _$_)
 open import Coinduction
 open import Category.Monad
 open import Data.Fin using (Fin; suc; zero; #_)
 open import Data.Nat using (ℕ; suc; zero)
 open import Data.Nat.Show using () renaming (show to showℕ)
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.Vec using (Vec; []; _∷_) renaming (map to vmap)
+open import Data.Vec using (Vec; []; _∷_; toList) renaming (map to vmap)
 open import Data.List using (List; []; _∷_; intersperse; map; foldr)
 open import Data.Product using (∃; _×_; _,_; proj₁; proj₂)
 open import Data.String using (String; _++_)
@@ -83,11 +83,25 @@ module Main where
     showEnv' (t₁ ∷ []) = showℕ (toℕ t₁)
     showEnv' (t₁ ∷ t₂ ∷ ts) = showℕ (toℕ t₁) ++ "; " ++ showEnv' (t₂ ∷ ts)
 
+  concat : List String → String
+  concat = foldr (_++_) ""
+
+  joinBy : String → List String → String
+  joinBy sep = concat ∘ intersperse sep
+
   showTrace : Rules → String
-  showTrace = foldr (_++_) "" ∘ intersperse ";" ∘ map (name ∘ proj₂)
+  showTrace = joinBy ";" ∘ map (name ∘ proj₂)
+
+  {-# NO_TERMINATION_CHECK #-}
+  showProof : Proof → String
+  showProof (con n _ ps) = n ++ "(" ++ (joinBy "," ∘ map showProof ∘ toList $ ps) ++ ")"
+
+  showProof′ : Maybe Proof → String
+  showProof′ (just p) = showProof p
+  showProof′ nothing = "-"
 
   showAns : ∀ {m} → Vec (Term 0) m × Rules → String
-  showAns (env , rs) = showEnv env ++ " by " ++ showTrace rs
+  showAns (env , rs) = showEnv env ++ " by " ++ showProof′ (toProof rs)
 
   showList : ∀ {ℓ} {A : Set ℓ} (show : A → String) → List A → String
   showList show [] = ""
