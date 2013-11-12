@@ -9,7 +9,7 @@ open import Data.Nat using (ℕ; suc; zero; _+_)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
-open import Data.List as List using (List; []; _∷_; _++_; map; concatMap; fromMaybe; length)
+open import Data.List as List using (List; []; _∷_; _++_; map; foldr; concatMap; fromMaybe; length)
 open import Data.Vec as Vec using (Vec; []; _∷_; allFin) renaming (map to vmap)
 open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂) renaming (map to pmap)
 open import Relation.Nullary using (Dec; yes; no)
@@ -38,6 +38,10 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   arity : ∀ {n} → Rule n → ℕ
   arity = length ∘ premises
 
+  -- | compute the arity of an existentially quantified rule
+  arity′ : ∃ Rule → ℕ
+  arity′ = arity ∘ proj₂
+
   -- | alias for lists of rules
   Rules : Set
   Rules = List (∃ Rule)
@@ -47,30 +51,30 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   Goal n = Term n
 
   -- | injects a Finᵐ into the lower half of Finᵐ⁺ⁿ
-  injectL : {m : ℕ} → (n : ℕ) → Fin m → Fin (m + n)
+  injectL : {m : ℕ} (n : ℕ) → Fin m → Fin (m + n)
   injectL _  zero   = zero
   injectL _ (suc i) = suc (injectL _ i)
 
   -- | injects a Finⁿ into the upper half of Finᵐ⁺ⁿ
-  injectR : (m : ℕ) → {n : ℕ} → Fin n → Fin (m + n)
+  injectR : (m : ℕ) {n : ℕ} → Fin n → Fin (m + n)
   injectR zero   i = i
   injectR (suc m) i = suc (injectR m i)
 
   -- | injects a Termᵐ into the lower half of Termᵐ⁺ⁿ
-  injectTermL : {m : ℕ} → (n : ℕ) → Term m → Term (m + n)
+  injectTermL : {m : ℕ} (n : ℕ) → Term m → Term (m + n)
   injectTermL n = replace (var ∘ injectL n)
 
   -- | injects a Termⁿ into the upper half of Termᵐ⁺ⁿ
-  injectTermR : (m : ℕ) → {n : ℕ} → Term n → Term (m + n)
+  injectTermR : (m : ℕ) {n : ℕ} → Term n → Term (m + n)
   injectTermR m = replace (var ∘ injectR m)
 
   -- | injects a Ruleᵐ into the lower half of Ruleᵐ⁺ⁿ
-  injectRuleL : {m : ℕ} → (n : ℕ) → Rule m → Rule (m + n)
+  injectRuleL : {k : ℕ} {m : ℕ} (n : ℕ) → Rule m → Rule (m + n)
   injectRuleL {m} n (rule name conc prem) = rule name (inj conc) (map inj prem)
     where inj = injectTermL n
 
   -- | injects a Ruleⁿ into the upper half of Ruleᵐ⁺ⁿ
-  injectRuleR : (m : ℕ) → {n : ℕ} → Rule n → Rule (m + n)
+  injectRuleR : {k : ℕ} (m : ℕ) {n : ℕ} → Rule n → Rule (m + n)
   injectRuleR m {n} (rule name conc prem) = rule name (inj conc) (map inj prem)
     where inj = injectTermR m
 
@@ -101,11 +105,19 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   --             [r₁ / ⋯ \ rₙ]  [r₁ / ⋯ \ rₙ]
   --                 ⋮    ⋮        ⋮   ⋮
 
-  -- data GoalTree (m : ℕ) : Set where
-  --   node : Goal m → List (Σ (∃ Rule) (λ r → Vec (GoalTree m) (arity r))
+  data Proof : Set where
+    con : Name → Proof
+    app : ∀ {k} → Name → Vec Proof k → Proof
 
-  -- data GoalTree (m : ℕ) : Set where
-  --   step : Goal m → (∀ {n} (r : Rule n) → ...
+  {-
+  data GoalTree (m : ℕ) : Set where
+    done : ∃₂ (λ δ n → Subst (m + δ) n × ProofTerm) → GoalTree m
+    step : ((r : ∃ Rule) → ∞ (Vec (GoalTree m) (arity′ r))) → GoalTree m
+
+  repeat : ∀ {k} {A : Set} → A → Vec A k
+  repeat {zero}  _ = []
+  repeat {suc k} x = x ∷ repeat {k} x
+  -}
 
   -- Abstract Search Trees
   --
@@ -123,13 +135,13 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
 
   data SearchTree (m : ℕ) : Set where
     done : ∃₂ (λ δ n → Subst (m + δ) n) → SearchTree m
-    step : (∃ Rule → ∞ (SearchTree m)) → Rules → SearchTree m
+    step : (∃ Rule → ∞ (SearchTree m)) → SearchTree m
 
   loop : ∀ {m} → SearchTree m
-  loop = step (λ _ → ~ loop) []
+  loop = step (λ _ → ~ loop)
 
-  solve : ∀ {m} → Rules → Goal m → SearchTree m
-  solve {m} rs g = solveAcc {m} {0} (just (m , s₀)) (g₀ ∷ [])
+  solve : ∀ {m} → Goal m → SearchTree m
+  solve {m} g = solveAcc {m} {0} (just (m , s₀)) (g₀ ∷ [])
     where
     open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
 
@@ -143,7 +155,7 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
     solveAcc : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n)) → List (Goal (m + δ₁)) → SearchTree m
     solveAcc {m} {δ₁} nothing _ = loop
     solveAcc {m} {δ₁} (just (n , s)) [] = done (δ₁ , n , s)
-    solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next rs
+    solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next
       where
       next : ∃ Rule → ∞ (SearchTree m)
       next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (gs' ++ prm)
@@ -184,10 +196,14 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
     return : A → Search A
     fork   : ∞ (Search A) → ∞ (Search A) → Search A
 
-  dfs : ∀ {m} → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n))
-  dfs (done s)          = return s
-  dfs (step f [])       = fail
-  dfs (step f (x ∷ xs)) = fork (~ dfs (! f x)) (~ dfs (step f xs))
+  mutual
+    dfs : ∀ {m} → SearchTree m → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n))
+    dfs s rs = dfsAcc s rs rs
+
+    dfsAcc : ∀ {m} → SearchTree m → Rules → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n))
+    dfsAcc (done s) rs₀ rs = return s
+    dfsAcc (step f) rs₀ [] = fail
+    dfsAcc (step f) rs₀ (r ∷ rs) = fork (~ dfs (! f r) rs₀) (~ dfsAcc (step f) rs₀ rs)
 
   dfsToDepth : ∀ {A} → ℕ → Search A → List A
   dfsToDepth zero     _           = []
@@ -218,7 +234,7 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   solveToDepth {m} depth rules goal = map appl subs
     where
     vars = allFin m
-    tree = solve rules goal
-    subs = dfsToDepth depth (dfs tree)
+    tree = solve goal
+    subs = dfsToDepth depth (dfs tree rules)
     appl : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
     appl (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
