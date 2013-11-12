@@ -9,7 +9,7 @@ open import Data.Nat using (ℕ; suc; zero; _+_)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
-open import Data.List as List using (List; []; _∷_; _++_; map; foldr; concatMap; fromMaybe; length)
+open import Data.List as List using (List; []; _∷_; _∷ʳ_; _++_; map; foldr; concatMap; fromMaybe; length)
 open import Data.Vec as Vec using (Vec; []; _∷_; allFin) renaming (map to vmap)
 open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂) renaming (map to pmap)
 open import Relation.Nullary using (Dec; yes; no)
@@ -17,7 +17,7 @@ open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; 
 
 module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) → Dec (f ≡ g)) where
 
-  open RawMonad {{...}} renaming (return to mreturn)
+  open RawMonad {{...}}
   maybeMonad = Maybe.monad
 
   import Unification
@@ -32,7 +32,7 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
       conclusion : Term n
       premises   : List (Term n)
 
-  open Rule using (conclusion; premises)
+  open Rule public using (name; conclusion; premises)
 
   -- | compute the arity of a rule
   arity : ∀ {n} → Rule n → ℕ
@@ -105,20 +105,6 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
   --             [r₁ / ⋯ \ rₙ]  [r₁ / ⋯ \ rₙ]
   --                 ⋮    ⋮        ⋮   ⋮
 
-  data Proof : Set where
-    con : Name → Proof
-    app : ∀ {k} → Name → Vec Proof k → Proof
-
-  {-
-  data GoalTree (m : ℕ) : Set where
-    done : ∃₂ (λ δ n → Subst (m + δ) n × ProofTerm) → GoalTree m
-    step : ((r : ∃ Rule) → ∞ (Vec (GoalTree m) (arity′ r))) → GoalTree m
-
-  repeat : ∀ {k} {A : Set} → A → Vec A k
-  repeat {zero}  _ = []
-  repeat {suc k} x = x ∷ repeat {k} x
-  -}
-
   -- Abstract Search Trees
   --
   -- What can we guarantee about the final `Subst m n`?
@@ -158,7 +144,7 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
     solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next
       where
       next : ∃ Rule → ∞ (SearchTree m)
-      next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (gs' ++ prm)
+      next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm ++ gs')
         where
         lem : (m + (δ₁ + δ₂)) ≡ ((m + δ₁) + δ₂)
         lem = sym (+-assoc m δ₁ δ₂)
@@ -192,23 +178,32 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
 
   -- | possibly infinite search tree with suspended computations
   data Search (A : Set) : Set where
-    fail   : Search A
-    return : A → Search A
-    fork   : ∞ (Search A) → ∞ (Search A) → Search A
+    fail : Search A
+    retn : A → Search A
+    fork : ∞ (Search A) → ∞ (Search A) → Search A
 
-  mutual
-    dfs : ∀ {m} → SearchTree m → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n))
-    dfs s rs = dfsAcc s rs rs
+  dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+  dfsAcc rs₀ (done s) rs       ap = retn (s , ap)
+  dfsAcc rs₀ (step f) []       ap = fail
+  dfsAcc rs₀ (step f) (r ∷ rs) ap = fork (~ here) (~ further)
+    where
+      -- apply the current rule, and continue searching for a solution for
+      -- the next sub-goal (the first parameter of the selected rule); reset
+      -- the set of possible rules to its initial values; append the applied
+      -- rule to the current rule trace
+      here    = dfsAcc rs₀ (! f r) rs₀ (ap ∷ʳ r)
 
-    dfsAcc : ∀ {m} → SearchTree m → Rules → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n))
-    dfsAcc (done s) rs₀ rs = return s
-    dfsAcc (step f) rs₀ [] = fail
-    dfsAcc (step f) rs₀ (r ∷ rs) = fork (~ dfs (! f r) rs₀) (~ dfsAcc (step f) rs₀ rs)
+      -- discard the current rule, and continue the search for a solution to
+      -- the current sub-goal using the remaining rules
+      further = dfsAcc rs₀ (step f) rs ap
+
+  dfs : ∀ {m} → Rules → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+  dfs rs₀ s = dfsAcc rs₀ s rs₀ []
 
   dfsToDepth : ∀ {A} → ℕ → Search A → List A
   dfsToDepth zero     _           = []
   dfsToDepth (suc k)  fail        = []
-  dfsToDepth (suc k) (return x)   = x ∷ []
+  dfsToDepth (suc k) (retn x)     = x ∷ []
   dfsToDepth (suc k) (fork xs ys) = dfsToDepth k (! xs) ++ dfsToDepth k (! ys)
 
   -- while we should be able to guarantee that the terms after substitution
@@ -225,16 +220,29 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
     noVarsChildren [] = just []
     noVarsChildren (t ∷ ts) = noVars t >>= λ t' →
                               noVarsChildren ts >>= λ ts' →
-                              mreturn (t' ∷ ts')
+                              return (t' ∷ ts')
+
+  first : {A B C : Set} → (A → B) → A × C → B × C
+  first f (x , y) = f x , y
+
+  second : {A B C : Set} → (B → C) → A × B → A × C
+  second f (x , y) = x , f y
 
   filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
   filterWithVars = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
 
-  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m))
-  solveToDepth {m} depth rules goal = map appl subs
+  filterWithVars' : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules) → List (Vec (Term 0) m × Rules)
+  filterWithVars' {m} rs = concatMap (fromMaybe ∘ noVars') rs
+    where
+    noVars' : ∃ (λ n → Vec (Term n) m) × Rules → Maybe (Vec (Term 0) m × Rules)
+    noVars' ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
+
+  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m) × Rules)
+  solveToDepth {m} depth rules goal = map (first envOf) $ subs
     where
     vars = allFin m
     tree = solve goal
-    subs = dfsToDepth depth (dfs tree rules)
-    appl : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
-    appl (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
+    subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
+    subs = dfsToDepth depth (dfs rules tree)
+    envOf : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
+    envOf (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
