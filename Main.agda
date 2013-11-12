@@ -1,14 +1,14 @@
 open import Function using (_∘_)
 open import Coinduction
 open import Category.Monad
-open import Data.Fin using (Fin; suc; zero)
+open import Data.Fin using (Fin; suc; zero; #_)
 open import Data.Nat using (ℕ; suc; zero)
 open import Data.Nat.Show using () renaming (show to showℕ)
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
 open import Data.Vec using (Vec; []; _∷_) renaming (map to vmap)
-open import Data.List using (List; []; _∷_)
-open import Data.Product using (∃; _,_)
-open import Data.String
+open import Data.List using (List; []; _∷_; intersperse; map; foldr)
+open import Data.Product using (∃; _×_; _,_; proj₁; proj₂)
+open import Data.String using (String; _++_)
 open import Data.Unit using (⊤; tt)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl)
@@ -63,9 +63,9 @@ module Main where
   rules : Rules
   rules = Add₀ ∷ Add₁ ∷ []
     where
-    Add₀ = 1 , rule "Add" (Add Zero x₀ x₀) []
+    Add₀ = 1 , rule "Add₀" (Add Zero x₀ x₀) []
       where x₀ = var zero
-    Add₁ = 3 , rule "Add" (Add (Suc x₀) x₁ (Suc x₂)) (Add x₀ x₁ x₂ ∷ [])
+    Add₁ = 3 , rule "Add₁" (Add (Suc x₀) x₁ (Suc x₂)) (Add x₀ x₁ x₂ ∷ [])
       where x₀ = var zero
             x₁ = var (suc zero)
             x₂ = var (suc (suc zero))
@@ -75,13 +75,19 @@ module Main where
     where x₀ = var zero
           x₁ = var (suc zero)
 
-  showAns : ∀ {m} → Vec (Term 0) m → String
-  showAns ans = "{" ++ showAns' ans ++ "}"
+  showEnv : ∀ {m} → Vec (Term 0) m → String
+  showEnv ans = "{" ++ showEnv' ans ++ "}"
     where
-    showAns' : ∀ {m} → Vec (Term 0) m → String
-    showAns' [] = ""
-    showAns' (t₁ ∷ []) = showℕ (toℕ t₁)
-    showAns' (t₁ ∷ t₂ ∷ ts) = showℕ (toℕ t₁) ++ "; " ++ showAns' (t₂ ∷ ts)
+    showEnv' : ∀ {m} → Vec (Term 0) m → String
+    showEnv' [] = ""
+    showEnv' (t₁ ∷ []) = showℕ (toℕ t₁)
+    showEnv' (t₁ ∷ t₂ ∷ ts) = showℕ (toℕ t₁) ++ "; " ++ showEnv' (t₂ ∷ ts)
+
+  showTrace : Rules → String
+  showTrace = foldr (_++_) "" ∘ intersperse ";" ∘ map (name ∘ proj₂)
+
+  showAns : ∀ {m} → Vec (Term 0) m × Rules → String
+  showAns (env , rs) = showEnv env ++ " by " ++ showTrace rs
 
   showList : ∀ {ℓ} {A : Set ℓ} (show : A → String) → List A → String
   showList show [] = ""
@@ -89,4 +95,4 @@ module Main where
   showList show (x ∷ y ∷ xs) = show x ++ " , " ++ showList show (y ∷ xs)
 
   main : String
-  main = showList showAns (filterWithVars (solveToDepth 10 rules goal))
+  main = showList showAns (filterWithVars' (solveToDepth 10 rules goal))
