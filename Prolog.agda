@@ -5,24 +5,25 @@ open import Coinduction using (∞) renaming (♯_ to ~_; ♭ to !_)
 open import Category.Functor
 open import Category.Monad
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.Nat using (ℕ; suc; zero; _+_)
+open import Data.Nat as Nat using (ℕ; suc; zero; _+_)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
-open import Data.List as List using (List; []; _∷_; _∷ʳ_; _++_; map; foldr; concatMap; fromMaybe; length)
+open import Data.List as List using (List; []; _∷_; _∷ʳ_; _++_; map; foldr; concatMap; fromMaybe; length; take; drop)
 open import Data.Vec as Vec using (Vec; []; _∷_; allFin) renaming (map to vmap)
 open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂) renaming (map to pmap)
 open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Binary
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 
-module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k) → Dec (f ≡ g)) where
+module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
 
   open RawMonad {{...}}
-  maybeMonad = Maybe.monad
+  MaybeMonad = Maybe.monad
+  open StrictTotalOrder NatProps.strictTotalOrder
 
-  import Unification
-  module UI = Unification Con decEqCon
-  open UI public hiding (_++_)
+  open import Unification Sym decEqSym public hiding (_++_)
+
 
   -- | encoding of prolog-style rules indexed by their number of variables
   record Rule (n : ℕ) : Set where
@@ -245,30 +246,25 @@ module Prolog (Name : Set) (Con : ℕ → Set) (decEqCon : ∀ {k} (f g : Con k)
     envOf (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
 
   data Proof : Set where
-    con : Name → (k : ℕ) → Vec Proof k → Proof
+    con : Name → List Proof → Proof
 
-  {-# NO_TERMINATION_CHECK #-}
-  mutual
-    toProofAcc : Rules → Maybe (Proof × Rules)
-    toProofAcc [] = nothing
-    toProofAcc (r ∷ rs₀) =
-      toProofChildrenAcc k rs₀ >>= λ { (ps , rs₁) →
-        return (con n _ ps , rs₁)
-      }
-      where
-        n = name (proj₂ r)
-        k = arity (proj₂ r)
+  toProofAcc : Rules → List Proof
+  toProofAcc = foldr next []
+    where
+      next : ∃ Rule → List Proof → List Proof
+      next r ps = next′
+        where
+          rₙ = name (proj₂ r)  -- name of the rule
+          rₖ = arity (proj₂ r) -- number of subproofs needed by the rule
+          pₖ = length ps       -- current number of proof terms
 
-    toProofChildrenAcc : (k : ℕ) → Rules → Maybe (Vec Proof k × Rules)
-    toProofChildrenAcc  zero   rs₀ = just ([] , rs₀)
-    toProofChildrenAcc (suc k) rs₀ =
-      toProofAcc rs₀ >>= λ { (p , rs₁) →
-        toProofChildrenAcc k rs₁ >>= λ { (ps , rs₂) →
-          return (p ∷ ps , rs₂)
-        }
-      }
+          next′ : List Proof
+          next′ with compare rₖ pₖ
+          next′ | tri< r<p r≢p r≯p = con rₙ (take rₖ ps) ∷ drop rₖ ps
+          next′ | tri≈ r≮p r≡p r≯p = con rₙ ps ∷ []
+          next′ | tri> r≮p r≢p r>p = []
 
   toProof : Rules → Maybe Proof
   toProof rs with toProofAcc rs
-  ... | just (p , []) = just p
-  ... | _             = nothing
+  ... | []    = nothing
+  ... | p ∷ _ = just p
