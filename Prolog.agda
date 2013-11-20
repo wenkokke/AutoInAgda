@@ -80,27 +80,6 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   injectSubstL _ nil = nil
   injectSubstL ε (snoc s t x) = snoc (injectSubstL ε s) (injectTermL ε t) (injectL ε x)
 
-  -- Calculating Proof Terms
-  --
-  -- Two possible solutions for computing proof terms with proof search:
-  --
-  -- * Reconstruct the function/argument structure from the final proof tree,
-  --   using the arity of the used rules and the fact that therefore the next
-  --   `n` rule applications will go towards computing the arguments for the
-  --   chosen rule.
-  --   This would probably be done best by extending the `dfs` function with
-  --   an accumulating parameter that represents terms that can contain holes,
-  --   and is initialized with a hole.
-  --
-  -- * We can also adapt the SearchTree structure to encode the term structure.
-  --   At every node there should be the current goal. Edges should then connect
-  --   this goal (via a rule) to the subgoals required by that rule. As below.
-  --
-  --                      _____g____
-  --                 r₁  /     ⋯    \ rₙ
-  --                  [g]            [g]
-  --             [r₁ / ⋯ \ rₙ]  [r₁ / ⋯ \ rₙ]
-  --                 ⋮    ⋮        ⋮   ⋮
 
   -- Abstract Search Trees
   --
@@ -167,6 +146,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
         prm : List (Term (m + (δ₁ + δ₂)))
         prm rewrite lem = map (injectTermR (m + δ₁)) (premises r)
 
+
   -- Concrete Search Tree
   --
   -- A concrete search tree is a realization of an abstract search tree, by explicit
@@ -204,6 +184,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   dfsToDepth (suc k) (retn x)     = x ∷ []
   dfsToDepth (suc k) (fork xs ys) = dfsToDepth k (! xs) ++ dfsToDepth k (! ys)
 
+
   -- while we should be able to guarantee that the terms after substitution
   -- contain no variables (and all free variables in the domain occur because
   -- of unused rules), the required proof of this is currently still unimplemented
@@ -220,11 +201,9 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
                               noVarsChildren ts >>= λ ts' →
                               return (t' ∷ ts')
 
+  -- `first` combinator from control.arrow
   first : {A B C : Set} → (A → B) → A × C → B × C
   first f (x , y) = f x , y
-
-  second : {A B C : Set} → (B → C) → A × B → A × C
-  second f (x , y) = x , f y
 
   filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
   filterWithVars = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
@@ -245,6 +224,14 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     envOf : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
     envOf (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
 
+
+  -- Calculating Proof Terms
+  --
+  -- We can reconstruct the function/argument structure from the final proof
+  -- tree, using the arity of the used rules and the fact that therefore the
+  -- next `n` rule applications will go towards computing the arguments for the
+  -- chosen rule.
+
   data Proof : Set where
     con : Name → List Proof → Proof
 
@@ -262,7 +249,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
           next′ with compare rₖ pₖ
           next′ | tri< r<p r≢p r≯p = con rₙ (take rₖ ps) ∷ drop rₖ ps
           next′ | tri≈ r≮p r≡p r≯p = con rₙ ps ∷ []
-          next′ | tri> r≮p r≢p r>p = []
+          next′ | tri> r≮p r≢p r>p = [] -- this case should not occur
 
   toProof : Rules → Maybe Proof
   toProof rs with toProofAcc rs
