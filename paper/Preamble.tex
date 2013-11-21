@@ -1,0 +1,39 @@
+\usepackage{amsmath}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{stmaryrd}
+\usepackage{multirow}
+\usepackage{txfonts}
+\usepackage{ucs}
+\usepackage[utf8x]{inputenc}
+
+% Coloured comments
+\usepackage{color}
+\usepackage{ifthen}
+\newboolean{showNotes}
+\newboolean{marginNotes}
+\setboolean{showNotes}{true}
+\setboolean{marginNotes}{false}
+\newcommand{\marginNote}[1]{
+\ifthenelse
+  {\boolean{marginNotes}}
+  {\marginpar{#1}}
+  {#1}}
+
+\newcommand{\todo}[1]{
+\ifthenelse
+  {\boolean{showNotes}}
+  {\marginNote{\textcolor{red}{\textbf{Todo:~}#1}}}
+  {}}
+
+\newcommand{\wouter}[1]{
+\ifthenelse
+  {\boolean{showNotes}}
+  {\marginNote{\textcolor{blue}{\textbf{Wouter:~}#1}}}
+  {}}
+
+\newcommand{\pepijn}[1]{
+\ifthenelse
+  {\boolean{showNotes}}
+  {\marginNote{\textcolor{blue}{\textbf{Pepijn:~}#1}}}
+  {}}
