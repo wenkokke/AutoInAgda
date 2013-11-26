@@ -1,11 +1,13 @@
+% Packages
 \usepackage{amsmath}
 \usepackage{url}
-\usepackage{graphicx}
-\usepackage{stmaryrd}
-\usepackage{multirow}
-\usepackage{txfonts}
+
+% Unicode support
 \usepackage{ucs}
 \usepackage[utf8x]{inputenc}
+
+\DeclareUnicodeCharacter{948}{\ensuremath{\delta}}
+\DeclareUnicodeCharacter{955}{\ensuremath{\lambda}}
 
 % Coloured comments
 \usepackage{color}
@@ -37,3 +39,5 @@
   {\boolean{showNotes}}
   {\marginNote{\textcolor{blue}{\textbf{Pepijn:~}#1}}}
   {}}
+
+
