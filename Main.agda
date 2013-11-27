@@ -1,4 +1,4 @@
-open import Function using (_∘_; _$_; flip)
+open import Function using (_∘_; _$_; flip; id)
 open import Coinduction
 open import Category.Monad
 open import Data.Fin using (Fin; suc; zero; #_)
@@ -33,13 +33,9 @@ module Main where
   showSym SUC  = "Suc"
   showSym ZERO = "Zero"
 
-  import Prolog
-  module PI = Prolog String Sym decEqSym
-  open PI
+  open import Prolog String Sym decEqSym
+  open import Prolog.Show String id Sym showSym decEqSym
 
-  import Unification.Show
-  module US = Unification.Show Sym showSym decEqSym
-  open US
 
   Zero : ∀ {n} → Term n
   Zero = con ZERO []
@@ -50,12 +46,6 @@ module Main where
   fromℕ : ∀ {n} → ℕ → Term n
   fromℕ zero = Zero
   fromℕ (suc k) = Suc (fromℕ k)
-
-  toℕ : Term 0 → ℕ
-  toℕ (var ())
-  toℕ (con ADD  (x ∷ y ∷ z ∷ [])) = toℕ z
-  toℕ (con SUC  (x ∷ []))         = suc (toℕ x)
-  toℕ (con ZERO [])               = zero
 
   Add : ∀ {n} (x y z : Term n) → Term n
   Add x y z = con ADD (x ∷ y ∷ z ∷ [])
@@ -75,44 +65,5 @@ module Main where
     where x₀ = var zero
           x₁ = var (suc zero)
 
-  showEnv : ∀ {m} → Vec (Term 0) m → String
-  showEnv ans = "{" ++ showEnv' ans ++ "}"
-    where
-    showEnv' : ∀ {m} → Vec (Term 0) m → String
-    showEnv' [] = ""
-    showEnv' (t₁ ∷ []) = showℕ (toℕ t₁)
-    showEnv' (t₁ ∷ t₂ ∷ ts) = showℕ (toℕ t₁) ++ "; " ++ showEnv' (t₂ ∷ ts)
-
-  joinBy : String → List String → String
-  joinBy sep = concat ∘ intersperse sep
-    where
-      concat : List String → String
-      concat = foldr (_++_) ""
-
-  showTrace : Rules → String
-  showTrace = joinBy ";" ∘ map (name ∘ proj₂)
-
-  -- TODO
-  --   I believe that there's a simple way to fix this termination checker
-  --   issue, as we've discussed this problem in class (it's due to the map), but
-  --   since it's really just a show function I won't bother.
-
-  {-# NO_TERMINATION_CHECK #-}
-  showProof : Proof → String
-  showProof (con n ps) = n ++ "(" ++ (joinBy "," ∘ map showProof $ ps) ++ ")"
-
-  showAsProof : Rules → String
-  showAsProof rs with (toProof rs)
-  ... | just p  = showProof p
-  ... | nothing = "-"
-
-  showAns : ∀ {m} → Vec (Term 0) m × Rules → String
-  showAns (env , rs) = showEnv env ++ " by " ++ showAsProof rs
-
-  showList : ∀ {ℓ} {A : Set ℓ} (show : A → String) → List A → String
-  showList show [] = ""
-  showList show (x ∷ []) = show x
-  showList show (x ∷ y ∷ xs) = show x ++ " , " ++ showList show (y ∷ xs)
-
   main : String
-  main = showList showAns (filterWithVars' (solveToDepth 10 rules goal))
+  main = showList showAns (filterWithVars (solveToDepth 10 rules goal))

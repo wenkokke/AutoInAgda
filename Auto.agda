@@ -1,72 +1,127 @@
 open import Function using (_$_; _∘_; flip)
+
+open import Category.Monad
+
+open import Data.Bool using (Bool; true; false)
 open import Data.Fin using (Fin; suc; zero)
-open import Data.Nat using (ℕ)
-open import Data.List using (List; []; _∷_)
+open import Data.Nat using (ℕ; suc; zero; _+_)
+open import Data.List using (List; []; _∷_; [_]; map; _++_; foldr; concatMap; length; InitLast; initLast; _∷ʳ'_)
 open import Data.Vec using (Vec; []; _∷_)
-open import Data.Product using (∃; _,_)
+open import Data.Product using (∃; _,_; proj₁; proj₂)
+open import Data.Maybe as Maybe using (Maybe; just; nothing)
+open import Data.String using (String)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong)
-open import Reflection renaming (Term to ATerm; Name to AName; _≟-Name_ to _≟-AName_)
-
--- import basic connectives of propositional logic
-
-open import Function using () renaming (_$_ to →-elim)
-open import Function.Equivalence using (_⇔_) renaming (equivalence to ⇔-intro)
-open import Data.Unit using (⊤) renaming (tt to ⊤-intro)
-open import Data.Empty using (⊥; ⊥-elim)
-open import Relation.Nullary using (¬_)
-open import Data.Product using () renaming (_×_ to _∧_; _,_ to ∧-intro; proj₁ to ∧-elim₁; proj₂ to ∧-elim₂)
-open import Data.Sum using () renaming (_⊎_ to _∨_; inj₁ to ∨-intro₁; inj₂ to ∨-intro₂; [_,_] to ∨-elim)
+open import Reflection
 
 module Auto where
 
-  -- extend Agda names to carry an arity and extend decidable equality to
-  -- work on them; then load the Prolog package using these names as identifiers.
+  -- open up the classes we'll be using
+  private
+    open RawMonad {{...}}
+    MaybeMonad = Maybe.monad
+
+  -- Agda Names & Prolog Names
+  --
+  -- We can extend Agda names to carry an arity and extend decidable equality to
+  -- work with these Prolog names (PName).
 
   data PName : ℕ → Set where
-    pname : (n : AName) (k : ℕ) → PName k
+    pname : (n : Name) (k : ℕ) → PName k
 
   _≟-PName_ : ∀ {k} (x y : PName k) → Dec (x ≡ y)
-  _≟-PName_ {k} (pname x .k) (pname  y .k) with x ≟-AName y
+  _≟-PName_ {k} (pname x .k) (pname  y .k) with x ≟-Name y
   _≟-PName_ {k} (pname x .k) (pname .x .k) | yes refl = yes refl
   _≟-PName_ {k} (pname x .k) (pname  y .k) | no  x≢y  = no (x≢y ∘ cong elim)
     where
-    elim : ∀ {k} → PName k → AName
+    elim : ∀ {k} → PName k → Name
     elim {k} (pname n .k) = n
 
-  open import Prolog AName PName _≟-PName_ renaming (Term to PTerm)
+  -- Due to this functionality being unavailable and unimplementable in plain Agda
+  -- we'll just have to postulate the existance of a show function for Agda names.
+  -- Using this postulate we can then implement a show function for Prolog names.
 
-  -- implement a small example of what the auto tactic should be able to do,
-  -- in order to guide the conversion work below.
+  postulate
+    showName : Name → String
 
-  example₁ : {A B C : Set} → (A ∧ B → C) ⇔ (A → B → C)
-  example₁ = ⇔-intro (λ h a b → h (∧-intro a b)) (λ h a∧b → h (∧-elim₁ a∧b) (∧-elim₂ a∧b))
+  showPName : ∀ {n} → PName n → String
+  showPName (pname n _) = showName n
 
-  atop = quote ⊤
-  ptop = pname atop 0
+  -- Now we can load the Prolog and Prolog.Show libraries.
 
-  atopintro = quote ⊤-intro
-  ptopintro : ∃ Rule
-  ptopintro = 0 , rule atopintro (con ptop []) []
+  open import Prolog Name PName _≟-PName_ renaming (Term to PTerm)
+  open import Prolog.Show Name showName PName showPName _≟-PName_
 
-  aconj = quote _∧_
-  pconj = pname aconj 2
+  -- We'll implement a few basic functions to ease our working with Agda's
+  -- Reflection library.
 
-  aconjintro = quote ∧-intro
-  pconjintro : ∃ Rule
-  pconjintro = 2 , rule aconjintro (con pconj (x₁ ∷ x₂ ∷ [])) (x₁ ∷ x₂ ∷ [])
-    where x₁ = var zero
-          x₂ = var (suc zero)
+  unarg : ∀ {A} → Arg A → A
+  unarg (arg _ _ x) = x
 
-  rules : Rules
-  rules = ptopintro ∷ pconjintro ∷ []
+  untype : Type → Term
+  untype (el _ t) = t
 
-  goal : Goal 1
-  goal = x₁
-    where x₁ = var zero
+  -- We'll need the function below later on, when we try to convert found
+  -- variables to finitely indexed variables within our domain `n`.
 
-  main : List (Vec (PTerm 0) 1)
-  main = (filterWithVars (solveToDepth 10 rules goal))
+  toFin : (m n : ℕ) → Maybe (Fin m)
+  toFin  zero    zero   = nothing
+  toFin  zero   (suc n) = nothing
+  toFin (suc m)  zero   = just zero
+  toFin (suc m) (suc n) = suc <$> toFin m n
 
-  -- implement functions to convert Agda terms to Prolog terms, and ℕ-indexed
-  -- variables to Fin-indexed variables.
+  {-# NO_TERMINATION_CHECK #-}
+  mutual
+
+    -- We can convert Agda terms to Prolog terms simply by rewriting definitions
+    -- into Prolog predicates.
+    -- Note: the current implementation does not handle variables yet, and so only
+    -- allows rules with _only_ constructors, i.e. propositional logic.
+
+    term2term : ∀ {n} → Term → Maybe (PTerm n)
+    term2term (def f args) = def2term f <$> args2args (map unarg args)
+      where
+        def2term : ∀ {n} → Name → ∃ (Vec (PTerm n))  → PTerm n
+        def2term f (k , ts) = con (pname f k) ts
+    term2term _ = nothing
+
+    -- For a given list of arguments we can convert these into the vector that is
+    -- used by the Prolog `con` constructor.
+
+    args2args : ∀ {n} → List Term → Maybe (∃ (Vec (PTerm n)))
+    args2args {n} [] = just (0 , [])
+    args2args {n} (t ∷ ts) = cons <$> term2term t ⊛ args2args ts
+      where
+        cons : PTerm n → ∃ (Vec (PTerm n)) → ∃ (Vec (PTerm n))
+        cons t (k , ts) = suc k , t ∷ ts
+
+
+
+  name2rule : ∀ {n} → Name → Maybe (Rule n)
+  name2rule n = list2rule =<< term2list (name2term n)
+    where
+
+      -- We're interested in the rules formed by our types, so we will create a
+      -- term by checking the type associated with a name and then removing the
+      -- type constructor `el`.
+
+      name2term : Name → Term
+      name2term = untype ∘ type
+
+      -- We can convert Agda terms to a list of Prolog terms by splitting on the
+      -- type arrows; this way the last element of the list will always be the
+      -- conclusion with the rest of the elements being the premises.
+
+      term2list : ∀ {n} → Term → Maybe (List (PTerm n))
+      term2list (def f args) = [_] <$> term2term (def f args)
+      term2list (pi (arg visible relevant (el _ t₁)) (el _ t₂)) = _∷_ <$> term2term t₁ ⊛ term2list t₂
+      term2list _ = nothing
+
+      -- Finally, we can convert it into a Prolog rule by splitting the list at
+      -- its last element, and taking the init as the premises and the last element
+      -- as the conclusion.
+
+      list2rule : ∀ {n} → List (PTerm n) → Maybe (Rule n)
+      list2rule xs with initLast xs
+      list2rule .[] | [] = nothing
+      list2rule .(xs ++ x ∷ []) | xs ∷ʳ' x = just (rule n x xs)
