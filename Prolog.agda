@@ -18,9 +18,10 @@ open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; 
 
 module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
 
-  open RawMonad {{...}}
-  MaybeMonad = Maybe.monad
-  open StrictTotalOrder NatProps.strictTotalOrder
+  private
+    open RawMonad {{...}}
+    MaybeMonad = Maybe.monad
+    open StrictTotalOrder NatProps.strictTotalOrder
 
   open import Unification Sym decEqSym public hiding (_++_)
 
@@ -205,11 +206,11 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   first : {A B C : Set} → (A → B) → A × C → B × C
   first f (x , y) = f x , y
 
-  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
-  filterWithVars = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
+  filterWithVars' : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
+  filterWithVars' = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
 
-  filterWithVars' : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules) → List (Vec (Term 0) m × Rules)
-  filterWithVars' {m} rs = concatMap (fromMaybe ∘ noVars') rs
+  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules) → List (Vec (Term 0) m × Rules)
+  filterWithVars {m} rs = concatMap (fromMaybe ∘ noVars') rs
     where
     noVars' : ∃ (λ n → Vec (Term n) m) × Rules → Maybe (Vec (Term 0) m × Rules)
     noVars' ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
@@ -225,16 +226,18 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     envOf (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
 
 
-  -- Calculating Proof Terms
+  -- Proof Terms
   --
   -- We can reconstruct the function/argument structure from the final proof
   -- tree, using the arity of the used rules and the fact that therefore the
   -- next `n` rule applications will go towards computing the arguments for the
   -- chosen rule.
-
   data Proof : Set where
     con : Name → List Proof → Proof
 
+  -- |Reconstruct a list of rules as a proof tree. Anything but a list containing
+  --  a single item can be considered an error (either there are multiple trees,
+  --  or at some point there were not enough items to fill all a rule's arguments)
   toProofAcc : Rules → List Proof
   toProofAcc = foldr next []
     where
@@ -251,6 +254,8 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
           next′ | tri≈ r≮p r≡p r≯p = con rₙ ps ∷ []
           next′ | tri> r≮p r≢p r>p = [] -- this case should not occur
 
+  -- |Reconstruct a list of rules as a proof tree. Runs `toProofAcc` above, and
+  --  checks if the result is a list containing a single proof tree.
   toProof : Rules → Maybe Proof
   toProof rs with toProofAcc rs
   ... | []    = nothing

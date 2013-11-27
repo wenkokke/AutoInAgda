@@ -12,9 +12,7 @@ module Unification.Show
   (showSym : ∀ {k} (s : Sym k) → String)
   (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
 
-  import Unification
-  module UI = Unification Sym decEqSym
-  open UI hiding (_++_)
+  open import Unification Sym decEqSym hiding (_++_)
 
   showFin : ∀ {n} → Fin n → String
   showFin {n} x = (showℕ (toℕ x)) ++ "/" ++ (showℕ n)

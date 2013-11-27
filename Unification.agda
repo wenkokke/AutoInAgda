@@ -19,13 +19,13 @@ module Unification (Name : ℕ → Set) (decEqName : ∀ {k} (x y : Name k) → 
   open RawMonad {{...}} hiding (_<$>_)
   open DecSetoid {{...}} using (_≟_)
 
-  private maybeFunctor = Maybe.functor
-  private maybeMonad   = Maybe.monad
-  private natDecSetoid = PropEq.decSetoid Nat._≟_
-  private finDecSetoid : ∀ {n} → DecSetoid _ _
-          finDecSetoid {n} = FinProps.decSetoid n
-  private nameDecSetoid : ∀ {k} → DecSetoid _ _
-          nameDecSetoid {k} = PropEq.decSetoid (decEqName {k})
+  private MaybeFunctor      = Maybe.functor
+  private MaybeMonad        = Maybe.monad
+  private NatDecSetoid      = PropEq.decSetoid Nat._≟_
+  private FinDecSetoid      : ∀ {n} → DecSetoid _ _
+          FinDecSetoid  {n} = FinProps.decSetoid n
+  private NameDecSetoid     : ∀ {k} → DecSetoid _ _
+          NameDecSetoid {k} = PropEq.decSetoid (decEqName {k})
 
   -- defining terms
   data Term (n : ℕ) : Set where
