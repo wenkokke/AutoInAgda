@@ -93,7 +93,7 @@ module Auto where
     term2term (pi (arg visible _ (el _ t₁)) (el _ t₂)) =
       term2term t₁ >>= λ t₁ →
       term2term t₂ >>= λ t₂ →
-      return (con pimpl (t₁ ∷ t₂ ∷ []))
+      return (con pimpl (t₂ ∷ t₁ ∷ []))
     term2term _ = nothing
 
     -- For a given list of arguments we can convert these into the vector that is
@@ -107,30 +107,45 @@ module Auto where
         cons t (k , ts) = suc k , t ∷ ts
 
 
-  -- TODO currently this implementation does not work, as it will not allow you
-  --      to construct rules that derive unapplied functions. The reason for this
-  --      is that we split the rules at every arrow, and take all preceding the
-  --      arrows as premises.
-  --
-  --      Solution: instead of `Maybe` delivering a rule, we have to deliver a list
-  --      of rules, where at every arrow we decide whether we split the remainder off
-  --      as a result, or whether we keep on producing premises.
+  -- We're interested in the rules formed by our types, so we will create a
+  -- term by checking the type associated with a name and then removing the
+  -- type constructor `el`.
+  name2term : Name → Term
+  name2term = untype ∘ type
 
-  name2rule : ∀ {n} → Name → Maybe (List (Rule n))
-  name2rule {n} name = list2rule ∘ reverse <$> (term2list (name2term name))
+  name2rule : Name → Maybe (∃ Rule)
+  name2rule n = (λ t → 0 , rule n t []) <$> term2term (name2term n)
+
+  Apply : Rule 2
+  Apply = rule (quote _$_) (var B)
+                         ( (con pimpl (var B ∷ var A ∷ []))
+                         ∷ (var A)
+                         ∷ [])
     where
-      -- We're interested in the rules formed by our types, so we will create a
-      -- term by checking the type associated with a name and then removing the
-      -- type constructor `el`.
+      A B : Fin 2
+      A = zero
+      B = suc zero
 
-      name2term : Name → Term
-      name2term = untype ∘ type
+  Compose : Rule 3
+  Compose = rule (quote _∘_) (con pimpl (var C ∷ var A ∷ []))
+                           ( (con pimpl (var C ∷ var B ∷ []))
+                           ∷ (con pimpl (var B ∷ var A ∷ []))
+                           ∷ [])
+    where
+      A B C : Fin 3
+      A = zero
+      B = suc zero
+      C = suc (suc zero)
+
+  name2rule′ : Name → Maybe (List (∃ Rule))
+  name2rule′ name = list2rule ∘ reverse <$> (term2list (name2term name))
+    where
 
       -- We can convert Agda terms to a list of Prolog terms by splitting on the
       -- type arrows; this way the last element of the list will always be the
       -- conclusion with the rest of the elements being the premises.
 
-      term2list : Term → Maybe (List (PTerm n))
+      term2list : Term → Maybe (List (PTerm 0))
       term2list (def f args) = [_] <$> term2term (def f args)
       term2list (pi (arg visible _ (el _ t₁)) (el _ t₂)) =
         term2term t₁ >>= λ t → term2list t₂ >>= λ ts → return (t ∷ ts)
@@ -140,13 +155,13 @@ module Auto where
       -- its last element, and taking the init as the premises and the last element
       -- as the conclusion.
 
-      list2rule : List (PTerm n) → List (Rule n)
+      list2rule : List (PTerm 0) → List (∃ Rule)
       list2rule [] = []
       list2rule (t ∷ ts) = list2rule′ t ts
         where
-          list2rule′ : PTerm n → List (PTerm n) → List (Rule n)
-          list2rule′ conc [] = rule name conc [] ∷ []
+          list2rule′ : PTerm 0 → List (PTerm 0) → List (∃ Rule)
+          list2rule′ conc [] = (0 , rule name conc []) ∷ []
           list2rule′ conc (t ∷ ts) = here ∷ further
             where
-              here    = rule name conc (t ∷ ts)
+              here    = 0 , rule name conc (t ∷ ts)
               further = list2rule′ (con pimpl (t ∷ conc ∷ [])) ts

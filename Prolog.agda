@@ -23,7 +23,10 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     MaybeMonad = Maybe.monad
     open StrictTotalOrder NatProps.strictTotalOrder
 
-  open import Unification Sym decEqSym public hiding (_++_)
+  import Unification
+  module UI = Unification Sym decEqSym
+  open UI public using (Term; var; con)
+  open UI using (Subst; snoc; nil; replace; apply; unifyAcc)
 
 
   -- | encoding of prolog-style rules indexed by their number of variables
@@ -34,7 +37,8 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
       conclusion : Term n
       premises   : List (Term n)
 
-  open Rule public using (name; conclusion; premises)
+  open Rule public
+       using (name; conclusion; premises)
 
   -- | compute the arity of a rule
   arity : ∀ {n} → Rule n → ℕ
@@ -173,7 +177,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
         -- the next sub-goal (the first parameter of the selected rule); reset
         -- the set of possible rules to its initial values; append the applied
         -- rule to the current rule trace
-        here = dfsAcc rs₀ (! f r) rs₀ (ap ∷ʳ r)
+        here    = dfsAcc rs₀ (! f r) rs₀ (ap ∷ʳ r)
 
         -- discard the current rule, and continue the search for a solution to
         -- the current sub-goal using the remaining rules
