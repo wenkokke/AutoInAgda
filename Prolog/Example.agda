@@ -13,7 +13,7 @@ open import Data.Unit using (⊤; tt)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl)
 
-module Main where
+module Prolog.Example where
 
   open RawMonad {{...}} renaming (return to mreturn)
   private maybeMonad = Maybe.monad
@@ -35,7 +35,6 @@ module Main where
 
   open import Prolog String Sym decEqSym
   open import Prolog.Show String id Sym showSym decEqSym
-
 
   Zero : ∀ {n} → Term n
   Zero = con ZERO []
