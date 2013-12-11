@@ -1,77 +1,99 @@
 open import Auto
-open import Function using (_$_)
+open import Function using (_$_; _∘_)
 open import Category.Functor
 open import Category.Monad
-open import Data.Bin as Bin using (Bin)
+open import Data.Bin as Bin using (Bin; 0#)
 open import Data.Fin as Fin using (Fin)
-open import Data.List as List using (List; _∷_; []; concat; concatMap; fromMaybe)
+open import Data.List as List using (List; _∷_; []; [_]; concat; concatMap; fromMaybe)
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.Nat using (ℕ; suc; zero)
+open import Data.Nat using (ℕ; zero)
 open import Data.Nat.Show using () renaming (show to showℕ)
 open import Data.Product using (∃; _,_)
 open import Data.String using (String)
 
 module Auto.Example where
 
-  -- At the moment, the following rule does not yet compile (i.e. it
-  -- produces `nothing`) as the `Fin` datatype is indexed by a variable,
-  -- and first-order datatypes are not yet supported.
+private
+open RawMonad {{...}}
+MonadMaybe = Maybe.monad
 
-  fin2nat : ∀ {n} → Maybe (List (Rule n))
-  fin2nat = name2rule (quote Fin.toℕ)
+-- At the moment, the following rule does not yet compile (i.e. it
+-- produces `nothing`) as the `Fin` datatype is indexed by a variable,
+-- and first-order datatypes are not yet supported.
 
-  -- However, the `show` function for ℕ is supported, as it a simple
-  -- propositional type.
+fin2nat : Maybe (∃ Rule)
+fin2nat = name2rule (quote Fin.toℕ)
 
-  nat2str : ∀ {n} → Maybe (List (Rule n))
-  nat2str = name2rule (quote showℕ)
+fin2nat′ : Maybe (List (∃ Rule))
+fin2nat′ = name2rule′ (quote Fin.toℕ)
 
-  -- The same holds for the successor function on ℕ. The difference is that
-  -- the `suc` function is a constructor.
+-- However, the `show` function for ℕ is supported, as it a simple
+-- propositional type.
 
-  bin2nat : ∀ {n} → Maybe (List (Rule n))
-  bin2nat = name2rule (quote Bin.toℕ)
+nat2str : Maybe (∃ Rule)
+nat2str = name2rule (quote showℕ)
 
-  -- Finally, we can also create a rule for function composition. There is
-  -- one catch, though. We have to instantiate the types.
+nat2str′ : Maybe (List (∃ Rule))
+nat2str′ = name2rule′ (quote showℕ)
 
-  _∘_ : (ℕ → String) → (Bin → ℕ) → (Bin → String)
-  _∘_ g f x = g (f x)
+-- The same holds for the successor function on ℕ. The difference is that
+-- the `suc` function is a constructor.
 
-  compose : ∀ {n} → Maybe (List (Rule n))
-  compose = name2rule (quote _∘_)
+bin2nat : Maybe (∃ Rule)
+bin2nat = name2rule (quote Bin.toℕ)
 
-  -- A general note; the current type for the conversion functions `name2rule`
-  -- and `term2term` is rather short-sighted, as they allow the function to determine
-  -- its own number of arguments. Instead, this should be left existentially quantified
-  -- as a rule obviously needs to be able to determine its own number of arguments.
-  -- For the time being, we'll rely on a number of helper functions to construct the ruleset
-  -- out of these "potential" rules.
+bin2nat′ : Maybe (List (∃ Rule))
+bin2nat′ = name2rule′ (quote Bin.toℕ)
 
-  ex : (∀ {n} → Maybe (List (Rule n))) → Maybe (List (∃ Rule))
-  ex m = (λ ls → (λ r → 0 , r) <$> ls) <$>  m
-    where
-      open RawMonad {{...}}
-      MonadMaybe = Maybe.monad
-      MonadList  = List.monad
+-- Just to check if the general example would work, we can try to add a binary
+-- number atom to the ruleset.
 
-  catMaybes : ∀ {α} {A : Set α} → List (Maybe A) → List A
-  catMaybes = concatMap fromMaybe
+bin nat : Maybe (∃ Rule)
+bin = name2rule (quote 0#)
+nat = name2rule (quote zero)
 
-  -- We can construct a ruleset out of all the rules that compile (though I
-  -- should probably look into a method for emitting a warning when a rule
-  -- does not produce a valid rule).
+bin′ nat′ : Maybe (List (∃ Rule))
+bin′ = name2rule′ (quote 0#)
+nat′ = name2rule′ (quote zero)
 
-  rules : Rules
-  rules = concat $ catMaybes (ex fin2nat ∷ ex nat2str ∷ ex bin2nat ∷ ex compose ∷ [])
+-- A general note; the current type for the conversion functions `name2rule`
+-- and `term2term` is rather short-sighted, as they allow the function to determine
+-- its own number of arguments. Instead, this should be left existentially quantified
+-- as a rule obviously needs to be able to determine its own number of arguments.
+-- For the time being, we'll rely on a number of helper functions to construct the ruleset
+-- out of these "potential" rules.
 
-  -- Finally we can see if Agda knows how to compute a term of type `Bin → String`,
-  -- using the set of rules that we have given it.
+catMaybes : ∀ {α} {A : Set α} → List (Maybe A) → List A
+catMaybes = concatMap fromMaybe
 
-  goal : Maybe (PTerm 0)
-  goal = term2term (quoteTerm (Bin → String))
+-- We can construct a ruleset out of all the rules that compile (though I
+-- should probably look into a method for emitting a warning when a rule
+-- does not produce a valid rule).
 
-  main : Maybe String
-  main = goal >>= λ goal → return $ showList showAns (filterWithVars (solveToDepth 10 rules goal))
-    where
-      open RawMonad Maybe.monad
+apply compose : Maybe (∃ Rule)
+apply   = just ( 2 , Apply )
+compose = just ( 3 , Compose )
+
+rules : Rules
+rules = catMaybes (apply ∷ nat2str ∷ nat ∷ [])
+
+compose′ : Maybe (List (∃ Rule))
+compose′ = just [ 3 , Compose ]
+
+rules′ : Rules
+rules′ = concat (catMaybes (bin′ ∷ []))
+
+-- Finally we can see if Agda knows how to compute a term of type `Bin → String`,
+-- using the set of rules that we have given it.
+
+goal : Maybe (PTerm 0)
+goal = term2term (quoteTerm Bin)
+
+-- I'm reasonably sure that the search-depth parameter is quite unintuitive, as
+-- what it's actually doing is limiting the depth of a *binary* search tree, where
+-- every branch counts as going one deeper as well.
+-- Aside from that, we don't find an answer when using only a single rule, that has
+-- no premises.
+
+main : Maybe String
+main = showList showAns ∘ filterWithVars ∘ solveToDepth 2 rules′ <$> goal
