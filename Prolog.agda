@@ -20,7 +20,8 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
 
   private
     open RawMonad {{...}}
-    MaybeMonad = Maybe.monad
+    MonadMaybe = Maybe.monad
+    MonadList  = List.monad
     open StrictTotalOrder NatProps.strictTotalOrder
 
   import Unification
@@ -159,35 +160,33 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   -- from abstract to concrete also maintains a list of each applied rule.
 
   -- | possibly infinite search tree with suspended computations
+--  data Search (A : Set) : Set where
+--    fail : Search A
+--    retn : A → Search A
+--    fork : ∞ (Search A) → ∞ (Search A) → Search A
+
   data Search (A : Set) : Set where
     fail : Search A
     retn : A → Search A
-    fork : ∞ (Search A) → ∞ (Search A) → Search A
+    fork : ∞ (List (Search A)) → Search A
 
+  {-# NO_TERMINATION_CHECK #-}
   mutual
     dfs : ∀ {m} → Rules → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
-    dfs rs₀ s = dfsAcc rs₀ s rs₀ []
+    dfs rs₀ s = dfsAcc rs₀ s []
 
-    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
-    dfsAcc rs₀ (done s) rs       ap = retn (s , ap)
-    dfsAcc rs₀ (step f) []       ap = fail
-    dfsAcc rs₀ (step f) (r ∷ rs) ap = fork (~ here) (~ further)
+    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+    dfsAcc {_} rs₀ (done s) ap = retn (s , ap)
+    dfsAcc {m} rs₀ (step f) ap = fork (~ (next <$> rs₀))
       where
-        -- apply the current rule, and continue searching for a solution for
-        -- the next sub-goal (the first parameter of the selected rule); reset
-        -- the set of possible rules to its initial values; append the applied
-        -- rule to the current rule trace
-        here    = dfsAcc rs₀ (! f r) rs₀ (ap ∷ʳ r)
-
-        -- discard the current rule, and continue the search for a solution to
-        -- the current sub-goal using the remaining rules
-        further = dfsAcc rs₀ (step f) rs ap
+        next : ∃ Rule → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+        next r = dfsAcc rs₀ (! f r) (ap ∷ʳ r)
 
   dfsToDepth : ∀ {A} → ℕ → Search A → List A
-  dfsToDepth zero     _           = []
-  dfsToDepth (suc k)  fail        = []
-  dfsToDepth (suc k) (retn x)     = x ∷ []
-  dfsToDepth (suc k) (fork xs ys) = dfsToDepth k (! xs) ++ dfsToDepth k (! ys)
+  dfsToDepth zero     _        = []
+  dfsToDepth (suc k)  fail     = []
+  dfsToDepth (suc k) (retn x)  = return x
+  dfsToDepth (suc k) (fork xs) = concatMap (dfsToDepth k) (! xs)
 
 
   -- while we should be able to guarantee that the terms after substitution
