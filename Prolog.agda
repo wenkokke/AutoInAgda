@@ -159,28 +159,25 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   -- branching and rule applications. Aside from applying each rule, the transformation
   -- from abstract to concrete also maintains a list of each applied rule.
 
-  -- | possibly infinite search tree with suspended computations
---  data Search (A : Set) : Set where
---    fail : Search A
---    retn : A → Search A
---    fork : ∞ (Search A) → ∞ (Search A) → Search A
-
   data Search (A : Set) : Set where
     fail : Search A
     retn : A → Search A
     fork : ∞ (List (Search A)) → Search A
 
-  {-# NO_TERMINATION_CHECK #-}
+  Result : ℕ → Set
+  Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
+
   mutual
-    dfs : ∀ {m} → Rules → SearchTree m → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+    dfs : ∀ {m} → Rules → SearchTree m → Search (Result m)
     dfs rs₀ s = dfsAcc rs₀ s []
 
-    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
+    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Search (Result m)
     dfsAcc {_} rs₀ (done s) ap = retn (s , ap)
-    dfsAcc {m} rs₀ (step f) ap = fork (~ (next <$> rs₀))
+    dfsAcc {m} rs₀ (step f) ap = fork (~ (dfsAccChildren rs₀))
       where
-        next : ∃ Rule → Search (∃₂ (λ δ n → Subst (m + δ) n) × Rules)
-        next r = dfsAcc rs₀ (! f r) (ap ∷ʳ r)
+        dfsAccChildren : Rules → List (Search (Result m))
+        dfsAccChildren [] = []
+        dfsAccChildren (r ∷ rs) = dfsAcc rs₀ (! f r) (ap ∷ʳ r) ∷ dfsAccChildren rs
 
   dfsToDepth : ∀ {A} → ℕ → Search A → List A
   dfsToDepth zero     _        = []
