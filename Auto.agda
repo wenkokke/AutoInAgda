@@ -1,16 +1,16 @@
-open import Function using (_$_; _∘_; flip)
+open import Function using (_$_; _∘_; id; flip)
 open import Category.Monad
 open import Data.Bool using (Bool; true; false)
 open import Data.Fin using (Fin; suc; zero)
-open import Data.Nat using (ℕ; suc; zero; _+_)
+open import Data.Nat using (ℕ; suc; zero; _+_; compare; less; equal; greater) renaming (_⊔_ to max)
 open import Data.List as List
   using (List; []; _∷_; [_]; map; _++_; foldr; concatMap; length; InitLast; reverse; initLast; _∷ʳ'_; fromMaybe)
-open import Data.Vec using (Vec; []; _∷_)
-open import Data.Product using (∃; _,_; proj₁; proj₂)
+open import Data.Vec as Vec using (Vec; []; _∷_)
+open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; maybe)
 open import Data.String using (String)
 open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 open import Reflection
 
 module Auto where
@@ -18,8 +18,9 @@ module Auto where
   -- open up the classes we'll be using
   private
     open RawMonad {{...}}
-    MonadMaybe = Maybe.monad
-    MonadList  = List.monad
+    MonadMaybe     = Maybe.monad
+    MonadList      = List.monad
+    ApplicativeVec = Vec.applicative
 
   -- Agda Names & Prolog Names
   --
@@ -46,10 +47,10 @@ module Auto where
   -- Using this postulate we can then implement a show function for Prolog names.
 
   postulate
-    showName : Name → String
+    primShowQName : Name → String
 
   showPName : ∀ {n} → PName n → String
-  showPName (pname n _) = showName n
+  showPName (pname n _) = primShowQName n
   showPName (impl) = "→"
 
   -- Now we can load the Prolog and Prolog.Show libraries.
@@ -59,10 +60,10 @@ module Auto where
   open PI public
     using (Rules; Rule; rule; conclusion; premises; Proof; var; con
           ; solveToDepth; toProof)
-    renaming (Term to PTerm)
+    renaming (Term to PTerm; injectTermL to injTerm)
 
   import Prolog.Show
-  module PSI = Prolog.Show Name showName PName showPName _≟-PName_
+  module PSI = Prolog.Show Name primShowQName PName showPName _≟-PName_
 
   -- We'll implement a few basic functions to ease our working with Agda's
   -- Reflection library.
@@ -70,8 +71,8 @@ module Auto where
   unarg : ∀ {A} → Arg A → A
   unarg (arg _ _ x) = x
 
-  untype : Type → Term
-  untype (el _ t) = t
+  unel : Type → Term
+  unel (el _ t) = t
 
   -- We'll need the function below later on, when we try to convert found
   -- variables to finitely indexed variables within our domain `n`.
@@ -82,76 +83,122 @@ module Auto where
   toFin (suc m)  zero   = just zero
   toFin (suc m) (suc n) = suc <$> toFin m n
 
-  {-# NO_TERMINATION_CHECK #-}
+  max-lem₁ : (n k : ℕ) → max n (suc (n + k)) ≡ suc (n + k)
+  max-lem₁ zero zero = refl
+  max-lem₁ zero (suc k) = refl
+  max-lem₁ (suc n) k = cong suc (max-lem₁ n k)
+
+  max-lem₂ : (n : ℕ) → max n n ≡ n
+  max-lem₂ zero = refl
+  max-lem₂ (suc n) = cong suc (max-lem₂ n)
+
+  max-lem₃ : (n k : ℕ) → max (suc (n + k)) n ≡ suc (n + k)
+  max-lem₃ zero zero = refl
+  max-lem₃ zero (suc k) = refl
+  max-lem₃ (suc n) k = cong suc (max-lem₃ n k)
+
+  m+1+n≡1+m+n : ∀ m n → m + suc n ≡ suc (m + n)
+  m+1+n≡1+m+n zero    n = refl
+  m+1+n≡1+m+n (suc m) n = cong suc (m+1+n≡1+m+n m n)
+
+  -- match takes two structures that are indexed internally by finite numbers
+  -- and matches their domains (i.e. the new values will have their domains set
+  -- to the largest of the previous domains).
+  -- this is an rather generalized function, as it'll be needed for different
+  -- combinations of fin-indexed datatypes. below you can find its three inst-
+  -- antiations: matchTerms, matchTermAndList and matchTermAndVec.
+  -- though all that is really needed is that that the structures (list and vec)
+  -- have a decent implementation of rawfunctor, and then all this nonsense
+  -- might be done away with.
+  match : {n₁ n₂ : ℕ}
+          {T₁ T₂ : ℕ → Set}                  -- ^ two type constructors and
+          (inj₁ : ∀ k → T₁ n₁ → T₁ (n₁ + k)) -- ^ injection functions for both
+          (inj₂ : ∀ k → T₂ n₂ → T₂ (n₂ + k)) -- ^ type constructors
+          → T₁ n₁ → T₂ n₂ → T₁ (max n₁ n₂) × T₂ (max n₁ n₂)
+  match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare n₁ n₂
+  match {n₁} {.(suc (n₁ + k))} inj₁ inj₂ p₁ p₂ | less .n₁ k
+    rewrite max-lem₁ n₁ k | sym (m+1+n≡1+m+n n₁ k)
+    = (inj₁ (suc k) p₁ , p₂)
+  match {n₁} {.n₁} inj₁ inj₂ p₁ p₂ | equal .n₁
+    rewrite max-lem₂ n₁
+    = (p₁ , p₂)
+  match {.(suc (n₂ + k))} {n₂} inj₁ inj₂ p₁ p₂ | greater .n₂ k
+    rewrite max-lem₃ n₂ k | sym (m+1+n≡1+m+n n₂ k)
+    = (p₁ , inj₂ (suc k) p₂)
+
+  matchTerms : ∀ {n₁ n₂} → PTerm n₁ → PTerm n₂ → PTerm (max n₁ n₂) × PTerm (max n₁ n₂)
+  matchTerms {n₁} {n₂} = match {n₁} {n₂} {PTerm} {PTerm} injTerm injTerm
+
+  matchTermAndList : ∀ {n₁ n₂} → PTerm n₁ → List (PTerm n₂) → PTerm (max n₁ n₂) × List (PTerm (max n₁ n₂))
+  matchTermAndList {n₁} {n₂} = match {n₁} {n₂} {PTerm} {List ∘ PTerm} injTerm injList
+    where
+      injList : ∀ {m} n → List (PTerm m) → List (PTerm (m + n))
+      injList n l = injTerm n <$> l
+
+  matchTermAndVec : ∀ {k n₁ n₂} → PTerm n₁ → Vec (PTerm n₂) k → PTerm (max n₁ n₂) × Vec (PTerm (max n₁ n₂)) k
+  matchTermAndVec {k} {n₁} {n₂} = match {n₁} {n₂} {PTerm} {λ n₂ → Vec (PTerm n₂) k} injTerm injVec
+    where
+      injVec : ∀ {k m} n → Vec (PTerm m) k → Vec (PTerm (m + n)) k
+      injVec n v = Vec.map (injTerm n) v
+
+  convDef : Name → ∃₂ (λ k n → Vec (PTerm n) k) → ∃ PTerm
+  convDef f (k , n , ts) = n , con (pname f k) ts
+
   mutual
+    convTermAcc : ℕ → ℕ → Term → Maybe (∃ PTerm)
+    convTermAcc δ d (var x args)               = nothing
+    convTermAcc δ d (con c args)               = nothing
+    convTermAcc δ d (def f args)
+      with convArgsAcc δ d args
+    ... | just xs     = just (convDef f xs)
+    ... | nothing     = nothing
+    convTermAcc δ d (pi (arg visible r (el _ t₁)) (el _ t₂))
+      with convTermAcc δ d t₁ | convTermAcc δ (suc d) t₂
+    ... | _              | nothing             = nothing
+    ... | nothing        | _                   = nothing
+    ... | just (n₁ , p₁) | just (n₂ , p₂)
+      with matchTerms p₁ p₂
+    ... | (p₁′ , p₂′) = just (max n₁ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
+    convTermAcc δ d (pi (arg _ _ _) (el _ t₂)) = convTermAcc (suc δ) d t₂
+    convTermAcc δ d (lam v t)                  = nothing
+    convTermAcc δ d (sort x)                   = nothing
+    convTermAcc δ d unknown                    = nothing
 
-    -- We can convert Agda terms to Prolog terms simply by rewriting definitions
-    -- into Prolog predicates.
-    --
-    -- TODO the current implementation does not handle variables yet, and so only
-    --      allows rules with _only_ constructors, i.e. propositional logic.
-    -- TODO Since _→_ is part of the Agda syntax (as `pi`) it has no corresponding
-    --      Agda name. Therefore we cannot represent it in Agda.
-    --      Solved by introducing the `impl` constructor for `PName`.
+    convArgsAcc : ℕ → ℕ → List (Arg Term) → Maybe (∃₂ (λ k n → Vec (PTerm n) k))
+    convArgsAcc δ d [] = just (0 , 0 , [])
+    convArgsAcc δ d (arg visible _ t ∷ ts) with convArgsAcc δ d ts
+    convArgsAcc δ d (arg visible r t ∷ ts) | just ps with convTermAcc δ d t
+    convArgsAcc δ d (arg visible r t ∷ ts) | just (k , n₂ , ps) | just (n₁ , p)
+      with matchTermAndVec p ps
+    ... | (p′ , ps′) = just (suc k , max n₁ n₂ , p′ ∷ ps′)
+    convArgsAcc δ d (arg visible r t ∷ ts) | just ps | nothing = nothing
+    convArgsAcc δ d (arg visible r t ∷ ts) | nothing = nothing
+    convArgsAcc δ d (arg _       _ _ ∷ ts) = convArgsAcc δ d ts
 
-    term2term : ∀ {n} → Term → Maybe (PTerm n)
-    term2term (def f args) = def2term f <$> args2args (map unarg args)
-      where
-        def2term : ∀ {n} → Name → ∃ (Vec (PTerm n))  → PTerm n
-        def2term f (k , ts) = con (pname f k) ts
-    term2term (pi (arg visible _ (el _ t₁)) (el _ t₂)) =
-      term2term t₁ >>= λ t₁ →
-      term2term t₂ >>= λ t₂ →
-      return (con pimpl (t₂ ∷ t₁ ∷ []))
-    term2term _ = nothing
+  convTerm : Term → Maybe (∃ PTerm)
+  convTerm = convTermAcc 0 0
 
-    -- For a given list of arguments we can convert these into the vector that is
-    -- used by the Prolog `con` constructor.
-
-    args2args : ∀ {n} → List Term → Maybe (∃ (Vec (PTerm n)))
-    args2args {n} [] = just (0 , [])
-    args2args {n} (t ∷ ts) = cons <$> term2term t ⊛ args2args ts
-      where
-        cons : PTerm n → ∃ (Vec (PTerm n)) → ∃ (Vec (PTerm n))
-        cons t (k , ts) = suc k , t ∷ ts
-
+  -- converts an agda term into a list of terms by splitting at each function
+  -- symbol; note the order: the last element of the list will always be the
+  -- conclusion of the funciton with the rest of the elements being the premises.
+  convTerm′ : Term → Maybe (∃ (List ∘ PTerm))
+  convTerm′ (pi (arg visible _ (el _ t₁)) (el _ t₂))
+    with convTerm t₁ | convTerm′ t₂
+  ... | nothing       | _              = nothing
+  ... | _             | nothing        = nothing
+  ... | just (n₁ , p) | just (n₂ , ps)
+    with matchTermAndList p ps
+  ... | p′ , ps′ = just (max n₁ n₂ , p′ ∷ ps′)
+  convTerm′ t
+    with convTerm t
+  convTerm′ t | just (n , p) = just (n , [ p ])
+  convTerm′ t | nothing      = nothing
 
   -- We're interested in the rules formed by our types, so we will create a
   -- term by checking the type associated with a name and then removing the
   -- type constructor `el`.
-  name2term : Name → Term
-  name2term = untype ∘ type
-
-  Apply : Rule 2
-  Apply = rule (quote _$_) (var B)
-                         ( (con pimpl (var B ∷ var A ∷ []))
-                         ∷ (var A)
-                         ∷ [])
-    where
-      A B : Fin 2
-      A = zero
-      B = suc zero
-
-  Compose : Rule 3
-  Compose = rule (quote _∘_) (con pimpl (var C ∷ var A ∷ []))
-                           ( (con pimpl (var C ∷ var B ∷ []))
-                           ∷ (con pimpl (var B ∷ var A ∷ []))
-                           ∷ [])
-    where
-      A B C : Fin 3
-      A = zero
-      B = suc zero
-      C = suc (suc zero)
-
-  -- term2list:
-  --  converts an agda term into a list of terms by splitting at each function
-  --  symbol; note the order: the last element of the list will always be the
-  --  conclusion of the funciton with the rest of the elements being the premises.
-  term2list : Term → Maybe (List (PTerm 0))
-  term2list (def f args) = [_] <$> term2term (def f args)
-  term2list (pi (arg visible _ (el _ t₁)) (el _ t₂)) =
-    term2term t₁ >>= λ t → term2list t₂ >>= λ ts → return (t ∷ ts)
-  term2list _ = nothing
+  convName : Name → Term
+  convName = unel ∘ type
 
   -- name2rule:
   --   converts names into a single rule, where the function type for the name
@@ -167,60 +214,13 @@ module Auto where
   --   tactic). furthermore, for usage with higher-order function types we would
   --   still need to add an inference rule for function application in order to
   --   be able to apply them (as with name2rule″).
-  name2rule : Name → Maybe (∃ Rule)
-  name2rule name = list2rule =<< term2list (name2term name)
+  mkRule : Name → Maybe (∃ Rule)
+  mkRule name = mkRule′ =<< convTerm′ (convName name)
     where
-      list2rule : List (PTerm 0) → Maybe (∃ Rule)
-      list2rule ts with initLast ts
-      list2rule .[]             | []       = nothing
-      list2rule .(ts ++ t ∷ []) | ts ∷ʳ' t = just (0 , rule name t ts)
-
-  -- name2rule′:
-  --   converts names into a list of rules, where each generated rule represents
-  --   one way of splitting the function type into a prolog rule; for instance,
-  --   the rule for function composition will split into four separate rules
-  --   due to the presence of three top-level function symbols.
-  --
-  --     1. C :- A, A → B, B → C.
-  --     2. A → C :- A → B, B → C.
-  --     3. (A → B) → A → C :- B → C.
-  --     4. (B → C) → (A → B) → A → C) :- .
-  --
-  name2rule′ : Name → Maybe (List (∃ Rule))
-  name2rule′ name = list2rules ∘ reverse <$> (term2list (name2term name))
-    where
-      -- we can convert a list of terms to a list of prolog rules by reversing the
-      -- list, and then splitting off a new rule at every cons, either keeping the
-      -- rest of the list as premises or taking the rules produced by the recursive
-      -- application of this conversion after replacing a function symbol.
-      list2rules : List (PTerm 0) → List (∃ Rule)
-      list2rules [] = []
-      list2rules (t ∷ ts) = list2rules′ t ts
-        where
-          list2rules′ : PTerm 0 → List (PTerm 0) → List (∃ Rule)
-          list2rules′ conc [] = (0 , rule name conc []) ∷ []
-          list2rules′ conc (t ∷ ts) = here ∷ further
-            where
-              here    = 0 , rule name conc (t ∷ ts)
-              further = list2rules′ (con pimpl (t ∷ conc ∷ [])) ts
-
-
-  -- name2rule″
-  --   converts name into a single rule, where the entire rule is only capable
-  --   of inferring the entire function type; for instance, for function composition
-  --   we will get the following rule:
-  --
-  --     (B → C) → (A → B) → A → C) :- .
-  --
-  --  for this conversion strategy to work at all we need to add an inference rule
-  --  for function application (which would be unavailable when using only this)a
-  --  conversion strategy, but can be obtained by applying the first strategy
-  --  (name2rule) to the function application symbol (_$_) or added manually as:
-  --
-  --    B :- A, A → B.
-  --
-  name2rule″ : Name → Maybe (∃ Rule)
-  name2rule″ n = (λ t → 0 , rule n t []) <$> term2term (name2term n)
+      mkRule′ : ∃ (List ∘ PTerm) → Maybe (∃ Rule)
+      mkRule′ (n , xs) with initLast xs
+      mkRule′ (n , .[]) | [] = nothing
+      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = just (n , rule name x xs)
 
   mutual
     reify : Proof → Term
@@ -244,17 +244,17 @@ module Auto where
   auto : ℕ → List Name → Term → Term
   auto depth names type = result
     where
-      goal : Maybe (PTerm 0)
-      goal = term2term type
+      goal : Maybe (∃ PTerm)
+      goal = convTerm type
 
       rules : Rules
-      rules = concatMap (fromMaybe ∘ name2rule) names
+      rules = concatMap (fromMaybe ∘ mkRule) names
 
       result : Term
       result with goal
       result | nothing = unknown
-      result | just g with (solveToDepth depth rules g)
-      result | just _ | [] = unknown
-      result | just _ | (_ , ap) ∷ _ with (toProof ap)
-      result | just _ | (_ , ap) ∷ _ | nothing = unknown
-      result | just _ | (_ , ap) ∷ _ | just p  = reify p
+      result | just (n , g) with (solveToDepth depth rules g)
+      result | just (_ , _) | [] = unknown
+      result | just (_ , _) | (_ , ap) ∷ _ with (toProof ap)
+      result | just (_ , _) | (_ , ap) ∷ _ | nothing = unknown
+      result | just (_ , _) | (_ , ap) ∷ _ | just p  = reify p
