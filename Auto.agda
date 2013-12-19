@@ -1,7 +1,7 @@
-open import Function using (_$_; _∘_; id; flip)
+open import Function using (_$_; _∘_; id; flip; const)
 open import Category.Monad
 open import Data.Bool using (Bool; true; false)
-open import Data.Fin using (Fin; suc; zero)
+open import Data.Fin as Fin using (Fin; suc; zero)
 open import Data.Nat using (ℕ; suc; zero; _+_; compare; less; equal; greater) renaming (_⊔_ to max)
 open import Data.List as List
   using (List; []; _∷_; [_]; map; _++_; foldr; concatMap; length; InitLast; reverse; initLast; _∷ʳ'_; fromMaybe)
@@ -9,6 +9,7 @@ open import Data.Vec as Vec using (Vec; []; _∷_)
 open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; maybe)
 open import Data.String using (String)
+open import Data.Sum renaming (_⊎_ to Either; inj₁ to left; inj₂ to right; [_,_] to fromEither)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 open import Reflection
@@ -21,6 +22,15 @@ module Auto where
     MonadMaybe     = Maybe.monad
     MonadList      = List.monad
     ApplicativeVec = Vec.applicative
+
+  data Msg : Set where
+    searchSpaceExhausted : Msg
+    indexOutOfBounds     : Msg
+    unsupportedSyntax    : Term → Msg
+    panic!               : Msg
+
+  Error : ∀ A → Set
+  Error A = Either Msg A
 
   -- Agda Names & Prolog Names
   --
@@ -76,12 +86,6 @@ module Auto where
 
   -- We'll need the function below later on, when we try to convert found
   -- variables to finitely indexed variables within our domain `n`.
-
-  toFin : (m n : ℕ) → Maybe (Fin m)
-  toFin  zero    zero   = nothing
-  toFin  zero   (suc n) = nothing
-  toFin (suc m)  zero   = just zero
-  toFin (suc m) (suc n) = suc <$> toFin m n
 
   max-lem₁ : (n k : ℕ) → max n (suc (n + k)) ≡ suc (n + k)
   max-lem₁ zero zero = refl
@@ -144,55 +148,59 @@ module Auto where
   convDef : Name → ∃₂ (λ k n → Vec (PTerm n) k) → ∃ PTerm
   convDef f (k , n , ts) = n , con (pname f k) ts
 
+  convVar : ℕ → ℕ → Error (∃ PTerm)
+  convVar  d i with compare d i
+  convVar  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
+  convVar .i i              | equal   .i   = right (1     , var (Fin.fromℕ 0))
+  convVar .(suc (i + k)) i  | greater .i k = right (suc k , var (Fin.fromℕ k))
+
   mutual
-    convTermAcc : ℕ → ℕ → Term → Maybe (∃ PTerm)
-    convTermAcc δ d (var x args)               = nothing
-    convTermAcc δ d (con c args)               = nothing
-    convTermAcc δ d (def f args)
-      with convArgsAcc δ d args
-    ... | just xs     = just (convDef f xs)
-    ... | nothing     = nothing
-    convTermAcc δ d (pi (arg visible r (el _ t₁)) (el _ t₂))
-      with convTermAcc δ d t₁ | convTermAcc δ (suc d) t₂
-    ... | _              | nothing             = nothing
-    ... | nothing        | _                   = nothing
-    ... | just (n₁ , p₁) | just (n₂ , p₂)
+    convTermAcc : ℕ → Term → Error (∃ PTerm)
+    convTermAcc d (var i [])   = convVar d i
+    convTermAcc d (var i args) = left (unsupportedSyntax (var i args))
+    convTermAcc d (con c args) = left (unsupportedSyntax (con c args))
+    convTermAcc d (def f args)
+      with convArgsAcc d args
+    ... | right xs = right (convDef f xs)
+    ... | left msg = left msg
+    convTermAcc d (pi (arg visible r (el _ t₁)) (el _ t₂))
+      with convTermAcc (suc d) t₁ | convTermAcc (suc d) t₂
+    ... | left msg | _        = left msg
+    ... | _        | left msg = left msg
+    ... | right (n₁ , p₁) | right (n₂ , p₂)
       with matchTerms p₁ p₂
-    ... | (p₁′ , p₂′) = just (max n₁ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
-    convTermAcc δ d (pi (arg _ _ _) (el _ t₂)) = convTermAcc (suc δ) d t₂
-    convTermAcc δ d (lam v t)                  = nothing
-    convTermAcc δ d (sort x)                   = nothing
-    convTermAcc δ d unknown                    = nothing
+    ... | (p₁′ , p₂′) = right (max n₁ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
+    convTermAcc d (pi (arg _ _ _) (el _ t₂)) = convTermAcc (suc d) t₂
+    convTermAcc d (lam v t)                  = left (unsupportedSyntax (lam v t))
+    convTermAcc d (sort x)                   = left (unsupportedSyntax (sort x))
+    convTermAcc d unknown                    = left (unsupportedSyntax (unknown))
 
-    convArgsAcc : ℕ → ℕ → List (Arg Term) → Maybe (∃₂ (λ k n → Vec (PTerm n) k))
-    convArgsAcc δ d [] = just (0 , 0 , [])
-    convArgsAcc δ d (arg visible _ t ∷ ts) with convArgsAcc δ d ts
-    convArgsAcc δ d (arg visible r t ∷ ts) | just ps with convTermAcc δ d t
-    convArgsAcc δ d (arg visible r t ∷ ts) | just (k , n₂ , ps) | just (n₁ , p)
+    convArgsAcc : ℕ → List (Arg Term) → Error (∃₂ (λ k n → Vec (PTerm n) k))
+    convArgsAcc d [] = right (0 , 0 , [])
+    convArgsAcc d (arg visible _ t ∷ ts) with convArgsAcc d ts
+    convArgsAcc d (arg visible r t ∷ ts) | left msg = left msg
+    convArgsAcc d (arg visible r t ∷ ts) | right ps with convTermAcc d t
+    convArgsAcc d (arg visible r t ∷ ts) | right ps | left msg = left msg
+    convArgsAcc d (arg visible r t ∷ ts) | right (k , n₂ , ps) | right (n₁ , p)
       with matchTermAndVec p ps
-    ... | (p′ , ps′) = just (suc k , max n₁ n₂ , p′ ∷ ps′)
-    convArgsAcc δ d (arg visible r t ∷ ts) | just ps | nothing = nothing
-    convArgsAcc δ d (arg visible r t ∷ ts) | nothing = nothing
-    convArgsAcc δ d (arg _       _ _ ∷ ts) = convArgsAcc δ d ts
+    ... | (p′ , ps′) = right (suc k , max n₁ n₂ , p′ ∷ ps′)
+    convArgsAcc d (arg _       _ _ ∷ ts) = convArgsAcc d ts
 
-  convTerm : Term → Maybe (∃ PTerm)
-  convTerm = convTermAcc 0 0
+  convTerm : Term → Error (∃ PTerm)
+  convTerm = convTermAcc 0
 
   -- converts an agda term into a list of terms by splitting at each function
   -- symbol; note the order: the last element of the list will always be the
   -- conclusion of the funciton with the rest of the elements being the premises.
-  convTerm′ : Term → Maybe (∃ (List ∘ PTerm))
-  convTerm′ (pi (arg visible _ (el _ t₁)) (el _ t₂))
-    with convTerm t₁ | convTerm′ t₂
-  ... | nothing       | _              = nothing
-  ... | _             | nothing        = nothing
-  ... | just (n₁ , p) | just (n₂ , ps)
-    with matchTermAndList p ps
-  ... | p′ , ps′ = just (max n₁ n₂ , p′ ∷ ps′)
-  convTerm′ t
-    with convTerm t
-  convTerm′ t | just (n , p) = just (n , [ p ])
-  convTerm′ t | nothing      = nothing
+  convTerm′ : Term → Error (∃ (List ∘ PTerm))
+  convTerm′ t with convTerm t
+  convTerm′ t | left msg      = left msg
+  convTerm′ t | right (n , p) = right (n , convTerm″ p)
+    where
+      convTerm″ : ∀ {n} → PTerm n → List (PTerm n)
+      convTerm″ (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ convTerm″ t₂
+      convTerm″ t = return t
+
 
   -- We're interested in the rules formed by our types, so we will create a
   -- term by checking the type associated with a name and then removing the
@@ -214,13 +222,15 @@ module Auto where
   --   tactic). furthermore, for usage with higher-order function types we would
   --   still need to add an inference rule for function application in order to
   --   be able to apply them (as with name2rule″).
-  mkRule : Name → Maybe (∃ Rule)
-  mkRule name = mkRule′ =<< convTerm′ (convName name)
+  mkRule : Name → Error (∃ Rule)
+  mkRule name with convTerm′ (convName name)
+  mkRule name | left msg = left msg
+  mkRule name | right ts = mkRule′ ts
     where
-      mkRule′ : ∃ (List ∘ PTerm) → Maybe (∃ Rule)
+      mkRule′ : ∃ (List ∘ PTerm) → Error (∃ Rule)
       mkRule′ (n , xs) with initLast xs
-      mkRule′ (n , .[]) | [] = nothing
-      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = just (n , rule name x xs)
+      mkRule′ (n , .[]) | [] = left panic!
+      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule name x xs)
 
   mutual
     reify : Proof → Term
@@ -233,28 +243,32 @@ module Auto where
         toArg : Term → Arg Term
         toArg = arg visible relevant
 
-  -- TODO add error messages to conversion functions and reify into an error datatype
-  -- whenever an error occurs, plus generate an error message when the search space is
-  -- exhausted
-  reifyError : Maybe Proof → Term
-  reifyError nothing = unknown
-  reifyError (just p) = reify p
+  data Message : Set where
+    message : String → Message
 
+  quoteMsg : Msg → Term
+  quoteMsg (searchSpaceExhausted) = quoteTerm searchSpaceExhausted
+  quoteMsg (indexOutOfBounds)     = quoteTerm indexOutOfBounds
+  quoteMsg (unsupportedSyntax x)  = quoteTerm (unsupportedSyntax x)
+  quoteMsg (panic!)               = quoteTerm panic!
 
   auto : ℕ → List Name → Term → Term
   auto depth names type = result
     where
-      goal : Maybe (∃ PTerm)
+      goal : Error (∃ PTerm)
       goal = convTerm type
 
       rules : Rules
-      rules = concatMap (fromMaybe ∘ mkRule) names
+      rules = concatMap (fromError ∘ mkRule) names
+        where
+          fromError : {A : Set} → Error A → List A
+          fromError = fromEither (const []) [_]
 
       result : Term
       result with goal
-      result | nothing = unknown
-      result | just (n , g) with (solveToDepth depth rules g)
-      result | just (_ , _) | [] = unknown
-      result | just (_ , _) | (_ , ap) ∷ _ with (toProof ap)
-      result | just (_ , _) | (_ , ap) ∷ _ | nothing = unknown
-      result | just (_ , _) | (_ , ap) ∷ _ | just p  = reify p
+      result | left msg = quoteMsg msg
+      result | right (n , g) with (solveToDepth depth rules g)
+      result | right (_ , _) | [] = quoteMsg searchSpaceExhausted
+      result | right (_ , _) | (_ , ap) ∷ _ with (toProof ap)
+      result | right (_ , _) | (_ , ap) ∷ _ | nothing = unknown
+      result | right (_ , _) | (_ , ap) ∷ _ | just p  = reify p
