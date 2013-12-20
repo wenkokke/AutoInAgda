@@ -183,15 +183,15 @@ module Auto where
   --   tactic). furthermore, for usage with higher-order function types we would
   --   still need to add an inference rule for function application in order to
   --   be able to apply them (as with name2rule″).
-  mkRule : ∀ {m} → Name → Error (∃ (Rule m))
-  mkRule {_} name with convTerm′ (convName name)
-  mkRule {_} name | left msg = left msg
-  mkRule {m} name | right ts = mkRule′ ts
+  mkRule : Name → Error (∃ Rule)
+  mkRule name with convTerm′ (convName name)
+  mkRule name | left msg = left msg
+  mkRule name | right ts = mkRule′ ts
     where
-      mkRule′ : ∃ (List ∘ PTerm) → Error (∃ (Rule m))
+      mkRule′ : ∃ (List ∘ PTerm) → Error (∃ Rule)
       mkRule′ (n , xs) with initLast xs
       mkRule′ (n , .[]) | [] = left panic!
-      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , global (rdef name) x xs)
+      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (rdef name) x xs)
 
   mutual
     reify : Proof → Term
@@ -218,29 +218,20 @@ module Auto where
   quoteMsg (panic!)               = quoteTerm (err panic!)
 
   HintDB : Set
-  HintDB = ∀ {m} → Rules m
+  HintDB = Rules
 
   hintdb : List Name → HintDB
-  hintdb l {m} = concatMap (fromError ∘ mkRule) l
+  hintdb l = concatMap (fromError ∘ mkRule) l
     where
       fromError : {A : Set} → Error A → List A
       fromError = fromEither (const []) [_]
 
-  mkArgs : ∀ {m} → List (PTerm m) → Rules m → Rules m
+  mkArgs : ∀ {m} → List (PTerm m) → Rules → Rules
   mkArgs {m} ts rs = mkArgsAcc 0 ts ++ rs
     where
-      mkArgsAcc : (i : ℕ) → List (PTerm m) → Rules m
+      mkArgsAcc : (i : ℕ) → List (PTerm m) → Rules
       mkArgsAcc _ [] = []
-      mkArgsAcc i (t ∷ ts) = (m , local (rvar i) t []) ∷ mkArgsAcc (suc i) ts
-
-  ruleset : HintDB → Term → Maybe (∃ (λ m → Goal m × Rules m))
-  ruleset rules type
-    with convTerm type
-  ... | left msg = nothing
-  ... | right (n , gs)
-    with reverse (splitTerm gs)
-  ... | [] = nothing
-  ... | (g ∷ args) = just (n , g , mkArgs args rules)
+      mkArgsAcc i (t ∷ ts) = (m , rule (rvar i) t []) ∷ mkArgsAcc (suc i) ts
 
   auto : ℕ → HintDB → Term → Term
   auto depth rules type
@@ -250,7 +241,7 @@ module Auto where
     with splitTerm gs
   ... | [] = quoteMsg panic!
   ... | (g ∷ args)
-    with solveToDepth depth (mkArgs args (rules {n})) g
+    with solveToDepth depth (mkArgs args rules) g
   ... | [] = quoteMsg searchSpaceExhausted
   ... | (_ , ap) ∷ _
     with toProof ap
