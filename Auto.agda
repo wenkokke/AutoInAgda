@@ -45,8 +45,8 @@ module Auto where
     pimpl : PName 2
 
   data RName : Set where
-    global : Name → RName
-    local  : ℕ → RName
+    rdef : Name → RName
+    rvar  : ℕ → RName
 
   _≟-PName_ : ∀ {k} (x y : PName k) → Dec (x ≡ y)
   _≟-PName_ {.2}  pimpl       pimpl       = yes refl
@@ -74,10 +74,7 @@ module Auto where
 
   import Prolog
   module PI = Prolog RName PName _≟-PName_
-  open PI public
-    using (Rules; Rule; rule; conclusion; premises; Proof; var; con
-          ; solveToDepth; toProof)
-    renaming (Term to PTerm; injectTermL to injTerm)
+  open PI public renaming (Term to PTerm)
 
   -- We'll implement a few basic functions to ease our working with Agda's
   -- Reflection library.
@@ -135,19 +132,21 @@ module Auto where
     = (p₁ , inj₂ (suc k) p₂)
 
   matchTerms : ∀ {n₁ n₂} → PTerm n₁ → PTerm n₂ → PTerm (max n₁ n₂) × PTerm (max n₁ n₂)
-  matchTerms {n₁} {n₂} = match {n₁} {n₂} {PTerm} {PTerm} injTerm injTerm
+  matchTerms {n₁} {n₂} = match {n₁} {n₂} {PTerm} {PTerm} injTermL injTermL
+    where
+      open Indexed IndexedTerm renaming (injectL to injTermL)
 
   matchTermAndList : ∀ {n₁ n₂} → PTerm n₁ → List (PTerm n₂) → PTerm (max n₁ n₂) × List (PTerm (max n₁ n₂))
-  matchTermAndList {n₁} {n₂} = match {n₁} {n₂} {PTerm} {List ∘ PTerm} injTerm injList
+  matchTermAndList {n₁} {n₂} = match {n₁} {n₂} {PTerm} {List ∘ PTerm} injTermL injListL
     where
-      injList : ∀ {m} n → List (PTerm m) → List (PTerm (m + n))
-      injList n l = injTerm n <$> l
+      open Indexed IndexedTerm renaming (injectL to injTermL)
+      open Indexed (IndexedList IndexedTerm) renaming (injectL to injListL)
 
   matchTermAndVec : ∀ {k n₁ n₂} → PTerm n₁ → Vec (PTerm n₂) k → PTerm (max n₁ n₂) × Vec (PTerm (max n₁ n₂)) k
-  matchTermAndVec {k} {n₁} {n₂} = match {n₁} {n₂} {PTerm} {λ n₂ → Vec (PTerm n₂) k} injTerm injVec
+  matchTermAndVec {k} {n₁} {n₂} = match {n₁} {n₂} {PTerm} {λ n₂ → Vec (PTerm n₂) k} injTermL injVecL
     where
-      injVec : ∀ {k m} n → Vec (PTerm m) k → Vec (PTerm (m + n)) k
-      injVec n v = Vec.map (injTerm n) v
+      open Indexed IndexedTerm renaming (injectL to injTermL)
+      open Indexed (IndexedVec IndexedTerm) renaming (injectL to injVecL)
 
   convDef : Name → ∃₂ (λ k n → Vec (PTerm n) k) → ∃ PTerm
   convDef f (k , n , ts) = n , con (pname f k) ts
@@ -236,12 +235,12 @@ module Auto where
       mkRule′ : ∃ (List ∘ PTerm) → Error (∃ Rule)
       mkRule′ (n , xs) with initLast xs
       mkRule′ (n , .[]) | [] = left panic!
-      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (global name) x xs)
+      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , global (rdef name) x xs)
 
   mutual
     reify : Proof → Term
-    reify (con (local i) ps) = var i []
-    reify (con (global n) ps) with definition n
+    reify (con (rvar i) ps) = var i []
+    reify (con (rdef n) ps) with definition n
     ... | function x   = def n (reifyChildren ps)
     ... | data-type x  = unknown
     ... | record′ x    = unknown
@@ -268,13 +267,12 @@ module Auto where
       fromError : {A : Set} → Error A → List A
       fromError = fromEither (const []) [_]
 
-
   mkArgs : ∀ {n} → List (PTerm n) → Rules → Rules
   mkArgs ts rs = mkArgsAcc 0 ts ++ rs
     where
       mkArgsAcc : ∀ {n} → (i : ℕ) → List (PTerm n) → Rules
       mkArgsAcc {_} _ [] = []
-      mkArgsAcc {n} i (t ∷ ts) = (n , rule (local i) t []) ∷ mkArgsAcc (suc i) ts
+      mkArgsAcc {n} i (t ∷ ts) = (n , global (rvar i) t []) ∷ mkArgsAcc (suc i) ts
 
 
   frules : Rules → Term → Rules
