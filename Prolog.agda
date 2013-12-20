@@ -30,29 +30,25 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   open UI public using (Term; var; con)
   open UI using (Subst; snoc; nil; replace; apply; unifyAcc)
 
-  data Rule : (m n : ℕ) → Set where
-    global : ∀ {m n} → Name → Term n → List (Term n) → Rule m n
-    local  : ∀ {m}   → Name → Term m → List (Term m) → Rule m m
+  data Rule (n : ℕ) : Set where
+    rule : Name → Term n → List (Term n) → Rule n
 
-  name : ∀ {m n} → Rule n m → Name
-  name (global name _ _) = name
-  name (local  name _ _) = name
+  name : ∀ {n} → Rule n → Name
+  name (rule name _ _) = name
 
-  conclusion : ∀ {m n} → Rule m n → Term n
-  conclusion (global _ cnc _) = cnc
-  conclusion (local  _ cnc _) = cnc
+  conclusion : ∀ {n} → Rule n → Term n
+  conclusion (rule _ cnc _) = cnc
 
-  premises : ∀ {m n} → Rule m n → List (Term n)
-  premises (global _ _ prm) = prm
-  premises (local  _ _ prm) = prm
+  premises : ∀ {n} → Rule n → List (Term n)
+  premises (rule _ _ prm) = prm
 
   -- | compute the arity of a rule
-  arity : ∀ {m n} → Rule m n → ℕ
+  arity : ∀ {n} → Rule n → ℕ
   arity = length ∘ premises
 
   -- | alias for lists of rules
-  Rules : ℕ → Set
-  Rules m = List (∃ (λ n → Rule m n))
+  Rules : Set
+  Rules = List (∃ Rule)
 
   -- | alias for term to clarify its semantics
   Goal : ℕ → Set
@@ -89,13 +85,11 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   injVecR : ∀ {k} → InjectR (λ n → Vec (Term n) k)
   injVecR m = Vec.map (injTermR m)
 
-  injRuleL : ∀ {k} {m} n → Rule k m → Rule (k + n) (m + n)
-  injRuleL n (global name cnc prm) = global name (injTermL n cnc) (injListL n prm)
-  injRuleL n (local  name cnc prm) = local  name (injTermL n cnc) (injListL n prm)
+  injRuleL : InjectL Rule
+  injRuleL n (rule name cnc prm) = rule name (injTermL n cnc) (injListL n prm)
 
-  injRuleR : ∀ {k} m {n} → Rule k n → Rule (m + k) (m + n)
-  injRuleR {k} m { n} (global name cnc prm) = global name (injTermR m cnc) (injListR m prm)
-  injRuleR {k} m {.k} (local  name cnc prm) = local  name (injTermR m cnc) (injListR m prm)
+  injRuleR : InjectR Rule
+  injRuleR m { n} (rule name cnc prm) = rule name (injTermR m cnc) (injListR m prm)
 
   -- TODO should be an instance of something like Indexed₂ or Indexed should be
   -- generalizeable to include the definiton for Subst; no hurry.
@@ -168,7 +162,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
 
   data SearchTree (m : ℕ) : Set where
     done : ∃₂ (λ δ n → Subst (m + δ) n) → SearchTree m
-    step : (∃ (Rule m) → ∞ (SearchTree m)) → SearchTree m
+    step : (∃ Rule → ∞ (SearchTree m)) → SearchTree m
 
   loop : ∀ {m} → SearchTree m
   loop = step (λ _ → ~ loop)
@@ -189,19 +183,8 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     solveAcc {m} {δ₁} (just (n , s)) [] = done (δ₁ , n , s)
     solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next
       where
-        next : ∃ (Rule m) → ∞ (SearchTree m)
-        next (.m , local  name cnc prm) = ~ (solveAcc {m} {δ₁} mgu (prm' ++ gs))
-          where
-            mgu : Maybe (∃ (λ n → Subst (m + δ₁) n))
-            mgu = unifyAcc g cnc' (n , s)
-              where
-                cnc' : Term (m + δ₁)
-                cnc' = injTermL δ₁ cnc
-
-            prm' : List (Term (m + δ₁))
-            prm' = injListL δ₁ prm
-
-        next (δ₂ , global name cnc prm) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm' ++ gs')
+        next : ∃ Rule → ∞ (SearchTree m)
+        next (δ₂ , rule name cnc prm) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm' ++ gs')
           where
             lem : (m + (δ₁ + δ₂)) ≡ ((m + δ₁) + δ₂)
             lem = sym (+-assoc m δ₁ δ₂)
@@ -239,17 +222,17 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     fork : ∞ (List (Search A)) → Search A
 
   Result : ℕ → Set
-  Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules m
+  Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
 
   mutual
-    dfs : ∀ {m} → Rules m → SearchTree m → Search (Result m)
+    dfs : ∀ {m} → Rules → SearchTree m → Search (Result m)
     dfs rs₀ s = dfsAcc rs₀ s []
 
-    dfsAcc : ∀ {m} → Rules m → SearchTree m → Rules m → Search (Result m)
+    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Search (Result m)
     dfsAcc {_} rs₀ (done s) ap = retn (s , ap)
     dfsAcc {m} rs₀ (step f) ap = fork (~ (dfsAccChildren rs₀))
       where
-        dfsAccChildren : Rules m → List (Search (Result m))
+        dfsAccChildren : Rules → List (Search (Result m))
         dfsAccChildren [] = []
         dfsAccChildren (r ∷ rs) = dfsAcc rs₀ (! f r) (ap ∷ʳ r) ∷ dfsAccChildren rs
 
@@ -283,18 +266,18 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   filterWithVars' : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
   filterWithVars' = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
 
-  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules m) → List (Vec (Term 0) m × Rules m)
+  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules) → List (Vec (Term 0) m × Rules)
   filterWithVars {m} rs = concatMap (fromMaybe ∘ noVars') rs
     where
-    noVars' : ∃ (λ n → Vec (Term n) m) × Rules m → Maybe (Vec (Term 0) m × Rules m)
+    noVars' : ∃ (λ n → Vec (Term n) m) × Rules → Maybe (Vec (Term 0) m × Rules)
     noVars' ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
 
-  solveToDepth : ∀ {m} (depth : ℕ) → Rules m → Goal m → List (∃ (λ n → Vec (Term n) m) × Rules m)
+  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m) × Rules)
   solveToDepth {m} depth rules goal = map (first mkEnv) $ subs
     where
     vars = allFin m
     tree = solve goal
-    subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules m)
+    subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
     subs = dfsToDepth depth (dfs rules tree)
     mkEnv : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
     mkEnv (δ , n , s) = _ , (Vec.map (λ v → apply s v) (Vec.map (injFinL _) vars))
@@ -312,10 +295,10 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   -- |Reconstruct a list of rules as a proof tree. Anything but a list containing
   --  a single item can be considered an error (either there are multiple trees,
   --  or at some point there were not enough items to fill all a rule's arguments)
-  toProofAcc : ∀ {m} → Rules m → List Proof
-  toProofAcc {m} = foldr next []
+  toProofAcc : Rules → List Proof
+  toProofAcc = foldr next []
     where
-      next : ∃ (Rule m) → List Proof → List Proof
+      next : ∃ Rule → List Proof → List Proof
       next r ps = next′
         where
           rₙ = name (proj₂ r)  -- name of the rule
@@ -330,7 +313,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
 
   -- |Reconstruct a list of rules as a proof tree. Runs `toProofAcc` above, and
   --  checks if the result is a list containing a single proof tree.
-  toProof : ∀ {m} → Rules m → Maybe Proof
+  toProof : Rules → Maybe Proof
   toProof rs with toProofAcc rs
   ... | []    = nothing
   ... | p ∷ _ = just p
