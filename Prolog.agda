@@ -5,7 +5,7 @@ open import Coinduction using (∞) renaming (♯_ to ~_; ♭ to !_)
 open import Category.Functor
 open import Category.Monad
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.Nat as Nat using (ℕ; suc; zero; _+_)
+open import Data.Nat as Nat using (ℕ; suc; zero; _+_; compare; less; equal; greater) renaming (_⊔_ to max)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
 open import Data.Colist using (Colist; []; _∷_)
@@ -22,7 +22,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     open RawMonad {{...}}
     MonadMaybe = Maybe.monad
     MonadList  = List.monad
-    open StrictTotalOrder NatProps.strictTotalOrder using (compare)
+    open StrictTotalOrder NatProps.strictTotalOrder renaming (compare to cmp)
     open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
 
   import Unification
@@ -30,92 +30,127 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   open UI public using (Term; var; con)
   open UI using (Subst; snoc; nil; replace; apply; unifyAcc)
 
-  data Rule (n : ℕ) : Set where
-    global : Name → Term n → List (Term n) → Rule n
+  data Rule : (m n : ℕ) → Set where
+    global : ∀ {m n} → Name → Term n → List (Term n) → Rule m n
+    local  : ∀ {m}   → Name → Term m → List (Term m) → Rule m m
 
-  name : ∀ {n} → Rule n → Name
+  name : ∀ {m n} → Rule n m → Name
   name (global name _ _) = name
+  name (local  name _ _) = name
 
-  premises : ∀ {n} → Rule n → List (Term n)
-  premises (global _ _ prm) = prm
-
-  conclusion : ∀ {n} → Rule n → Term n
+  conclusion : ∀ {m n} → Rule m n → Term n
   conclusion (global _ cnc _) = cnc
+  conclusion (local  _ cnc _) = cnc
+
+  premises : ∀ {m n} → Rule m n → List (Term n)
+  premises (global _ _ prm) = prm
+  premises (local  _ _ prm) = prm
 
   -- | compute the arity of a rule
-  arity : ∀ {n} → Rule n → ℕ
+  arity : ∀ {m n} → Rule m n → ℕ
   arity = length ∘ premises
 
   -- | alias for lists of rules
-  Rules : Set
-  Rules = List (∃ Rule)
+  Rules : ℕ → Set
+  Rules m = List (∃ (λ n → Rule m n))
 
   -- | alias for term to clarify its semantics
   Goal : ℕ → Set
   Goal n = Term n
 
-  record Indexed (I : ℕ → Set) : Set where
-    field
-      -- injects an indexed datatype Iᵐ into the lower half of the domain (m + n)
-      injectL : {m : ℕ} (n : ℕ) → I m → I (m + n)
-      -- injects an indexed datatype Iⁿ into the upper half of the domain (m + n)
-      injectR : (m : ℕ) {n : ℕ} → I n → I (m + n)
+  InjectL : (ℕ → Set) → Set
+  InjectL I = ∀ {m} n → I m → I (m + n)
+  InjectR : (ℕ → Set) → Set
+  InjectR I = ∀ m {n} → I n → I (m + n)
 
-  private
-    open Indexed {{...}}
+  injFinL : InjectL Fin
+  injFinL _  zero   = zero
+  injFinL _ (suc i) = suc (injFinL _ i)
 
-  IndexedFin : Indexed Fin
-  IndexedFin = record { injectL = injFinL ; injectR = injFinR }
-    where
-      injFinL : {m : ℕ} (n : ℕ) → Fin m → Fin (m + n)
-      injFinL _  zero   = zero
-      injFinL _ (suc i) = suc (injFinL _ i)
-      injFinR : (m : ℕ) {n : ℕ} → Fin n → Fin (m + n)
-      injFinR zero   i = i
-      injFinR (suc m) i = suc (injFinR m i)
+  injFinR : InjectR Fin
+  injFinR zero   i = i
+  injFinR (suc m) i = suc (injFinR m i)
 
-  IndexedTerm : Indexed Term
-  IndexedTerm = record { injectL = injTermL ; injectR = injTermR }
-    where
-      injTermL : {m : ℕ} (n : ℕ) → Term m → Term (m + n)
-      injTermL n = replace (var ∘ injectL n)
-      injTermR : (m : ℕ) {n : ℕ} → Term n → Term (m + n)
-      injTermR m = replace (var ∘ injectR m)
+  injTermL : InjectL Term
+  injTermL n = replace (var ∘ injFinL n)
 
-  IndexedRule : Indexed Rule
-  IndexedRule = record { injectL = injRuleL ; injectR = injRuleR }
-    where
-      injRuleL : {m : ℕ} (n : ℕ) → Rule m → Rule (m + n)
-      injRuleL {m} n (global name conc prem) = global name (inj conc) (map inj prem)
-        where
-          inj = injectL n
-      injRuleR : (m : ℕ) {n : ℕ} → Rule n → Rule (m + n)
-      injRuleR m {n} (global name conc prem) = global name (inj conc) (map inj prem)
-        where
-          inj = injectR m
+  injTermR : InjectR Term
+  injTermR m = replace (var ∘ injFinR m)
 
-  IndexedList : ∀ {I} → Indexed I → Indexed (List ∘ I)
-  IndexedList {I} dict = record { injectL = injListL ; injectR = injListR }
-    where
-      injListL : ∀ {m} n → List (I m) → List (I (m + n))
-      injListL n = List.map (Indexed.injectL dict n)
-      injListR : ∀ m {n} → List (I n) → List (I (m + n))
-      injListR m = List.map (Indexed.injectR dict m)
+  injListL : InjectL (List ∘ Term)
+  injListL n = List.map (injTermL n)
 
-  IndexedVec : ∀ {I} {k} → Indexed I → Indexed (λ n → (Vec (I n) k))
-  IndexedVec {I} {k} dict = record { injectL = injVecL ; injectR = injVecR }
-    where
-      injVecL : ∀ {m} n → Vec (I m) k → Vec (I (m + n)) k
-      injVecL n = Vec.map (Indexed.injectL dict n)
-      injVecR : ∀ m {n} → Vec (I n) k → Vec (I (m + n)) k
-      injVecR m = Vec.map (Indexed.injectR dict m)
+  injListR : InjectR (List ∘ Term)
+  injListR m = List.map (injTermR m)
+
+  injVecL : ∀ {k} → InjectL (λ n → Vec (Term n) k)
+  injVecL n = Vec.map (injTermL n)
+
+  injVecR : ∀ {k} → InjectR (λ n → Vec (Term n) k)
+  injVecR m = Vec.map (injTermR m)
+
+  injRuleL : ∀ {k} {m} n → Rule k m → Rule (k + n) (m + n)
+  injRuleL n (global name cnc prm) = global name (injTermL n cnc) (injListL n prm)
+  injRuleL n (local  name cnc prm) = local  name (injTermL n cnc) (injListL n prm)
+
+  injRuleR : ∀ {k} m {n} → Rule k n → Rule (m + k) (m + n)
+  injRuleR {k} m { n} (global name cnc prm) = global name (injTermR m cnc) (injListR m prm)
+  injRuleR {k} m {.k} (local  name cnc prm) = local  name (injTermR m cnc) (injListR m prm)
 
   -- TODO should be an instance of something like Indexed₂ or Indexed should be
   -- generalizeable to include the definiton for Subst; no hurry.
   injSubstL : ∀ {m n} (ε : ℕ) → Subst m n → Subst (m + ε) (n + ε)
   injSubstL _ nil = nil
-  injSubstL ε (snoc s t x) = snoc (injSubstL ε s) (injectL ε t) (injectL ε x)
+  injSubstL ε (snoc s t x) = snoc (injSubstL ε s) (injTermL ε t) (injFinL ε x)
 
+  -- some lemma's we'll need later on
+
+  private
+    max-lem₁ : (n k : ℕ) → max n (suc (n + k)) ≡ suc (n + k)
+    max-lem₁ zero zero = refl
+    max-lem₁ zero (suc k) = refl
+    max-lem₁ (suc n) k = cong suc (max-lem₁ n k)
+
+    max-lem₂ : (n : ℕ) → max n n ≡ n
+    max-lem₂ zero = refl
+    max-lem₂ (suc n) = cong suc (max-lem₂ n)
+
+    max-lem₃ : (n k : ℕ) → max (suc (n + k)) n ≡ suc (n + k)
+    max-lem₃ zero zero = refl
+    max-lem₃ zero (suc k) = refl
+    max-lem₃ (suc n) k = cong suc (max-lem₃ n k)
+
+    m+1+n≡1+m+n : ∀ m n → m + suc n ≡ suc (m + n)
+    m+1+n≡1+m+n zero    n = refl
+    m+1+n≡1+m+n (suc m) n = cong suc (m+1+n≡1+m+n m n)
+
+  -- match takes two structures that are indexed internally by finite numbers
+  -- and matches their domains (i.e. the new values will have their domains set
+  -- to the largest of the previous domains).
+  -- this is an rather generalized function, as it'll be needed for different
+  -- combinations of fin-indexed datatypes. below you can find its three inst-
+  -- antiations: matchTerms, matchTermAndList and matchTermAndVec.
+  -- though all that is really needed is that that the structures (list and vec)
+  -- have a decent implementation of rawfunctor, and then all this nonsense
+  -- might be done away with.
+  match : ∀ {n₁ n₂} {I₁ I₂} → InjectL I₁ → InjectL I₂
+        → I₁ n₁ → I₂ n₂ → I₁ (max n₁ n₂) × I₂ (max n₁ n₂)
+  match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare n₁ n₂
+  match {n₁} {.(suc (n₁ + k))} inj₁ inj₂ p₁ p₂ | less .n₁ k
+    rewrite max-lem₁ n₁ k | sym (m+1+n≡1+m+n n₁ k) = (inj₁ (suc k) p₁ , p₂)
+  match {n₁} {.n₁} inj₁ inj₂ p₁ p₂ | equal .n₁
+    rewrite max-lem₂ n₁                            = (p₁ , p₂)
+  match {.(suc (n₂ + k))} {n₂} inj₁ inj₂ p₁ p₂ | greater .n₂ k
+    rewrite max-lem₃ n₂ k | sym (m+1+n≡1+m+n n₂ k) = (p₁ , inj₂ (suc k) p₂)
+
+  matchTerms : ∀ {n₁ n₂} → Term n₁ → Term n₂ → Term (max n₁ n₂) × Term (max n₁ n₂)
+  matchTerms {n₁} {n₂} = match {n₁} {n₂} {Term} {Term} injTermL injTermL
+
+  matchTermAndList : ∀ {n₁ n₂} → Term n₁ → List (Term n₂) → Term (max n₁ n₂) × List (Term (max n₁ n₂))
+  matchTermAndList {n₁} {n₂} = match {n₁} {n₂} {Term} {List ∘ Term} injTermL injListL
+
+  matchTermAndVec : ∀ {k n₁ n₂} → Term n₁ → Vec (Term n₂) k → Term (max n₁ n₂) × Vec (Term (max n₁ n₂)) k
+  matchTermAndVec {k} {n₁} {n₂} = match {n₁} {n₂} {Term} {λ n₂ → Vec (Term n₂) k} injTermL injVecL
 
   -- Abstract Search Trees
   --
@@ -133,7 +168,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
 
   data SearchTree (m : ℕ) : Set where
     done : ∃₂ (λ δ n → Subst (m + δ) n) → SearchTree m
-    step : (∃ Rule → ∞ (SearchTree m)) → SearchTree m
+    step : (∃ (Rule m) → ∞ (SearchTree m)) → SearchTree m
 
   loop : ∀ {m} → SearchTree m
   loop = step (λ _ → ~ loop)
@@ -154,33 +189,43 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     solveAcc {m} {δ₁} (just (n , s)) [] = done (δ₁ , n , s)
     solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next
       where
-      next : ∃ Rule → ∞ (SearchTree m)
-      next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm ++ gs')
-        where
-        lem : (m + (δ₁ + δ₂)) ≡ ((m + δ₁) + δ₂)
-        lem = sym (+-assoc m δ₁ δ₂)
-
-        -- compute an mgu for the current sub-goal and the chosen rule
-        mgu : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
-        mgu = unifyAcc g' cnc s'
+        next : ∃ (Rule m) → ∞ (SearchTree m)
+        next (.m , local  name cnc prm) = ~ (solveAcc {m} {δ₁} mgu (prm' ++ gs))
           where
+            mgu : Maybe (∃ (λ n → Subst (m + δ₁) n))
+            mgu = unifyAcc g cnc' (n , s)
+              where
+                cnc' : Term (m + δ₁)
+                cnc' = injTermL δ₁ cnc
 
-          -- lift arguments for unify into the new finite domain, making room for
-          -- the variables used in the chosen rule.
-          g'  : Term (m + (δ₁ + δ₂))
-          g'  rewrite lem = injectL δ₂ g
-          s'  : ∃ (Subst (m + (δ₁ + δ₂)))
-          s'  rewrite lem = n + δ₂ , injSubstL δ₂ s
-          cnc : Term (m + (δ₁ + δ₂))
-          cnc rewrite lem = injectR (m + δ₁) (conclusion r)
+            prm' : List (Term (m + δ₁))
+            prm' = injListL δ₁ prm
 
-        -- lift arguments for the recursive call to solve into the new finite domain,
-        -- making room for the variables used in the chosen rule.
-        gs' : List (Term (m + (δ₁ + δ₂)))
-        gs' rewrite lem = map (injectL δ₂) gs
-        prm : List (Term (m + (δ₁ + δ₂)))
-        prm rewrite lem = map (injectR (m + δ₁)) (premises r)
+        next (δ₂ , global name cnc prm) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm' ++ gs')
+          where
+            lem : (m + (δ₁ + δ₂)) ≡ ((m + δ₁) + δ₂)
+            lem = sym (+-assoc m δ₁ δ₂)
 
+            -- compute an mgu for the current sub-goal and the chosen rule
+            mgu : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
+            mgu = unifyAcc g' cnc' s'
+              where
+
+                -- lift arguments for unify into the new finite domain, making room for
+                -- the variables used in the chosen rule.
+                g'   : Term (m + (δ₁ + δ₂))
+                g'   rewrite lem = injTermL δ₂ g
+                s'   : ∃ (Subst (m + (δ₁ + δ₂)))
+                s'   rewrite lem = n + δ₂ , injSubstL δ₂ s
+                cnc' : Term (m + (δ₁ + δ₂))
+                cnc' rewrite lem = injTermR (m + δ₁) cnc
+
+            -- lift arguments for the recursive call to solve into the new finite domain,
+            -- making room for the variables used in the chosen rule.
+            gs'  : List (Term (m + (δ₁ + δ₂)))
+            gs'  rewrite lem = injListL δ₂ gs
+            prm' : List (Term (m + (δ₁ + δ₂)))
+            prm' rewrite lem = injListR (m + δ₁) prm
 
   -- Concrete Search Tree
   --
@@ -194,17 +239,17 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     fork : ∞ (List (Search A)) → Search A
 
   Result : ℕ → Set
-  Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
+  Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules m
 
   mutual
-    dfs : ∀ {m} → Rules → SearchTree m → Search (Result m)
+    dfs : ∀ {m} → Rules m → SearchTree m → Search (Result m)
     dfs rs₀ s = dfsAcc rs₀ s []
 
-    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Search (Result m)
+    dfsAcc : ∀ {m} → Rules m → SearchTree m → Rules m → Search (Result m)
     dfsAcc {_} rs₀ (done s) ap = retn (s , ap)
     dfsAcc {m} rs₀ (step f) ap = fork (~ (dfsAccChildren rs₀))
       where
-        dfsAccChildren : Rules → List (Search (Result m))
+        dfsAccChildren : Rules m → List (Search (Result m))
         dfsAccChildren [] = []
         dfsAccChildren (r ∷ rs) = dfsAcc rs₀ (! f r) (ap ∷ʳ r) ∷ dfsAccChildren rs
 
@@ -238,21 +283,21 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   filterWithVars' : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
   filterWithVars' = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
 
-  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules) → List (Vec (Term 0) m × Rules)
+  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules m) → List (Vec (Term 0) m × Rules m)
   filterWithVars {m} rs = concatMap (fromMaybe ∘ noVars') rs
     where
-    noVars' : ∃ (λ n → Vec (Term n) m) × Rules → Maybe (Vec (Term 0) m × Rules)
+    noVars' : ∃ (λ n → Vec (Term n) m) × Rules m → Maybe (Vec (Term 0) m × Rules m)
     noVars' ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
 
-  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m) × Rules)
-  solveToDepth {m} depth rules goal = map (first envOf) $ subs
+  solveToDepth : ∀ {m} (depth : ℕ) → Rules m → Goal m → List (∃ (λ n → Vec (Term n) m) × Rules m)
+  solveToDepth {m} depth rules goal = map (first mkEnv) $ subs
     where
     vars = allFin m
     tree = solve goal
-    subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
+    subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules m)
     subs = dfsToDepth depth (dfs rules tree)
-    envOf : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
-    envOf (δ , n , s) = _ , (vmap (λ v → apply s v) (vmap (injectL _) vars))
+    mkEnv : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
+    mkEnv (δ , n , s) = _ , (Vec.map (λ v → apply s v) (Vec.map (injFinL _) vars))
 
 
   -- Proof Terms
@@ -267,10 +312,10 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   -- |Reconstruct a list of rules as a proof tree. Anything but a list containing
   --  a single item can be considered an error (either there are multiple trees,
   --  or at some point there were not enough items to fill all a rule's arguments)
-  toProofAcc : Rules → List Proof
-  toProofAcc = foldr next []
+  toProofAcc : ∀ {m} → Rules m → List Proof
+  toProofAcc {m} = foldr next []
     where
-      next : ∃ Rule → List Proof → List Proof
+      next : ∃ (Rule m) → List Proof → List Proof
       next r ps = next′
         where
           rₙ = name (proj₂ r)  -- name of the rule
@@ -278,14 +323,14 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
           pₖ = length ps       -- current number of proof terms
 
           next′ : List Proof
-          next′ with compare rₖ pₖ
+          next′ with cmp rₖ pₖ
           next′ | tri< r<p r≢p r≯p = con rₙ (take rₖ ps) ∷ drop rₖ ps
           next′ | tri≈ r≮p r≡p r≯p = con rₙ ps ∷ []
           next′ | tri> r≮p r≢p r>p = [] -- this case should not occur
 
   -- |Reconstruct a list of rules as a proof tree. Runs `toProofAcc` above, and
   --  checks if the result is a list containing a single proof tree.
-  toProof : Rules → Maybe Proof
+  toProof : ∀ {m} → Rules m → Maybe Proof
   toProof rs with toProofAcc rs
   ... | []    = nothing
   ... | p ∷ _ = just p

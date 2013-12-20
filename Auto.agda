@@ -2,7 +2,8 @@ open import Function using (_$_; _∘_; id; flip; const)
 open import Category.Monad
 open import Data.Bool using (Bool; true; false)
 open import Data.Fin as Fin using (Fin; suc; zero)
-open import Data.Nat using (ℕ; suc; zero; _+_; compare; less; equal; greater) renaming (_⊔_ to max)
+open import Data.Nat using (ℕ; suc; zero; _+_; _≟_; compare; less; equal; greater) renaming (_⊔_ to max)
+open import Data.Nat.Show renaming (show to showℕ)
 open import Data.List as List
   using (List; []; _∷_; [_]; map; _++_; foldr; concatMap; length; InitLast; reverse; initLast; _∷ʳ'_; fromMaybe)
 open import Data.Vec as Vec using (Vec; []; _∷_)
@@ -13,6 +14,11 @@ open import Data.Sum renaming (_⊎_ to Either; inj₁ to left; inj₂ to right;
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 open import Reflection
+  using (Name; _≟-Name_
+        ; type; Type; el
+        ; Term; def; var; con; lam; pi; sort; unknown
+        ; Arg; arg; visible; relevant
+        ; definition; Definition; function; data-type; record′; constructor′; axiom; primitive′)
 
 module Auto where
 
@@ -42,6 +48,7 @@ module Auto where
 
   data PName : ℕ → Set where
     pname : (n : Name) (k : ℕ) → PName k
+    pvar  : (i : ℕ) → PName 0
     pimpl : PName 2
 
   data RName : Set where
@@ -52,12 +59,20 @@ module Auto where
   _≟-PName_ {.2}  pimpl       pimpl       = yes refl
   _≟-PName_ {.2} (pname x .2) pimpl       = no (λ ())
   _≟-PName_ {.2}  pimpl      (pname y .2) = no (λ ())
+  _≟-PName_ {.0} (pname x .0)(pvar i)     = no (λ ())
+  _≟-PName_ {.0} (pvar i)    (pname y .0) = no (λ ())
   _≟-PName_ {k} (pname x .k) (pname  y .k) with x ≟-Name y
   _≟-PName_ {k} (pname x .k) (pname .x .k) | yes refl = yes refl
   _≟-PName_ {k} (pname x .k) (pname  y .k) | no  x≢y  = no (x≢y ∘ elim)
     where
       elim : ∀ {k x y} → pname x k ≡ pname y k → x ≡ y
       elim {_} {x} {.x} refl = refl
+  _≟-PName_ {.0} (pvar i) (pvar  j) with i ≟ j
+  _≟-PName_ {.0} (pvar i) (pvar .i) | yes refl = yes refl
+  _≟-PName_ {.0} (pvar i) (pvar  j) | no  i≢j  = no (i≢j ∘ elim)
+    where
+      elim : ∀ {i j} → pvar i ≡ pvar j → i ≡ j
+      elim {i} {.i} refl = refl
 
   -- Due to this functionality being unavailable and unimplementable in plain Agda
   -- we'll just have to postulate the existance of a show function for Agda names.
@@ -68,7 +83,8 @@ module Auto where
 
   showPName : ∀ {n} → PName n → String
   showPName (pname n _) = primShowQName n
-  showPName (pimpl) = "→"
+  showPName (pvar i)    = showℕ i
+  showPName (pimpl)     = "→"
 
   -- Now we can load the Prolog and Prolog.Show libraries.
 
@@ -87,66 +103,6 @@ module Auto where
 
   -- We'll need the function below later on, when we try to convert found
   -- variables to finitely indexed variables within our domain `n`.
-
-  max-lem₁ : (n k : ℕ) → max n (suc (n + k)) ≡ suc (n + k)
-  max-lem₁ zero zero = refl
-  max-lem₁ zero (suc k) = refl
-  max-lem₁ (suc n) k = cong suc (max-lem₁ n k)
-
-  max-lem₂ : (n : ℕ) → max n n ≡ n
-  max-lem₂ zero = refl
-  max-lem₂ (suc n) = cong suc (max-lem₂ n)
-
-  max-lem₃ : (n k : ℕ) → max (suc (n + k)) n ≡ suc (n + k)
-  max-lem₃ zero zero = refl
-  max-lem₃ zero (suc k) = refl
-  max-lem₃ (suc n) k = cong suc (max-lem₃ n k)
-
-  m+1+n≡1+m+n : ∀ m n → m + suc n ≡ suc (m + n)
-  m+1+n≡1+m+n zero    n = refl
-  m+1+n≡1+m+n (suc m) n = cong suc (m+1+n≡1+m+n m n)
-
-  -- match takes two structures that are indexed internally by finite numbers
-  -- and matches their domains (i.e. the new values will have their domains set
-  -- to the largest of the previous domains).
-  -- this is an rather generalized function, as it'll be needed for different
-  -- combinations of fin-indexed datatypes. below you can find its three inst-
-  -- antiations: matchTerms, matchTermAndList and matchTermAndVec.
-  -- though all that is really needed is that that the structures (list and vec)
-  -- have a decent implementation of rawfunctor, and then all this nonsense
-  -- might be done away with.
-  match : {n₁ n₂ : ℕ}
-          {T₁ T₂ : ℕ → Set}                  -- ^ two type constructors and
-          (inj₁ : ∀ k → T₁ n₁ → T₁ (n₁ + k)) -- ^ injection functions for both
-          (inj₂ : ∀ k → T₂ n₂ → T₂ (n₂ + k)) -- ^ type constructors
-          → T₁ n₁ → T₂ n₂ → T₁ (max n₁ n₂) × T₂ (max n₁ n₂)
-  match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare n₁ n₂
-  match {n₁} {.(suc (n₁ + k))} inj₁ inj₂ p₁ p₂ | less .n₁ k
-    rewrite max-lem₁ n₁ k | sym (m+1+n≡1+m+n n₁ k)
-    = (inj₁ (suc k) p₁ , p₂)
-  match {n₁} {.n₁} inj₁ inj₂ p₁ p₂ | equal .n₁
-    rewrite max-lem₂ n₁
-    = (p₁ , p₂)
-  match {.(suc (n₂ + k))} {n₂} inj₁ inj₂ p₁ p₂ | greater .n₂ k
-    rewrite max-lem₃ n₂ k | sym (m+1+n≡1+m+n n₂ k)
-    = (p₁ , inj₂ (suc k) p₂)
-
-  matchTerms : ∀ {n₁ n₂} → PTerm n₁ → PTerm n₂ → PTerm (max n₁ n₂) × PTerm (max n₁ n₂)
-  matchTerms {n₁} {n₂} = match {n₁} {n₂} {PTerm} {PTerm} injTermL injTermL
-    where
-      open Indexed IndexedTerm renaming (injectL to injTermL)
-
-  matchTermAndList : ∀ {n₁ n₂} → PTerm n₁ → List (PTerm n₂) → PTerm (max n₁ n₂) × List (PTerm (max n₁ n₂))
-  matchTermAndList {n₁} {n₂} = match {n₁} {n₂} {PTerm} {List ∘ PTerm} injTermL injListL
-    where
-      open Indexed IndexedTerm renaming (injectL to injTermL)
-      open Indexed (IndexedList IndexedTerm) renaming (injectL to injListL)
-
-  matchTermAndVec : ∀ {k n₁ n₂} → PTerm n₁ → Vec (PTerm n₂) k → PTerm (max n₁ n₂) × Vec (PTerm (max n₁ n₂)) k
-  matchTermAndVec {k} {n₁} {n₂} = match {n₁} {n₂} {PTerm} {λ n₂ → Vec (PTerm n₂) k} injTermL injVecL
-    where
-      open Indexed IndexedTerm renaming (injectL to injTermL)
-      open Indexed (IndexedVec IndexedTerm) renaming (injectL to injVecL)
 
   convDef : Name → ∃₂ (λ k n → Vec (PTerm n) k) → ∃ PTerm
   convDef f (k , n , ts) = n , con (pname f k) ts
@@ -227,12 +183,12 @@ module Auto where
   --   tactic). furthermore, for usage with higher-order function types we would
   --   still need to add an inference rule for function application in order to
   --   be able to apply them (as with name2rule″).
-  mkRule : Name → Error (∃ Rule)
-  mkRule name with convTerm′ (convName name)
-  mkRule name | left msg = left msg
-  mkRule name | right ts = mkRule′ ts
+  mkRule : ∀ {m} → Name → Error (∃ (Rule m))
+  mkRule {_} name with convTerm′ (convName name)
+  mkRule {_} name | left msg = left msg
+  mkRule {m} name | right ts = mkRule′ ts
     where
-      mkRule′ : ∃ (List ∘ PTerm) → Error (∃ Rule)
+      mkRule′ : ∃ (List ∘ PTerm) → Error (∃ (Rule m))
       mkRule′ (n , xs) with initLast xs
       mkRule′ (n , .[]) | [] = left panic!
       mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , global (rdef name) x xs)
@@ -261,30 +217,32 @@ module Auto where
   quoteMsg (unsupportedSyntax x)  = quoteTerm (err (unsupportedSyntax x))
   quoteMsg (panic!)               = quoteTerm (err panic!)
 
-  hintdb : List Name → Rules
-  hintdb = concatMap (fromError ∘ mkRule)
+  HintDB : Set
+  HintDB = ∀ {m} → Rules m
+
+  hintdb : List Name → HintDB
+  hintdb l {m} = concatMap (fromError ∘ mkRule) l
     where
       fromError : {A : Set} → Error A → List A
       fromError = fromEither (const []) [_]
 
-  mkArgs : ∀ {n} → List (PTerm n) → Rules → Rules
-  mkArgs ts rs = mkArgsAcc 0 ts ++ rs
+  mkArgs : ∀ {m} → List (PTerm m) → Rules m → Rules m
+  mkArgs {m} ts rs = mkArgsAcc 0 ts ++ rs
     where
-      mkArgsAcc : ∀ {n} → (i : ℕ) → List (PTerm n) → Rules
-      mkArgsAcc {_} _ [] = []
-      mkArgsAcc {n} i (t ∷ ts) = (n , global (rvar i) t []) ∷ mkArgsAcc (suc i) ts
+      mkArgsAcc : (i : ℕ) → List (PTerm m) → Rules m
+      mkArgsAcc _ [] = []
+      mkArgsAcc i (t ∷ ts) = (m , local (rvar i) t []) ∷ mkArgsAcc (suc i) ts
 
-
-  frules : Rules → Term → Rules
-  frules rules type
+  ruleset : HintDB → Term → Maybe (∃ (λ m → Goal m × Rules m))
+  ruleset rules type
     with convTerm type
-  ... | left msg = []
+  ... | left msg = nothing
   ... | right (n , gs)
     with reverse (splitTerm gs)
-  ... | [] = []
-  ... | (g ∷ args) = mkArgs args rules
+  ... | [] = nothing
+  ... | (g ∷ args) = just (n , g , mkArgs args rules)
 
-  auto : ℕ → Rules → Term → Term
+  auto : ℕ → HintDB → Term → Term
   auto depth rules type
     with convTerm type
   ... | left msg = quoteMsg msg
@@ -292,7 +250,7 @@ module Auto where
     with splitTerm gs
   ... | [] = quoteMsg panic!
   ... | (g ∷ args)
-    with (solveToDepth depth (mkArgs args rules) g)
+    with solveToDepth depth (mkArgs args (rules {n})) g
   ... | [] = quoteMsg searchSpaceExhausted
   ... | (_ , ap) ∷ _
     with toProof ap
@@ -305,18 +263,3 @@ module Auto where
           introsAcc : ℕ → Term → Term
           introsAcc  zero   t = t
           introsAcc (suc k) t = lam visible (introsAcc k t)
-
-
-{-
-      goal : Error (∃ PTerm)
-      goal = convTerm type
-
-      result : Term
-      result with goal
-      result | left msg = quoteMsg msg
-      result | right (n , g) with (solveToDepth depth rules g)
-      result | right (_ , _) | [] = quoteMsg searchSpaceExhausted
-      result | right (_ , _) | (_ , ap) ∷ _ with (toProof ap)
-      result | right (_ , _) | (_ , ap) ∷ _ | nothing = unknown
-      result | right (_ , _) | (_ , ap) ∷ _ | just p  = reify p
--}
