@@ -22,24 +22,25 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     open RawMonad {{...}}
     MonadMaybe = Maybe.monad
     MonadList  = List.monad
-    open StrictTotalOrder NatProps.strictTotalOrder
+    open StrictTotalOrder NatProps.strictTotalOrder using (compare)
+    open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
 
   import Unification
   module UI = Unification Sym decEqSym
   open UI public using (Term; var; con)
   open UI using (Subst; snoc; nil; replace; apply; unifyAcc)
 
+  data Rule (n : ℕ) : Set where
+    global : Name → Term n → List (Term n) → Rule n
 
-  -- | encoding of prolog-style rules indexed by their number of variables
-  record Rule (n : ℕ) : Set where
-    constructor rule
-    field
-      name       : Name
-      conclusion : Term n
-      premises   : List (Term n)
+  name : ∀ {n} → Rule n → Name
+  name (global name _ _) = name
 
-  open Rule public
-       using (name; conclusion; premises)
+  premises : ∀ {n} → Rule n → List (Term n)
+  premises (global _ _ prm) = prm
+
+  conclusion : ∀ {n} → Rule n → Term n
+  conclusion (global _ cnc _) = cnc
 
   -- | compute the arity of a rule
   arity : ∀ {n} → Rule n → ℕ
@@ -53,38 +54,67 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   Goal : ℕ → Set
   Goal n = Term n
 
-  -- | injects a Finᵐ into the lower half of Finᵐ⁺ⁿ
-  injectL : {m : ℕ} (n : ℕ) → Fin m → Fin (m + n)
-  injectL _  zero   = zero
-  injectL _ (suc i) = suc (injectL _ i)
+  record Indexed (I : ℕ → Set) : Set where
+    field
+      -- injects an indexed datatype Iᵐ into the lower half of the domain (m + n)
+      injectL : {m : ℕ} (n : ℕ) → I m → I (m + n)
+      -- injects an indexed datatype Iⁿ into the upper half of the domain (m + n)
+      injectR : (m : ℕ) {n : ℕ} → I n → I (m + n)
 
-  -- | injects a Finⁿ into the upper half of Finᵐ⁺ⁿ
-  injectR : (m : ℕ) {n : ℕ} → Fin n → Fin (m + n)
-  injectR zero   i = i
-  injectR (suc m) i = suc (injectR m i)
+  private
+    open Indexed {{...}}
 
-  -- | injects a Termᵐ into the lower half of Termᵐ⁺ⁿ
-  injectTermL : {m : ℕ} (n : ℕ) → Term m → Term (m + n)
-  injectTermL n = replace (var ∘ injectL n)
+  IndexedFin : Indexed Fin
+  IndexedFin = record { injectL = injFinL ; injectR = injFinR }
+    where
+      injFinL : {m : ℕ} (n : ℕ) → Fin m → Fin (m + n)
+      injFinL _  zero   = zero
+      injFinL _ (suc i) = suc (injFinL _ i)
+      injFinR : (m : ℕ) {n : ℕ} → Fin n → Fin (m + n)
+      injFinR zero   i = i
+      injFinR (suc m) i = suc (injFinR m i)
 
-  -- | injects a Termⁿ into the upper half of Termᵐ⁺ⁿ
-  injectTermR : (m : ℕ) {n : ℕ} → Term n → Term (m + n)
-  injectTermR m = replace (var ∘ injectR m)
+  IndexedTerm : Indexed Term
+  IndexedTerm = record { injectL = injTermL ; injectR = injTermR }
+    where
+      injTermL : {m : ℕ} (n : ℕ) → Term m → Term (m + n)
+      injTermL n = replace (var ∘ injectL n)
+      injTermR : (m : ℕ) {n : ℕ} → Term n → Term (m + n)
+      injTermR m = replace (var ∘ injectR m)
 
-  -- | injects a Ruleᵐ into the lower half of Ruleᵐ⁺ⁿ
-  injectRuleL : {k : ℕ} {m : ℕ} (n : ℕ) → Rule m → Rule (m + n)
-  injectRuleL {m} n (rule name conc prem) = rule name (inj conc) (map inj prem)
-    where inj = injectTermL n
+  IndexedRule : Indexed Rule
+  IndexedRule = record { injectL = injRuleL ; injectR = injRuleR }
+    where
+      injRuleL : {m : ℕ} (n : ℕ) → Rule m → Rule (m + n)
+      injRuleL {m} n (global name conc prem) = global name (inj conc) (map inj prem)
+        where
+          inj = injectL n
+      injRuleR : (m : ℕ) {n : ℕ} → Rule n → Rule (m + n)
+      injRuleR m {n} (global name conc prem) = global name (inj conc) (map inj prem)
+        where
+          inj = injectR m
 
-  -- | injects a Ruleⁿ into the upper half of Ruleᵐ⁺ⁿ
-  injectRuleR : {k : ℕ} (m : ℕ) {n : ℕ} → Rule n → Rule (m + n)
-  injectRuleR m {n} (rule name conc prem) = rule name (inj conc) (map inj prem)
-    where inj = injectTermR m
+  IndexedList : ∀ {I} → Indexed I → Indexed (List ∘ I)
+  IndexedList {I} dict = record { injectL = injListL ; injectR = injListR }
+    where
+      injListL : ∀ {m} n → List (I m) → List (I (m + n))
+      injListL n = List.map (Indexed.injectL dict n)
+      injListR : ∀ m {n} → List (I n) → List (I (m + n))
+      injListR m = List.map (Indexed.injectR dict m)
 
-  -- | injects a Substᵐⁿ into the lower half of Subst⁽ᵐ⁺ᵉ⁾⁽ⁿ⁺ᵉ⁾
-  injectSubstL : ∀ {m n} (ε : ℕ) → Subst m n → Subst (m + ε) (n + ε)
-  injectSubstL _ nil = nil
-  injectSubstL ε (snoc s t x) = snoc (injectSubstL ε s) (injectTermL ε t) (injectL ε x)
+  IndexedVec : ∀ {I} {k} → Indexed I → Indexed (λ n → (Vec (I n) k))
+  IndexedVec {I} {k} dict = record { injectL = injVecL ; injectR = injVecR }
+    where
+      injVecL : ∀ {m} n → Vec (I m) k → Vec (I (m + n)) k
+      injVecL n = Vec.map (Indexed.injectL dict n)
+      injVecR : ∀ m {n} → Vec (I n) k → Vec (I (m + n)) k
+      injVecR m = Vec.map (Indexed.injectR dict m)
+
+  -- TODO should be an instance of something like Indexed₂ or Indexed should be
+  -- generalizeable to include the definiton for Subst; no hurry.
+  injSubstL : ∀ {m n} (ε : ℕ) → Subst m n → Subst (m + ε) (n + ε)
+  injSubstL _ nil = nil
+  injSubstL ε (snoc s t x) = snoc (injSubstL ε s) (injectL ε t) (injectL ε x)
 
 
   -- Abstract Search Trees
@@ -111,7 +141,6 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   solve : ∀ {m} → Goal m → SearchTree m
   solve {m} g = solveAcc {m} {0} (just (m , s₀)) (g₀ ∷ [])
     where
-    open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
 
     -- small proofs that the initial domain (with room for m goal variables and
     -- 0 auxiliary variables) is equal to just the goal domain (with m variables)
@@ -139,18 +168,18 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
           -- lift arguments for unify into the new finite domain, making room for
           -- the variables used in the chosen rule.
           g'  : Term (m + (δ₁ + δ₂))
-          g'  rewrite lem = injectTermL δ₂ g
+          g'  rewrite lem = injectL δ₂ g
           s'  : ∃ (Subst (m + (δ₁ + δ₂)))
-          s'  rewrite lem = n + δ₂ , injectSubstL δ₂ s
+          s'  rewrite lem = n + δ₂ , injSubstL δ₂ s
           cnc : Term (m + (δ₁ + δ₂))
-          cnc rewrite lem = injectTermR (m + δ₁) (conclusion r)
+          cnc rewrite lem = injectR (m + δ₁) (conclusion r)
 
         -- lift arguments for the recursive call to solve into the new finite domain,
         -- making room for the variables used in the chosen rule.
         gs' : List (Term (m + (δ₁ + δ₂)))
-        gs' rewrite lem = map (injectTermL δ₂) gs
+        gs' rewrite lem = map (injectL δ₂) gs
         prm : List (Term (m + (δ₁ + δ₂)))
-        prm rewrite lem = map (injectTermR (m + δ₁)) (premises r)
+        prm rewrite lem = map (injectR (m + δ₁)) (premises r)
 
 
   -- Concrete Search Tree
