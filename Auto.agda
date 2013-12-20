@@ -29,6 +29,9 @@ module Auto where
     unsupportedSyntax    : Term → Msg
     panic!               : Msg
 
+  data Err : Msg → Set where
+    err : (msg : Msg) → Err msg
+
   Error : ∀ A → Set
   Error A = Either Msg A
 
@@ -41,10 +44,14 @@ module Auto where
     pname : (n : Name) (k : ℕ) → PName k
     pimpl : PName 2
 
+  data RName : Set where
+    global : Name → RName
+    local  : ℕ → RName
+
   _≟-PName_ : ∀ {k} (x y : PName k) → Dec (x ≡ y)
-  _≟-PName_ pimpl pimpl = yes refl
-  _≟-PName_ (pname x .2) pimpl = no (λ ())
-  _≟-PName_ pimpl (pname y .2) = no (λ ())
+  _≟-PName_ {.2}  pimpl       pimpl       = yes refl
+  _≟-PName_ {.2} (pname x .2) pimpl       = no (λ ())
+  _≟-PName_ {.2}  pimpl      (pname y .2) = no (λ ())
   _≟-PName_ {k} (pname x .k) (pname  y .k) with x ≟-Name y
   _≟-PName_ {k} (pname x .k) (pname .x .k) | yes refl = yes refl
   _≟-PName_ {k} (pname x .k) (pname  y .k) | no  x≢y  = no (x≢y ∘ elim)
@@ -61,19 +68,16 @@ module Auto where
 
   showPName : ∀ {n} → PName n → String
   showPName (pname n _) = primShowQName n
-  showPName (impl) = "→"
+  showPName (pimpl) = "→"
 
   -- Now we can load the Prolog and Prolog.Show libraries.
 
   import Prolog
-  module PI = Prolog Name PName _≟-PName_
+  module PI = Prolog RName PName _≟-PName_
   open PI public
     using (Rules; Rule; rule; conclusion; premises; Proof; var; con
           ; solveToDepth; toProof)
     renaming (Term to PTerm; injectTermL to injTerm)
-
-  import Prolog.Show
-  module PSI = Prolog.Show Name primShowQName PName showPName _≟-PName_
 
   -- We'll implement a few basic functions to ease our working with Agda's
   -- Reflection library.
@@ -158,22 +162,25 @@ module Auto where
     convTermAcc : ℕ → Term → Error (∃ PTerm)
     convTermAcc d (var i [])   = convVar d i
     convTermAcc d (var i args) = left (unsupportedSyntax (var i args))
-    convTermAcc d (con c args) = left (unsupportedSyntax (con c args))
+    convTermAcc d (con c args)
+      with convArgsAcc d args
+    ... | right xs = right (convDef c xs)
+    ... | left msg = left msg
     convTermAcc d (def f args)
       with convArgsAcc d args
     ... | right xs = right (convDef f xs)
     ... | left msg = left msg
     convTermAcc d (pi (arg visible r (el _ t₁)) (el _ t₂))
-      with convTermAcc (suc d) t₁ | convTermAcc (suc d) t₂
+      with convTermAcc d t₁ | convTermAcc (suc d) t₂
     ... | left msg | _        = left msg
     ... | _        | left msg = left msg
     ... | right (n₁ , p₁) | right (n₂ , p₂)
       with matchTerms p₁ p₂
     ... | (p₁′ , p₂′) = right (max n₁ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
     convTermAcc d (pi (arg _ _ _) (el _ t₂)) = convTermAcc (suc d) t₂
-    convTermAcc d (lam v t)                  = left (unsupportedSyntax (lam v t))
-    convTermAcc d (sort x)                   = left (unsupportedSyntax (sort x))
-    convTermAcc d unknown                    = left (unsupportedSyntax (unknown))
+    convTermAcc d (lam v t) = left (unsupportedSyntax (lam v t))
+    convTermAcc d (sort x)  = left (unsupportedSyntax (sort x))
+    convTermAcc d unknown   = left (unsupportedSyntax (unknown))
 
     convArgsAcc : ℕ → List (Arg Term) → Error (∃₂ (λ k n → Vec (PTerm n) k))
     convArgsAcc d [] = right (0 , 0 , [])
@@ -189,18 +196,17 @@ module Auto where
   convTerm : Term → Error (∃ PTerm)
   convTerm = convTermAcc 0
 
+  splitTerm : ∀ {n} → PTerm n → List (PTerm n)
+  splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
+  splitTerm t = return t
+
   -- converts an agda term into a list of terms by splitting at each function
   -- symbol; note the order: the last element of the list will always be the
   -- conclusion of the funciton with the rest of the elements being the premises.
   convTerm′ : Term → Error (∃ (List ∘ PTerm))
   convTerm′ t with convTerm t
   convTerm′ t | left msg      = left msg
-  convTerm′ t | right (n , p) = right (n , convTerm″ p)
-    where
-      convTerm″ : ∀ {n} → PTerm n → List (PTerm n)
-      convTerm″ (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ convTerm″ t₂
-      convTerm″ t = return t
-
+  convTerm′ t | right (n , p) = right (n , splitTerm p)
 
   -- We're interested in the rules formed by our types, so we will create a
   -- term by checking the type associated with a name and then removing the
@@ -230,11 +236,18 @@ module Auto where
       mkRule′ : ∃ (List ∘ PTerm) → Error (∃ Rule)
       mkRule′ (n , xs) with initLast xs
       mkRule′ (n , .[]) | [] = left panic!
-      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule name x xs)
+      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (global name) x xs)
 
   mutual
     reify : Proof → Term
-    reify (con n ps) = def n (reifyChildren ps)
+    reify (con (local i) ps) = var i []
+    reify (con (global n) ps) with definition n
+    ... | function x   = def n (reifyChildren ps)
+    ... | data-type x  = unknown
+    ... | record′ x    = unknown
+    ... | constructor′ = con n (reifyChildren ps)
+    ... | axiom        = unknown
+    ... | primitive′   = unknown
 
     reifyChildren : List Proof → List (Arg Term)
     reifyChildren [] = []
@@ -243,26 +256,62 @@ module Auto where
         toArg : Term → Arg Term
         toArg = arg visible relevant
 
-  data Message : Set where
-    message : String → Message
-
   quoteMsg : Msg → Term
-  quoteMsg (searchSpaceExhausted) = quoteTerm searchSpaceExhausted
-  quoteMsg (indexOutOfBounds)     = quoteTerm indexOutOfBounds
-  quoteMsg (unsupportedSyntax x)  = quoteTerm (unsupportedSyntax x)
-  quoteMsg (panic!)               = quoteTerm panic!
+  quoteMsg (searchSpaceExhausted) = quoteTerm (err searchSpaceExhausted)
+  quoteMsg (indexOutOfBounds)     = quoteTerm (err indexOutOfBounds)
+  quoteMsg (unsupportedSyntax x)  = quoteTerm (err (unsupportedSyntax x))
+  quoteMsg (panic!)               = quoteTerm (err panic!)
 
-  auto : ℕ → List Name → Term → Term
-  auto depth names type = result
+  hintdb : List Name → Rules
+  hintdb = concatMap (fromError ∘ mkRule)
     where
+      fromError : {A : Set} → Error A → List A
+      fromError = fromEither (const []) [_]
+
+
+  mkArgs : ∀ {n} → List (PTerm n) → Rules → Rules
+  mkArgs ts rs = mkArgsAcc 0 ts ++ rs
+    where
+      mkArgsAcc : ∀ {n} → (i : ℕ) → List (PTerm n) → Rules
+      mkArgsAcc {_} _ [] = []
+      mkArgsAcc {n} i (t ∷ ts) = (n , rule (local i) t []) ∷ mkArgsAcc (suc i) ts
+
+
+  frules : Rules → Term → Rules
+  frules rules type
+    with convTerm type
+  ... | left msg = []
+  ... | right (n , gs)
+    with reverse (splitTerm gs)
+  ... | [] = []
+  ... | (g ∷ args) = mkArgs args rules
+
+  auto : ℕ → Rules → Term → Term
+  auto depth rules type
+    with convTerm type
+  ... | left msg = quoteMsg msg
+  ... | right (n , gs)
+    with splitTerm gs
+  ... | [] = quoteMsg panic!
+  ... | (g ∷ args)
+    with (solveToDepth depth (mkArgs args rules) g)
+  ... | [] = quoteMsg searchSpaceExhausted
+  ... | (_ , ap) ∷ _
+    with toProof ap
+  ... | nothing = quoteMsg panic!
+  ... | just p  = intros (reify p)
+    where
+      intros : Term → Term
+      intros = introsAcc (length args)
+        where
+          introsAcc : ℕ → Term → Term
+          introsAcc  zero   t = t
+          introsAcc (suc k) t = lam visible (introsAcc k t)
+
+
+{-
       goal : Error (∃ PTerm)
       goal = convTerm type
-
-      rules : Rules
-      rules = concatMap (fromError ∘ mkRule) names
-        where
-          fromError : {A : Set} → Error A → List A
-          fromError = fromEither (const []) [_]
 
       result : Term
       result with goal
@@ -272,3 +321,4 @@ module Auto where
       result | right (_ , _) | (_ , ap) ∷ _ with (toProof ap)
       result | right (_ , _) | (_ , ap) ∷ _ | nothing = unknown
       result | right (_ , _) | (_ , ap) ∷ _ | just p  = reify p
+-}
