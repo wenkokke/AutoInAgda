@@ -9,7 +9,7 @@ open import Reflection
 
 module Auto.Example where
 
-  hints₀ : Rules
+  hints₀ : HintDB
   hints₀ = hintdb (quote bin ∷ quote bin2nat ∷ quote nat2str ∷ [])
 
   test₀ : String
@@ -19,11 +19,14 @@ module Auto.Example where
     isEven0  : Even 0
     isEven+2 : ∀ {n} → Even n → Even (suc (suc n))
 
-  hints₁ : Rules
+  hints₁ : HintDB
   hints₁ = hintdb (quote isEven0 ∷ quote isEven+2 ∷ [])
 
   test₁ : Even 4
-  test₁ = quoteGoal g in unquote (auto 10 hints₁ g)
+  test₁ = quoteGoal g in unquote (auto 5 hints₁ g)
 
-  test₂ : ∀ {n} → Even n → Even (n + 4)
-  test₂ = quoteGoal g in unquote (auto 10 hints₁ g)
+  query : Term
+  query = quoteTerm (∀ {n} → Even n → Even (suc (suc n)))
+
+  -- test₂ : ∀ {n} → Even n → Even (suc (suc n))
+  -- test₂ = quoteGoal g in unquote (auto 5 hints₁ g)
