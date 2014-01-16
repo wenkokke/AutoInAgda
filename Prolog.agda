@@ -25,8 +25,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     open StrictTotalOrder NatProps.strictTotalOrder renaming (compare to cmp)
     open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
 
-  import Unification
-  module UI = Unification Sym decEqSym
+  import Unification Sym decEqSym as UI
   open UI public using (Term; var; con)
   open UI using (Subst; snoc; nil; replace; apply; unifyAcc)
 
@@ -42,15 +41,15 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   premises : ∀ {n} → Rule n → List (Term n)
   premises (rule _ _ prm) = prm
 
-  -- | compute the arity of a rule
+  -- compute the arity of a rule
   arity : ∀ {n} → Rule n → ℕ
   arity = length ∘ premises
 
-  -- | alias for lists of rules
+  -- just an alias for a list of rules
   Rules : Set
   Rules = List (∃ Rule)
 
-  -- | alias for term to clarify its semantics
+  -- just an alias for a term (but clearer! :)
   Goal : ℕ → Set
   Goal n = Term n
 
@@ -58,6 +57,10 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   InjectL I = ∀ {m} n → I m → I (m + n)
   InjectR : (ℕ → Set) → Set
   InjectR I = ∀ m {n} → I n → I (m + n)
+
+  -- I'm pretty these are actually just Fin.inject+
+  -- and Fin.raise but I've reimlemented them here
+  -- because I didn't know... *shucks*
 
   injFinL : InjectL Fin
   injFinL _  zero   = zero
@@ -127,6 +130,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   -- though all that is really needed is that that the structures (list and vec)
   -- have a decent implementation of rawfunctor, and then all this nonsense
   -- might be done away with.
+
   match : ∀ {n₁ n₂} {I₁ I₂} → InjectL I₁ → InjectL I₂
         → I₁ n₁ → I₂ n₂ → I₁ (max n₁ n₂) × I₂ (max n₁ n₂)
   match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare n₁ n₂
@@ -158,16 +162,17 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   --   equal to the number of variables in the initial goal.
   --
   -- * Ideally we would be able to guarantee that after a proof search the
-  --   n is always equal to 0.
+  --   n is always equal to 0. We can't---well, at least, I can't... so this
+  --   is why we have the hack with the `filter noVars`
 
-  data SearchTree (m : ℕ) : Set where
-    done : ∃₂ (λ δ n → Subst (m + δ) n) → SearchTree m
-    step : (∃ Rule → ∞ (SearchTree m)) → SearchTree m
+  data SearchSpace (m : ℕ) : Set where
+    done : ∃₂ (λ δ n → Subst (m + δ) n) → SearchSpace m
+    step : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
 
-  loop : ∀ {m} → SearchTree m
+  loop : ∀ {m} → SearchSpace m
   loop = step (λ _ → ~ loop)
 
-  solve : ∀ {m} → Goal m → SearchTree m
+  solve : ∀ {m} → Goal m → SearchSpace m
   solve {m} g = solveAcc {m} {0} (just (m , s₀)) (g₀ ∷ [])
     where
 
@@ -178,12 +183,12 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     g₀ : Goal (m + 0)
     g₀ rewrite proj₂ +-identity m = g
 
-    solveAcc : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n)) → List (Goal (m + δ₁)) → SearchTree m
+    solveAcc : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n)) → List (Goal (m + δ₁)) → SearchSpace m
     solveAcc {m} {δ₁} nothing _ = loop
     solveAcc {m} {δ₁} (just (n , s)) [] = done (δ₁ , n , s)
     solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next
       where
-        next : ∃ Rule → ∞ (SearchTree m)
+        next : ∃ Rule → ∞ (SearchSpace m)
         next (δ₂ , rule name cnc prm) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm' ++ gs')
           where
             lem : (m + (δ₁ + δ₂)) ≡ ((m + δ₁) + δ₂)
@@ -216,27 +221,27 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   -- branching and rule applications. Aside from applying each rule, the transformation
   -- from abstract to concrete also maintains a list of each applied rule.
 
-  data Search (A : Set) : Set where
-    fail : Search A
-    retn : A → Search A
-    fork : ∞ (List (Search A)) → Search A
+  data SearchTree (A : Set) : Set where
+    fail : SearchTree A
+    retn : A → SearchTree A
+    fork : ∞ (List (SearchTree A)) → SearchTree A
 
   Result : ℕ → Set
   Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
 
   mutual
-    dfs : ∀ {m} → Rules → SearchTree m → Search (Result m)
-    dfs rs₀ s = dfsAcc rs₀ s []
+    mkTree : ∀ {m} → Rules → SearchSpace m → SearchTree (Result m)
+    mkTree rs₀ s = mkTreeAcc rs₀ s []
 
-    dfsAcc : ∀ {m} → Rules → SearchTree m → Rules → Search (Result m)
-    dfsAcc {_} rs₀ (done s) ap = retn (s , ap)
-    dfsAcc {m} rs₀ (step f) ap = fork (~ (dfsAccChildren rs₀))
+    mkTreeAcc : ∀ {m} → Rules → SearchSpace m → Rules → SearchTree (Result m)
+    mkTreeAcc {_} rs₀ (done s) ap = retn (s , ap)
+    mkTreeAcc {m} rs₀ (step f) ap = fork (~ (mkTreeAccChildren rs₀))
       where
-        dfsAccChildren : Rules → List (Search (Result m))
-        dfsAccChildren [] = []
-        dfsAccChildren (r ∷ rs) = dfsAcc rs₀ (! f r) (ap ∷ʳ r) ∷ dfsAccChildren rs
+        mkTreeAccChildren : Rules → List (SearchTree (Result m))
+        mkTreeAccChildren [] = []
+        mkTreeAccChildren (r ∷ rs) = mkTreeAcc rs₀ (! f r) (ap ∷ʳ r) ∷ mkTreeAccChildren rs
 
-  dfsToDepth : ∀ {A} → ℕ → Search A → List A
+  dfsToDepth : ∀ {A} → ℕ → SearchTree A → List A
   dfsToDepth zero     _        = []
   dfsToDepth (suc k)  fail     = []
   dfsToDepth (suc k) (retn x)  = return x
@@ -276,9 +281,9 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   solveToDepth {m} depth rules goal = map (first mkEnv) $ subs
     where
     vars = allFin m
-    tree = solve goal
+    tree = mkTree rules (solve goal)
     subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
-    subs = dfsToDepth depth (dfs rules tree)
+    subs = dfsToDepth depth tree
     mkEnv : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
     mkEnv (δ , n , s) = _ , (Vec.map (λ v → apply s v) (Vec.map (injFinL _) vars))
 
