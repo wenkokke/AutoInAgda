@@ -58,9 +58,9 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   InjectR : (ℕ → Set) → Set
   InjectR I = ∀ m {n} → I n → I (m + n)
 
-  -- I'm pretty these are actually just Fin.inject+
-  -- and Fin.raise but I've reimlemented them here
-  -- because I didn't know... *shucks*
+  -- I'm pretty sure these are actually just Fin.inject+
+  -- and Fin.raise but I've reimlemented them here because
+  -- I didn't know... *shucks*
 
   injFinL : InjectL Fin
   injFinL _  zero   = zero
