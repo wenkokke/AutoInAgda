@@ -175,15 +175,102 @@ Even (n + 3)| in this style gives the following error:
 \section{Prolog in Agda}
 \label{sec:prolog}
 
+\subsection{Terms and Rules}
+
 The heart of our proof search implementation is the structurally recursive
 unification algorithm described by~\citet{mcbride}. In this approach, terms
 are encoded using finite sets for variables. This allows the algorithm to
-be structurally recusive on the number of variables in a term.
+be structurally recusive on the number of variables in a term. In addition
+to this we encode constants as a |Name| with a fixed arity and a vector of
+arguments.\footnote{
+  In our Prolog implementation the type |Name| is left abstract, to be
+  supplied by the user. The implementation of |auto| identifies it with
+  an arity-annotated version of the language construct |QName|.
+}
 
 \begin{code}
   data Term (n : ℕ) : Set where
     var  : Fin n → Term n
     con  : ∀ {k} → Name k → Vec (Term n) k → Term n
+\end{code}
+
+We shall refrain from further discussion of the unification algorithm---the
+interested reader can refer to~\cite{mcbride} for a detailed description.
+Suffices to say that an implementation leaves us with a unifiction function
+of the following type:
+
+\begin{spec}
+  unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
+\end{spec}
+
+That is, given two terms $t_1$ and $t_2$, it will compute the most general
+unifier in the form of a substition that takes terms with at most $m$ free
+variables to terms with at most $n$.
+
+
+Next we define Prolog rules as records containing a rulename and terms for its
+premises and conclusion---and again the datatype is quantified over the number of
+variables used by its constituents. Note that variables are shared between the
+premises and conclusion. \pepijn{Is having two types called |Name| confusing?
+In the Auto module I make the distinction between |AgdaName| and |PrologName|;
+should I make a distinction here between, say, |Constr| and |RuleName|?}
+
+\begin{code}
+  record Rule (n : ℕ) : Set where
+    field
+      name        : Name
+      conclusion  : Term n
+      premises    : List (Term n)
+\end{code}
+
+
+Lastly, before we can implement some form of proof search, we are going to need
+to define injection and raiseing function for terms, rules and substitions.
+We will give a definition for these function on finite sets below, and leave the
+implementations for the more complex constituents up to the reader.
+
+\begin{code}
+  inject : ∀ {m} n → Fin m → Fin (m + n)
+  inject n  zero    = zero
+  inject n (suc i)  = suc (inject n i)
+
+  raise : ∀ m {n} → Fin n → Fin (m + n)
+  raise  zero   i  = i
+  raise (suc m) i  = suc (raise m i)
+\end{code}
+
+\pepijn{This explanation is pretty terrible---any advice?}
+Why do we need these functions? First, let's examine what they do for finite sets:
+|inject| will send a number $i$ from a finite set of size $n$, to the \emph{same}
+number in a set which is $m$ larger.
+On the contrary, |raise| will send a number $i$ from a finite set of size $n$ to a
+number $i + m$ in a set which is $m$ larger.
+
+If we consider the effects of these function on |Term|s, we find that |inject|
+increases the number of variables that can occur, but keeps the variable names
+the same; |raise|, however, not only increases the number of variables, but also
+replaces all variables with variables that are \emph{guaranteed} to be fresh.
+
+
+
+\subsection{Proof search}
+
+\pepijn{I... don't know. Should I try to unify the two below structures \emph{before}
+I describe them in the paper? We cannot give a concrete reason for why they are
+separated, except maybe to keep the concept of rule application and substitutions
+out out of concept of search trees.}
+
+\begin{code}
+  data SearchSpace (m : ℕ) : Set where
+    done : (∃₂ δ n → Subst (m + δ) n) → SearchSpace m
+    step : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
+\end{code}
+
+\begin{code}
+  data SearchTree (A : Set) : Set where
+    fail : SearchTree A
+    retn : A → SearchTree A
+    fork : ∞ (List (SearchTree A)) → SearchTree A
 \end{code}
 
 \end{document}
