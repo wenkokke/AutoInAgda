@@ -17,16 +17,12 @@
 
 \maketitle
 
-
-
 \begin{abstract}
 Proof automation is important. Custom tactic languages are hacky. We
 show how proof automation can be programmed in a general purpose
 dependently typed programming language using reflection. This makes
 it easier to automate, debug, and test proof automation.\todo{Write good abstract}
 \end{abstract}
-
-
 
 \section{Introduction}
 \label{sec:intro}
@@ -64,24 +60,25 @@ tactics for proof search \emph{within} Agda itself. More specifically,
 this paper makes the following novel contributions:
 
 \begin{itemize}
-\item 
+\item %
   After illustrating the usage of our library with several motivating
   examples (Section~\ref{sec:motivation}), 
   we show how to implement a Prolog interpreter in the style of
   \citet{stutterheim} in Agda (Section~\ref{sec:prolog}). Note that,
   in contrast to Agda, resolving a Prolog query need not terminate. Using coinduction,
   however, we can write a \emph{total} interpreter for Prolog.
-\item
+\item %
   We extend this interpreter to not only produce the substitution that
   solves a Prolog goal, but also produce a proof tree
   (Section~\ref{sec:proofs}). This proof tree will serve
   as a witness for a proof found in this fashion.
-\item
-  We integrate this proof search algorithm with Agda's \emph{reflection}
-  mechanism (Section~\ref{sec:reflection}. This enables
-  us to quote the type of a goal, pass this to our Prolog-style
-  interpreter, and unquote the resulting proof tree as a proof of our
-  goal.
+\item %
+  We integrate this proof search algorithm with Agda's
+  \emph{reflection} mechanism (Section~\ref{sec:reflection}). This
+  enables us to \emph{quote} the type of a lemma we would like to
+  prove, pass this term as the goal of our proof search algorithm, and
+  finally, \emph{unquote} the resulting proof term, thereby proving
+  the desired lemma.
 \item
   \wouter{Example? Can we use our proof search to find out why a proof
   is not being found automatically?} \pepijn{I don't see how you would
@@ -90,7 +87,8 @@ this paper makes the following novel contributions:
   is not what you're after.}\wouter{I mean: add a 'debugging' mode to the 
   auto function, giving some trace information about the search. This can
   help figure out that we are missing a certain lemma -- this is harder to
-  see in Coq using auto.}
+  see in Coq using auto. See the debug trace described here 
+  \url{http://adam.chlipala.net/cpdt/html/LogicProg.html}}
 \item
 \end{itemize}
 
@@ -105,44 +103,118 @@ termination checker; all metavariables are solved.
 \label{sec:motivation}
 
 Before describing the \emph{implementation} of our library, we will
-give a brief motivating example illustrating its \emph{use}.
+provide a brief introduction to Agda's reflection mechanism and
+illustrate how the proof automation described in this paper may be
+used.
 
-We can define a predicate |Even| on natural numbers as follows:
+\subsection*{Reflection in Agda}
+
+Agda has a \emph{reflection} mechanism\footnote{Note that Agda's
+  reflection mechanism should not be confused with the proof by
+  reflection methodology.} for compile time metaprogramming in the
+style of Lisp~\cite{lisp-macros}, MetaML~\cite{metaml}, and Template
+Haskell~\cite{template-haskell}. This reflection mechanisms make it
+possible to convert a program fragment into its corresponding abstract
+syntax tree and vice versa. We will introduce Agda's reflection
+mechanism here with several short examples, based on the explanation
+in previous work~\cite{van-der-walt}. A more complete overview can be
+found in the Agda release notes~\cite{agda-relnotes-228} and Van der
+Walt's thesis~\cite{vdWalt:Thesis:2012}.
+
+The central type in the reflection mechanism is a type |Term : Set|
+that defines an abstract syntax tree for Agda terms. There are several
+language constructs for quoting and unquoting such terms. The simplest
+example of the reflection mechanism is the quotation of an Agda term:
+
+\begin{code}
+  idTerm : Term
+  idTerm = quoteTerm (\ (x : Bool) -> x)
+\end{code}
+
+When evaluation, |idTerm| produces the following value of type |Term|:
+\begin{code}
+  lam visible (var 0 [])
+\end{code}
+On the outermost level, the |lam| constructor produces a lambda
+abstraction. It has a single argument that is passed explicitly (as
+opposed to Agda's implicit arguments). The body of the lambda consists
+of the variable identified by the De Bruijn index 0, applied to an
+empty list of arguments.
+
+More generally, the |quote| language construct allows users to access
+the internal representation of an identifier, a value of a built-in
+type |Name|. Users can subsequently request the type or definition of
+such names.
+
+Dual to quotation, the |unquote| mechanism allows users to splice in a
+|Term|, replacing it with a its concrete syntax. For example, we could
+give a convoluted definition of the |K| combinator as follows:
+\begin{code}
+  const : {a b : Set} -> a  -> b -> a
+  const = unquote (lam visible (lam visible (var 1 [])))
+\end{code}
+The language construct unquote is followed by a value of type
+|Term|. In this example, we manually construct a |Term| representing
+the |K| combinator and splice it in the definition of |const|.
+
+The final piece of the reflection mechanism that we will use is the
+|quoteGoal| construct. The usage of |quoteGoal| is best illustrated
+with an example:
+%format hole = "\AgdaHole{\{\}0}"
+\begin{code}
+  goalInHole : ℕ
+  goalInHole = quoteGoal g in hole
+\end{code}
+In this example, the construct |quoteGoal g| binds the type of the
+current goal, |ℕ|, to the variable |g|. When completing this
+definition by filling in the hole labelled |0|, we may refer to the
+variable |g|. This variable is bound to the |Term| that represents the
+\emph{type} expected at the position of the |quoteGoal| statement. In
+this example, |g| is bound to |def ℕ []|, the |Term| representing the
+type |ℕ|.
+
+\subsection*{Using proof automation}
+
+To illustrate the usage of our proof tactics, we begin by defining a
+predicate |Even| on natural numbers as follows:
 
 \begin{code}
   data Even : ℕ → Set where
     Base : Even 0
     Step : ∀ {n} → Even n → Even (suc (suc n))
 \end{code}
-
-Next we can prove properties of this definition:
-
+%
+Next we may want to prove properties of this definition:
+%
 \begin{code}
   evenSum : ∀ {n m} → Even n → Even m → Even (n + m)
   evenSum Base       e2  = e2
   evenSum (Step e1)  e2  = Step (evenSum e1 e2)
 \end{code}
-
-As shown by~\citet{van-der-walt} proving the |Even| property for closed
-terms can easily be done. The interesting terms, however, are never closed.
-For instance, if we, in the below proof, would like to use the |evenSum|
-lemma, we need to explicitly call it.
+%
+As shown by Van der Walt and Swierstra~\cite{van-der-walt}, it is easy to prove 
+the |Even| property for closed
+terms using proof by reflection. The interesting terms, however, are never closed.
+For instance, if we would like to use the |evenSum|
+lemma in the proof below, we need to call it explicitly.
 
 \begin{code}
   simple : ∀ {n} → Even n → Even (n + 2)
   simple e = evenSum e (Step Base)
 \end{code}
 
-This has its drawbacks. Constructing explicit proof objects in this
+This has its drawbacks. Manually constructing explicit proof objects in this
 fashion is not easy. The proof is brittle. We cannot easily reuse it
 to prove similar statements such as |Even (n + 4)|. If we need to
 reformulate our statement slightly, proving |Even (2 + n)| instead, we
-need to rewrite our proof. Proof automation could really help here.
+need to rewrite our proof. Proof automation can make propositions more robust
+against such changes.
 
 In Coq, tactics such as |auto| can be customized to handle all these
 examples. Using high-level tactics makes the proof more robust against
 reformulations of the exact proof statement. This paper shows how to
 implement such an |auto| tactic in Agda.
+
 
 Instead we would like to assemble any lemmas useful in our domain in a
 hint database:
@@ -305,6 +377,10 @@ Debugging failed auto attempts, or other examples from
 We cannot `insert goals' in the term produced by a call to auto. This
 could be useful if you want to allow a tactic to return an unfinished
 proof. Or can we?
+
+Work with \emph{typed} term language. This is a hard problem.
+
+Compare with Mtac.
 
 \bibliographystyle{plainnat}
 \bibliography{main}

@@ -22,9 +22,10 @@ module Auto.Example where
 
   evenSum : ∀ {n m} -> Even n -> Even m -> Even (n + m)
   evenSum isEven0 e2 = e2
-  evenSum (isEven+2 e1) e2 = 
-    let hints = hintdb (quote isEven+2 ∷ quote evenSum ∷ []) in
-    quoteGoal g in {!unquote (auto 5 hints g)!}  --isEven+2 (evenSum e1 e2)
+  evenSum (isEven+2 e1) e2 = isEven+2 (evenSum e1 e2)
+--    let hints = hintdb (quote isEven+2 ∷  {!!} ∷ []) in
+--    quoteGoal g in {!unquote (auto 5 hints g)!}  
+
 
   simple : ∀ {n} → Even n → Even (n + 2)
   simple e =  evenSum e (isEven+2 isEven0)
