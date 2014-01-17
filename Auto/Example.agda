@@ -34,17 +34,19 @@ module Auto.Example where
 
   hints : HintDB
   hints = hintdb (quote isEven0 ∷ quote isEven+2 ∷ quote lemma ∷ [])
-  hints = hintdb (quote isEven0 ∷ quote isEven+2 ∷ quote evenSum ∷ [])
+  hints' = hintdb (quote isEven0 ∷ quote isEven+2 ∷ quote evenSum ∷ [])
 
   test₁ : Even 4
   test₁ = quoteGoal g in unquote (auto 5 hints g)
 
-  test₂ : ∀ {n} → Even n → Even (suc (suc (suc (suc n))))
   test₂ : ∀ {n} → Even n → Even (n + 2)
   test₂ = quoteGoal g in unquote (auto 5 hints g)
 
-  test₃ : ∀ {n} → Even n → Even (n + 2)
+  test₃ : ∀ {n} → Even n → Even (suc (suc (suc (suc n))))
   test₃ = quoteGoal g in unquote (auto 5 hints g)
+
+  test₄ : ∀ {n} → Even n → Even (n + 2)
+  test₄ = quoteGoal g in unquote (auto 5 hints g)
 
 -- This test should not type check
 --  testFail : ∀ {n} → Even n → Even (n + 3)
