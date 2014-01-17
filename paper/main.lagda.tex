@@ -15,8 +15,6 @@
            {\todo{Add email addresses here.}}
 \maketitle
 
-
-
 \begin{abstract}
 \todo{Add the abstract here.}
 Proof automation is important. Custom tactic languages are hacky. We
@@ -24,8 +22,6 @@ show how proof automation can be programmed in a general purpose
 dependently typed programming language using reflection. This makes
 it easier to automate, debug, and test proof automation.\todo{Write good abstract}
 \end{abstract}
-
-
 
 \section{Introduction}
 \label{sec:intro}
@@ -204,7 +200,7 @@ Suffices to say that an implementation leaves us with a unifiction function
 of the following type:
 
 \begin{spec}
-  unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
+  unify : ∀ {m} (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
 \end{spec}
 
 That is, given two terms $t_1$ and $t_2$, it will compute the most general
@@ -292,12 +288,12 @@ out out of concept of search trees.}
 Future work: auto rewrite; setoid rewrite; proof combinators.
 
 \bibliographystyle{plainnat}
-\bibliography{Auto}
+\bibliography{main}
 
 \end{document}
 
 %%% Local Variables:
 %%% mode: latex
 %%% TeX-master: t
-%%% TeX-command-default: "lagda2pdf"
+%%% TeX-command-default: "rake"
 %%% End:
