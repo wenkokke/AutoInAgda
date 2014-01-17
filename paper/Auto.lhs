@@ -19,7 +19,10 @@
 \maketitle
 
 \begin{abstract}
-Lorem ipsum sic dolor amet\wouter{Hier moet de abstract komen}
+  Proof automation is important. Custom tactic languages are hacky. We
+  show how proof automation can be programmed in a general purpose
+  dependently typed programming language using reflection. This makes
+  it easier to automate, debug, and test proof automation.\todo{Write good abstract}
 \end{abstract}
 
 \section{Introduction}
@@ -36,17 +39,21 @@ the programming language Gallina, there is a separate tactic language
 for writing and programming proof scripts.  Together with several
 highly customizable tactics, the tactic language Ltac can provide
 powerful proof automation~\cite{chlipala}. Having to introduce a
-separate tactic language, however, exposes limitations in expressivity
-of Gallina. It seems at odds with the spirit of type theory, where a
-single language is used for both proof and computation, to introduce a
-new language for proof automation. \todo{What is the drawback of
-  having a separate tactic language?}
+separate tactic language, however, seems at odds with the spirit of
+type theory, where a single language is used for both proof and
+computation. Having a separate language for programming proofs has its
+drawbacks. Programmers need to learn another language to automate
+proofs. Debugging Ltac programs can be difficult and the resulting
+proof automation may be inefficient~\cite{brabaint}.
+
+
+\todo{What is the drawback of having a separate tactic language?}
 
 
 Agda does not have Coq's dichotomy of proof and programming
 language. Instead, programmers are encouraged to automate proofs by
 writing their own solvers~\cite{ulf-tphols}. In combinatior with
-Agda's reflection mechanism~\cite{van-der-walt}, developers can write
+Agda's reflection mechanism~\cite{reflection}, developers can write
 powerful automatic decision procedures~\cite{allais}. Unfortunately,
 not all proofs are easy to automate in this fashion. In that case, the
 user interacts with the integrated development environment to
@@ -77,7 +84,7 @@ this paper makes the following novel contributions:
 \section{Motivation}
 \label{sec:motivation}
 
-Before describing the \emph{implementation} of our library, we will
+Before illustrating the \emph{implementation} of our library, we will
 give a brief motivating example describing its \emph{use}.
 
 We can define a predicate |Even| on natural numbers as follows:
@@ -96,26 +103,30 @@ Next we can prove properties of this definition:
   evenSum (Step e1) e2 = Step (evenSum e1 e2)
 \end{code}
 
-To use this lemma, we need to explicitly call the lemma. For example:
+We can use this lemma in the same way we use any other function: by
+explicitly passing arguments, we can construct new |Even| proofs. For
+example:
 
 \begin{code}
   simple : ∀ {n} → Even n → Even (n + 2)
   simple e =  evenSum e (Step Base)
 \end{code}
 
-This has its drawbacks. Constructing explicit proof objects in this
-fashion is not easy. The proof is brittle. We cannot easily reuse it
-to prove similar statements such as |Even (n + 4)|. If we need to
-reformulate our statement slightly, proving |Even (2 + n)| instead, we
-need to rewrite our proof. Proof automation could really help here.
+Writing such proof terms by hand has its drawbacks. Constructing
+explicit proof objects in this fashion is not easy. You need to
+remember the name of the right lemma with the type you need. The proof
+is brittle. We cannot easily reuse it to prove similar statements such
+as |Even (n + 4)|. If we need to reformulate our statement slightly,
+proving |Even (2 + n)| instead, we need to rewrite our proof. Proof
+automation could really help here.
 
 In Coq, tactics such as |auto| can be customized to handle all these
 examples. Using high-level tactics makes the proof more robust against
 reformulations of the exact proof statement. This paper shows how to
 implement such an |auto| tactic in Agda.
 
-Instead we will assemble any lemmas useful in our domain in a hint
-database:
+To begin with, we will assemble any lemmas useful in our domain in a
+hint database:
 
 \begin{code}
   hints : HintDB
@@ -137,12 +148,9 @@ proof term:
   test : ∀ {n} → Even n → Even (n + 2)
   test = quoteGoal g in unquote (auto 5 hints g)
 \end{code}
-What happens if no proof exists?
 
-\begin{code}
-  test : ∀ {n} → Even n → Even (n + 1)
-  test = quoteGoal g in unquote (auto 5 hints g)
-\end{code}
+Now we can reformulate our lemma: instead proving |Even (2 + n)| or
+|Even (n + 4)|. The same `proof' solves both these goals.
 
 This goes beyond what is currently possible using the Agsy proof
 search. In particular, we can add hints to a database; customize the
@@ -198,6 +206,8 @@ Even (n + 3)| in this style gives the following error:
 \label{sec:discussion}
 
 \todo{Mention Idris}
+
+Future work: auto rewrite; setoid rewrite; proof combinators.
 
 \bibliographystyle{plainnat}
 \bibliography{Auto}
