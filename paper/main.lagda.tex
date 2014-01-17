@@ -1,7 +1,7 @@
 \documentclass[preprint]{sigplanconf}
 
-%include agda.fmt
 \def\textmu{}
+%include agda.fmt
 \include{preamble}
 
 \begin{document}
@@ -17,12 +17,16 @@
 
 \maketitle
 
+
+
 \begin{abstract}
 Proof automation is important. Custom tactic languages are hacky. We
 show how proof automation can be programmed in a general purpose
 dependently typed programming language using reflection. This makes
 it easier to automate, debug, and test proof automation.\todo{Write good abstract}
 \end{abstract}
+
+
 
 \section{Introduction}
 \label{sec:intro}
@@ -145,10 +149,8 @@ hint database:
 
 \begin{code}
   hints : HintDB
-  hints = hintdb (quote Base
-                  :: quote Step
-                  :: quote evenSum
-                  :: [])
+  hints = hintdb
+    (quote Base :: quote Step :: quote evenSum :: [])
 \end{code}
 
 Next we use Agda's reflection mechanism to obtain a representation of
@@ -209,7 +211,7 @@ Suffices to say that an implementation leaves us with a unifiction function
 of the following type:
 
 \begin{spec}
-  unify : ∀ {m} (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
+  unify : (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
 \end{spec}
 
 That is, given two terms $t_1$ and $t_2$, it will compute the most general
@@ -264,11 +266,6 @@ replaces all variables with variables that are \emph{guaranteed} to be fresh.
 
 \subsection{Proof search}
 
-\pepijn{I... don't know. Should I try to unify the two below structures \emph{before}
-I describe them in the paper? We cannot give a concrete reason for why they are
-separated, except maybe to keep the concept of rule application and substitutions
-out out of concept of search trees.}
-
 \begin{code}
   data SearchSpace (m : ℕ) : Set where
     done : (∃₂ δ n → Subst (m + δ) n) → SearchSpace m
@@ -282,7 +279,7 @@ out out of concept of search trees.}
     fork : ∞ (List (SearchTree A)) → SearchTree A
 \end{code}
 
- 
+
 \section{Constructing proof trees}
 \label{sec:proofs}
 
