@@ -52,7 +52,7 @@ module Auto where
     pimpl : PName 2
 
   data RName : Set where
-    rdef : Name → RName
+    rname : Name → RName
     rvar  : ℕ → RName
 
   _≟-PName_ : ∀ {k} (x y : PName k) → Dec (x ≡ y)
@@ -218,12 +218,12 @@ module Auto where
       mkRule′ : ∃ (List ∘ PTerm) → Error (∃ Rule)
       mkRule′ (n , xs) with initLast xs
       mkRule′ (n , .[]) | [] = left panic!
-      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (rdef name) x xs)
+      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
 
   mutual
     reify : Proof → Term
     reify (con (rvar i) ps) = var i []
-    reify (con (rdef n) ps) with definition n
+    reify (con (rname n) ps) with definition n
     ... | function x   = def n (reifyChildren ps)
     ... | data-type x  = unknown
     ... | record′ x    = unknown
