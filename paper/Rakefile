@@ -4,7 +4,7 @@ file 'main.tex' => 'main.lagda.tex' do
   system "lhs2tex --agda main.lagda.tex -o main.tex"
 end
 
-file 'main.pdf' => [ 'main.tex' , 'preamble.tex' ] do
+file 'main.pdf' => [ 'main.tex' , 'main.bib' , 'preamble.tex' ] do
   system 'pdflatex main.tex'
   if $?.success?
     system 'bibtex main'
