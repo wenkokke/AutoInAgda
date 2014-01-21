@@ -2,6 +2,7 @@
 
 \def\textmu{}
 %include agda.fmt
+%include main.fmt
 \include{preamble}
 
 \begin{document}
@@ -28,6 +29,9 @@
 \section{Introduction}
 \label{sec:intro}
 
+\wouter{Even over de titel: ik vind Auto for Agda goed klinken. Maar
+  er is al een Agsy}
+
 Writing proof terms in type theory is hard and often tedious.
 Interactive proof assistants based on type theory, such as
 Agda~\cite{agda} or Coq~\cite{coq}, take very different approaches to
@@ -45,7 +49,6 @@ its drawbacks. Programmers need to learn another language to automate
 proofs. Debugging Ltac programs can be difficult and the resulting
 proof automation may be inefficient~\cite{brabaint}.
 
-
 Agda does not have Coq's segregation of proof and programming
 language.  Instead, programmers are encouraged to automate proofs by
 writing their own solvers~\cite{ulf-tphols}. In combination with
@@ -53,10 +56,10 @@ Agda's reflection mechanism~\cite{van-der-walt}, developers can write
 powerful automatic decision procedures~\cite{allais}. Unfortunately,
 not all proofs are easily automated in this fashion. When this is the
 case, the user is forced to interact with the integrated development
-environment and construct a proof term step by step.
+environment and manually construct a proof term step by step.
 
 This paper tries to combine the best of both worlds by implementing
-tactics for proof search \emph{within} Agda itself. More specifically,
+a library for proof search \emph{within} Agda itself. More specifically,
 this paper makes the following novel contributions:
 
 \begin{itemize}
@@ -66,12 +69,13 @@ this paper makes the following novel contributions:
   Prolog interpreter in the style of \citet{stutterheim} in Agda
   (Section~\ref{sec:prolog}). Note that, in contrast to Agda,
   resolving a Prolog query need not terminate. Using coinduction,
-  however, we can write a \emph{total} interpreter for Prolog.
+  however, we can write an interpreter for Prolog that is \emph{total}.
 \item %
-  We extend this interpreter to not only produce the substitution that
-  solves a Prolog goal, but also produce a proof tree
-  (Section~\ref{sec:proofs}). This proof tree will serve as a witness
-  for a proof found in this fashion.
+  Resolving a Prolog query results in substitution that, when applied
+  to the goal, produces a term that can be derived from the given
+  rules. We extend our interpreter to produce a proof term that
+  witnesses the validity of the resulting substitution
+  (Section~\ref{sec:proofs}).
 \item %
   We integrate this proof search algorithm with Agda's
   \emph{reflection} mechanism (Section~\ref{sec:reflection}). This
@@ -89,12 +93,12 @@ this paper makes the following novel contributions:
   help figure out that we are missing a certain lemma -- this is harder to
   see in Coq using auto. See the debug trace described here 
   \url{http://adam.chlipala.net/cpdt/html/LogicProg.html}}
-\item
+
 \end{itemize}
 
 All the code described in this paper is freely available from
 GitHub\todo{add link}. It is important to emphasize that all our code
-is written in the `safe' fragment of Agda: it does not depend on any
+is written in the safe fragment of Agda: it does not depend on any
 postulates or foreign functions; all definitions pass Agda's
 termination checker; all metavariables are solved.
 
@@ -124,14 +128,15 @@ Walt's thesis~\cite{vdWalt:Thesis:2012}.
 The central type in the reflection mechanism is a type |Term : Set|
 that defines an abstract syntax tree for Agda terms. There are several
 language constructs for quoting and unquoting such terms. The simplest
-example of the reflection mechanism is the quotation of an Agda term:
-
+example of the reflection mechanism is the quotation of a single
+term. In the definition of |idTerm| below, we quote the identity
+function on Boolean values:
 \begin{code}
   idTerm : Term
   idTerm = quoteTerm (\ (x : Bool) -> x)
 \end{code}
 
-When evaluation, |idTerm| produces the following value of type |Term|:
+When evaluated, |idTerm| produces the following value of type |Term|:
 \begin{code}
   lam visible (var 0 [])
 \end{code}
@@ -150,7 +155,7 @@ Dual to quotation, the |unquote| mechanism allows users to splice in a
 |Term|, replacing it with a its concrete syntax. For example, we could
 give a convoluted definition of the |K| combinator as follows:
 \begin{code}
-  const : {a b : Set} -> a  -> b -> a
+  const : ∀ {a b} -> a  -> b -> a
   const = unquote (lam visible (lam visible (var 1 [])))
 \end{code}
 The language construct unquote is followed by a value of type
@@ -160,7 +165,6 @@ the |K| combinator and splice it in the definition of |const|.
 The final piece of the reflection mechanism that we will use is the
 |quoteGoal| construct. The usage of |quoteGoal| is best illustrated
 with an example:
-%format hole = "\AgdaHole{\{\}0}"
 \begin{code}
   goalInHole : ℕ
   goalInHole = quoteGoal g in hole
@@ -202,8 +206,7 @@ below, we need to call it explicitly.
   simple : ∀ {n} → Even n → Even (n + 2)
   simple e = sumEven e (Step Base)
 \end{code}
-
-This has its drawbacks. Manually constructing explicit proof objects
+Manually constructing explicit proof objects
 in this fashion is not easy. The proof is brittle. We cannot easily
 reuse it to prove similar statements such as |Even (n + 4)|. If we
 need to reformulate our statement slightly, proving |Even (2 + n)|
@@ -214,7 +217,6 @@ In Coq, tactics such as |auto| can be customized to handle all these
 examples. Using high-level tactics makes the proof more robust against
 reformulations of the exact proof statement. This paper shows how to
 implement such an |auto| tactic in Agda.
-
 
 Instead we would like to assemble any lemmas useful in our domain in a
 hint database:
@@ -243,17 +245,17 @@ search depth; or even implement our own search strategy.
 \end{code}
 
 Of course, such invocations of the |auto| function may fail. So what
-happens if no proof exists? In that case, the |auto| function
-generates a dummy term, whose type explains that the search space has
-been exhausted. Unquoting this term, then gives a type error
-message. For example, trying to prove |Even n → Even (n + 3)| in this
-style gives the following error:
+happens if no proof exists? For example, trying to prove |Even n →
+Even (n + 3)| in this style gives the following error:
 
 \begin{verbatim}
   Err searchSpaceExhausted !=<
     Even .n -> Even (.n + 3) of type Set
 \end{verbatim}
-
+When no proof can be found, the |auto| function generates a dummy
+term, whose type explains that the search space has been
+exhausted. Unquoting this term, then gives the type error message
+above.
 
 
 \section{Prolog in Agda}
@@ -272,11 +274,21 @@ arguments.\footnote{
   an arity-annotated version of the language construct |QName|.
 }
 
+\wouter{Waarom is |Name : Nat -> Set| ipv een tweetal |Name : Set| en
+  |arity : Name -> Nat|? Dat laatste is wat gebruikelijker}
+
 \begin{code}
   data Term (n : ℕ) : Set where
     var  : Fin n → Term n
     con  : ∀ {k} → Name k → Vec (Term n) k → Term n
 \end{code}
+
+\wouter{What should we call this data type? How can we explicitly
+  distinguish it from the |Term| data type in Agda's reflection mechanism?}
+
+\wouter{Give an example Term. How about |Suc (Zero)|?}
+
+\wouter{Should we repeat the definition of |Fin|?}
 
 We shall refrain from further discussion of the unification algorithm---the
 interested reader can refer to~\cite{mcbride} for a detailed description.
@@ -289,8 +301,8 @@ of the following type:
 
 That is, given two terms $t_1$ and $t_2$, it will compute the most general
 unifier in the form of a substition that takes terms with at most $m$ free
-variables to terms with at most $n$.
-
+variables to terms with at most $n$. 
+\wouter{Do we want to define |Subst|? Or does the interface suffice?}
 
 Next we define Prolog rules as records containing a rulename and terms for its
 premises and conclusion---and again the datatype is quantified over the number of
@@ -298,6 +310,7 @@ variables used by its constituents. Note that variables are shared between the
 premises and conclusion. \pepijn{Is having two types called |Name| confusing?
 In the Auto module I make the distinction between |AgdaName| and |PrologName|;
 should I make a distinction here between, say, |Constr| and |RuleName|?}
+\wouter{I'd disambiguate. Name is really the built-in Agda reflection type.}
 
 \begin{code}
   record Rule (n : ℕ) : Set where
@@ -307,12 +320,15 @@ should I make a distinction here between, say, |Constr| and |RuleName|?}
       premises    : List (Term n)
 \end{code}
 
+\wouter{Give an example of such a rule. For instance: | add(0,x,x)| and |add(n,m,t)
+  :- add (suc(n), m, suc(t))|.}
 
-Lastly, before we can implement some form of proof search, we are going to need
-to define injection and raiseing function for terms, rules and substitions.
-We will give a definition for these function on finite sets below, and leave the
-implementations for the more complex constituents up to the reader.
-
+Lastly, before we can implement some form of proof search, we are
+going to need to define a pair of auxiliary functions. During proof
+resolution, we will need to work with terms and rules containing a
+different number of variable. We will use the following pair of
+functions, |inject| and |raise|, to weaken bound variables, that is,
+map values of type |Fin n| to some larger finite type.
 \begin{code}
   inject : ∀ {m} n → Fin m → Fin (m + n)
   inject n  zero    = zero
@@ -322,18 +338,71 @@ implementations for the more complex constituents up to the reader.
   raise  zero   i  = i
   raise (suc m) i  = suc (raise m i)
 \end{code}
+We have tried to visualize the behaviour of |inject| and |raise|,
+embedding |Fin 3| into |Fin (3 + 1)| in Figure~\ref{fig:fins}. On the
+surface, the |inject| function appears to be the identity. When you
+make all the implicit arguments explicit, however, you will see that
+it sends the |zero| constructor in |Fin m| to the |zero| constructor
+of type |Fin (m + n)|. Hence, the |inject| function maps |Fin m| into the
+\emph{first} |m| elements of the type |Fin (m + n)|. Dually, the
+|raise| function maps |Fin n| into the \emph{last} |n| elements of the
+type |Fin (m + n)| by repeatedly applying the |suc| constructor.
 
-\pepijn{This explanation is pretty terrible---any advice?}
-Why do we need these functions? First, let's examine what they do for finite sets:
-|inject| will send a number $i$ from a finite set of size $n$, to the \emph{same}
-number in a set which is $m$ larger.
-On the contrary, |raise| will send a number $i$ from a finite set of size $n$ to a
-number $i + m$ in a set which is $m$ larger.
+\begin{figure}
+  \centering
+  \subfigure[]{ \label{fig:injFig}
+    \begin{tikzpicture}[place/.style={circle,draw=darkgray!50,fill=gray!20,thick}]
+       \node[place,label=left:1] (one3) {};
+       \node[place,label=left:2] (two3) [below=of one3] {};
+       \node[place,label=left:3] (three3) [below=of two3] {};
 
-If we consider the effects of these function on |Term|s, we find that |inject|
-increases the number of variables that can occur, but keeps the variable names
-the same; |raise|, however, not only increases the number of variables, but also
-replaces all variables with variables that are \emph{guaranteed} to be fresh.
+       \node[place,label=right:1] (one4) [right=of one3] {};
+       \node[place,label=right:2] (two4) [below=of one4] {};
+       \node[place,label=right:3] (three4) [below=of two4] {};
+       \node[place,label=right:4] (four4) [below=of three4] {};
+
+       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (one4); 
+       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (two4); 
+       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (three4); 
+    \end{tikzpicture}}
+\hspace{7.5em}
+  \subfigure[]{
+  \begin{tikzpicture} [place/.style={circle,draw=darkgray!50,fill=gray!20,thick}]
+       \node[place,label=left:1] (one3) {};
+       \node[place,label=left:2] (two3) [below=of one3] {};
+       \node[place,label=left:3] (three3) [below=of two3] {};
+
+       \node[place,label=right:1] (one4) [right=of one3] {};
+       \node[place,label=right:2] (two4) [below=of one4] {};
+       \node[place,label=right:3] (three4) [below=of two4] {};
+       \node[place,label=right:4] (four4) [below=of three4] {};
+
+       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (two4); 
+       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (three4); 
+       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (four4); 
+  \end{tikzpicture}}
+
+\vspace{4ex}
+\caption{The graph of the |inject| function (a) and the |raise|
+  function (b) embedding |Fin 3| in |Fin (3 + 1)| }
+  \label{fig:fins}
+\end{figure}
+% Why do we need these functions? First, let's examine what they do for finite sets:
+% |inject| will send a number $i$ from a finite set of size $n$, to the \emph{same}
+% number in a set which is $m$ larger.
+% On the contrary, |raise| will send a number $i$ from a finite set of size $n$ to a
+% number $i + m$ in a set which is $m$ larger.
+
+Using |inject| and |raise| as defined to work on finite sets, we can
+define similar functions that work on our |Rule| and |Term| data
+types.
+
+
+
+% If we consider the effects of these function on |Term|s, we find that |inject|
+% increases the number of variables that can occur, but keeps the variable names
+% the same; |raise|, however, not only increases the number of variables, but also
+% replaces all variables with variables that are \emph{guaranteed} to be fresh.
 
 
 
@@ -360,6 +429,10 @@ replaces all variables with variables that are \emph{guaranteed} to be fresh.
 \label{sec:reflection}
 
 
+\section{Extended example}
+\label{sec:example}
+
+\todo{Give a bigger example of debugging/automated proving}
 
 \section{Discussion}
 \label{sec:discussion}
@@ -368,7 +441,11 @@ replaces all variables with variables that are \emph{guaranteed} to be fresh.
 
 Future work: auto rewrite; setoid rewrite; proof combinators.
 
-limitations of using recursion in 
+limitations of using recursion in hint data base
+
+Cf Agsy
+
+
 
 Combining hint data bases
 
