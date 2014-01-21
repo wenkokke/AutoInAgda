@@ -1,0 +1,4 @@
+%format hole = "\AgdaHole{\{\}0}"
+%format quoteGoal = "\textbf{quoteGoal}"
+%format quote = "\textbf{quote}"
+%format unquote = "\textbf{unquote}"
