@@ -1,6 +1,6 @@
 require 'rake/clean'
 
-file 'main.tex' => 'main.lagda.tex' do
+file 'main.tex' => ['main.lagda.tex' , 'main.fmt'] do
   system "lhs2tex --agda main.lagda.tex -o main.tex"
 end
 

@@ -38,7 +38,7 @@ module Auto.Example where
   hints' = hintdb (quote isEven0 ∷ quote isEven+2 ∷ quote evenSum ∷ [])
 
   test₁ : Even 4
-  test₁ = quoteGoal g in unquote (auto 5 hints g)
+  test₁ = quoteGoal g in unquote (auto 5 hints' g) -- quoteGoal g in
 
   test₂ : ∀ {n} → Even n → Even (n + 2)
   test₂ = quoteGoal g in unquote (auto 5 hints g)
