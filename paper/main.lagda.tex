@@ -260,10 +260,11 @@ Even (n + 3)| in this style gives the following error:
 When no proof can be found, the |auto| function generates a dummy
 term, whose type explains that the search space has been
 exhausted. Unquoting this term, then gives the type error message
-above.
+above. It is up to the programmer to fix this, either by providing a
+manual proof or diagnosing why no proof could be found.
 
-The remainder of this paper will explain how this |auto| function can
-be implemented.
+The remainder of this paper will explain how this |auto| function is
+implemented.
 
 \section{Prolog in Agda}
 \label{sec:prolog}
@@ -278,11 +279,14 @@ to this we encode constants as a |Name| with a fixed arity and a vector of
 arguments.\footnote{
   In our Prolog implementation the type |Name| is left abstract, to be
   supplied by the user. The implementation of |auto| identifies it with
-  an arity-annotated version of the language construct |QName|.
+  an arity-annotated version of the language construct |QName|. 
 }
 
 \wouter{Waarom is |Name : Nat -> Set| ipv een tweetal |Name : Set| en
-  |arity : Name -> Nat|? Dat laatste is wat gebruikelijker}
+  |arity : Name -> Nat|? Dat laatste is wat gebruikelijker. Misschien
+  is |Operator| of |Operation| wat minder verwarrend dan nog een name
+  -- dit ligt ook in lijn met het 'standaard' gebruik in Universele
+  algebra - \url{http://en.wikipedia.org/wiki/Universal_algebra}}
 
 \begin{code}
   data Term (n : ℕ) : Set where
@@ -297,19 +301,23 @@ arguments.\footnote{
 
 \wouter{Should we repeat the definition of |Fin|?}
 
-We shall refrain from further discussion of the unification algorithm---the
-interested reader can refer to~\cite{mcbride} for a detailed description.
-Suffices to say that an implementation leaves us with a unifiction function
-of the following type:
-
+We shall refrain from further discussion of the unification algorithm itself. 
+Instead, we restrict ourself to presenting the interface that we will use:
 \begin{spec}
   unify : (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
 \end{spec}
-
-That is, given two terms $t_1$ and $t_2$, it will compute the most general
-unifier in the form of a substition that takes terms with at most $m$ free
+The |unify| function takes two terms $t_1$ and $t_2$ and computes the most general
+unifier, that is, a substition that takes terms with at most $m$ free
 variables to terms with at most $n$. 
-\wouter{Do we want to define |Subst|? Or does the interface suffice?}
+\wouter{Do we want to define |Subst|? Or does this  suffice?}
+
+This unification function is defined using an accumulating parameter,
+representing an approximation of the final substitution. In what
+follows, we will sometimes use the following, more general, function:
+\begin{code}
+  unifyAcc : (t₁ t₂ : Term m) → 
+    ∃ (Subst m) → Maybe (∃ (Subst m))
+\end{code}
 
 Next we define Prolog rules as records containing a rulename and terms for its
 premises and conclusion---and again the datatype is quantified over the number of
