@@ -9,7 +9,7 @@
 
 \conferenceinfo{ICFP'14} {September 1--3, 2014, G\"oteborg, Sweden}
 
-\title{Auto for Agda}
+\title{Auto in Agda}
 \subtitle{Programming proof search}
 
 \authorinfo{Pepijn Kokke \and Wouter Swierstra}
@@ -17,6 +17,9 @@
            {\todo{Add pepijn's email address here.} \quad w.s.swierstra@@uu.nl}
 
 \maketitle
+
+\wouter{Even over de titel: ik vind Auto for Agda goed klinken. Maar
+  er is al Agsy, die ook auto wordt genoemd. Misschien is Auto \emph{in} Agda beter?}
 
 \begin{abstract}
   Proof automation is important. Custom tactic languages are hacky. We
@@ -28,9 +31,6 @@
 
 \section{Introduction}
 \label{sec:intro}
-
-\wouter{Even over de titel: ik vind Auto for Agda goed klinken. Maar
-  er is al een Agsy}
 
 Writing proof terms in type theory is hard and often tedious.
 Interactive proof assistants based on type theory, such as
@@ -71,7 +71,7 @@ this paper makes the following novel contributions:
   resolving a Prolog query need not terminate. Using coinduction,
   however, we can write an interpreter for Prolog that is \emph{total}.
 \item %
-  Resolving a Prolog query results in substitution that, when applied
+  Resolving a Prolog query results in a substitution that, when applied
   to the goal, produces a term that can be derived from the given
   rules. We extend our interpreter to produce a proof term that
   witnesses the validity of the resulting substitution
@@ -114,9 +114,11 @@ used.
 \subsection*{Reflection in Agda}
 
 Agda has a \emph{reflection} mechanism\footnote{Note that Agda's
-  reflection mechanism should not be confused with the proof by
-  reflection methodology.} for compile time metaprogramming in the
-style of Lisp~\cite{lisp-macros}, MetaML~\cite{metaml}, and Template
+  reflection mechanism should not be confused with `proof by
+  reflection' -- the technique of writing a verified decision
+  procedure for some class of problems.} for compile time
+metaprogramming in the style of Lisp~\cite{lisp-macros},
+MetaML~\cite{metaml}, and Template
 Haskell~\cite{template-haskell}. This reflection mechanisms make it
 possible to convert a program fragment into its corresponding abstract
 syntax tree and vice versa. We will introduce Agda's reflection
@@ -127,7 +129,7 @@ Walt's thesis~\cite{vdWalt:Thesis:2012}.
 
 The central type in the reflection mechanism is a type |Term : Set|
 that defines an abstract syntax tree for Agda terms. There are several
-language constructs for quoting and unquoting such terms. The simplest
+language constructs for quoting and unquoting program fragments. The simplest
 example of the reflection mechanism is the quotation of a single
 term. In the definition of |idTerm| below, we quote the identity
 function on Boolean values:
@@ -135,10 +137,9 @@ function on Boolean values:
   idTerm : Term
   idTerm = quoteTerm (\ (x : Bool) -> x)
 \end{code}
-
-When evaluated, |idTerm| produces the following value of type |Term|:
+When evaluated, the term |idTerm| yields the following value:
 \begin{code}
-  lam visible (var 0 [])
+  lam visible (var 0 []) 
 \end{code}
 On the outermost level, the |lam| constructor produces a lambda
 abstraction. It has a single argument that is passed explicitly (as
@@ -158,7 +159,7 @@ give a convoluted definition of the |K| combinator as follows:
   const : ∀ {a b} -> a  -> b -> a
   const = unquote (lam visible (lam visible (var 1 [])))
 \end{code}
-The language construct unquote is followed by a value of type
+The language construct |unquote| is followed by a value of type
 |Term|. In this example, we manually construct a |Term| representing
 the |K| combinator and splice it in the definition of |const|.
 
@@ -169,17 +170,15 @@ with an example:
   goalInHole : ℕ
   goalInHole = quoteGoal g in hole
 \end{code}
-In this example, the construct |quoteGoal g| binds the type of the
-current goal, |ℕ|, to the variable |g|. When completing this
-definition by filling in the hole labelled |0|, we may refer to the
-variable |g|. This variable is bound to the |Term| that represents the
-\emph{type} expected at the position of the |quoteGoal| statement. In
-this example, |g| is bound to |def ℕ []|, the |Term| representing the
-type |ℕ|.
+In this example, the construct |quoteGoal g| binds the |Term|
+representing the \emph{type} of the current goal, |ℕ|, to the variable
+|g|. When completing this definition by filling in the hole labelled
+|0|, we may now refer to the variable |g|. This variable is bound to
+to |def ℕ []|, the |Term| representing the type |ℕ|.
 
 \subsection*{Using proof automation}
 
-To illustrate the usage of our proof tactics, we begin by defining a
+To illustrate the usage of our proof automation, we begin by defining a
 predicate |Even| on natural numbers as follows:
 
 \begin{code}
@@ -191,20 +190,20 @@ predicate |Even| on natural numbers as follows:
 Next we may want to prove properties of this definition:
 %
 \begin{code}
-  sumEven : ∀ {n m} → Even n → Even m → Even (n + m)
-  sumEven Base       e2  = e2
-  sumEven (Step e1)  e2  = Step (sumEven e1 e2)
+  even+ : ∀ {n m} → Even n → Even m → Even (n + m)
+  even+ Base       e2  = e2
+  even+ (Step e1)  e2  = Step (even+ e1 e2)
 \end{code}
 %
 As shown by Van der Walt and Swierstra~\cite{van-der-walt}, it is easy
 to prove the |Even| property for closed terms using proof by
 reflection. The interesting terms, however, are never closed.  For
-instance, if we would like to use the |sumEven| lemma in the proof
+instance, if we would like to use the |even+| lemma in the proof
 below, we need to call it explicitly.
 
 \begin{code}
   simple : ∀ {n} → Even n → Even (n + 2)
-  simple e = sumEven e (Step Base)
+  simple e = even+ e (Step Base)
 \end{code}
 Manually constructing explicit proof objects
 in this fashion is not easy. The proof is brittle. We cannot easily
@@ -213,41 +212,47 @@ need to reformulate our statement slightly, proving |Even (2 + n)|
 instead, we need to rewrite our proof. Proof automation can make
 propositions more robust against such changes.
 
-In Coq, tactics such as |auto| can be customized to handle all these
-examples. Using high-level tactics makes the proof more robust against
-reformulations of the exact proof statement. This paper shows how to
-implement such an |auto| tactic in Agda.
+Coq's proof search tactics, such as |auto|, can be customized with a
+\emph{hint database}, containing useful lemmas. Proving the |simple|
+lemma above using such tactics result in proofs that are more robust
+against reformulation and refactoring. In contrast to the construction
+of explicit proof terms, Slight changes to the theorem statement need
+not break the proof. This paper shows how to implement such an |auto|
+tactic in Agda.
 
-Instead we would like to assemble any lemmas useful in our domain in a
-hint database:
-
+Before we can use our |auto| function, we need to construct a hint
+database, containing our |even+| lemma and the constructors of the
+|Even| predicate:
 \begin{code}
   hints : HintDB
   hints = hintdb
-    (quote Base :: quote Step :: quote sumEven :: [])
+    (quote Base :: quote Step :: quote even+ :: [])
 \end{code}
+To construct such a database, we |quote| any terms that we wish to
+include in it and pass them to the |hintdb| function.  We
+defer any discussion about the |hintdb| function for the moment. Note,
+however, that unlike Coq, the hint data base is a \emph{first-class}
+value that can be manipulated, inspected, or passed as an argument to
+a function.
 
-Next we use Agda's reflection mechanism to obtain a representation of
-the goal that we are trying to prove. The language construct
-\textbf{quoteGoal} g \textbf{in} ... binds the type of the current
-goal to |g|; we then call a \emph{function} |auto|, passing our hint
-database and goal as arguments.  The |auto| function tries to
-construct a proof term of type |Even n → Even (n + 2)| from the hint
-database. If this is successful, we unquote the proof term:
-
-This goes beyond what is currently possible using the Agsy proof
-search.  In particular, we can add hints to a database; customize the
-search depth; or even implement our own search strategy.
-
+We now give an alternative proof of the |simple| lemma, using this
+hint database:
 \begin{code}
-  test : ∀ {n} → Even n → Even (n + 2)
-  test = quoteGoal g in unquote (auto 5 hints g)
+  simple : ∀ {n} → Even n → Even (n + 2)
+  simple = quoteGoal g in unquote (auto 5 hints g)
 \end{code}
+The central ingredient is a \emph{function} |auto| with the following
+type:
+\begin{code}
+  auto : ℕ → HintDB → Term → Term  
+\end{code}
+Given a maximum depth, hint database, and goal, it searches for a
+proof |Term| that witnesses our goal. If this term can be found, it is
+spliced back into our program using the |unquote| statement.
 
-Of course, such invocations of the |auto| function may fail. So what
+Of course, such invocations of the |auto| function may fail. What
 happens if no proof exists? For example, trying to prove |Even n →
 Even (n + 3)| in this style gives the following error:
-
 \begin{verbatim}
   Err searchSpaceExhausted !=<
     Even .n -> Even (.n + 3) of type Set
@@ -257,6 +262,8 @@ term, whose type explains that the search space has been
 exhausted. Unquoting this term, then gives the type error message
 above.
 
+The remainder of this paper will explain how this |auto| function can
+be implemented.
 
 \section{Prolog in Agda}
 \label{sec:prolog}
