@@ -14,12 +14,13 @@
 
 \authorinfo{Pepijn Kokke \and Wouter Swierstra}
            {Universiteit Utrecht}
-           {\todo{Add pepijn's email address here.} \quad w.s.swierstra@@uu.nl}
+           {pepijn.kokke@@gmail.com \quad w.s.swierstra@@uu.nl}
 
 \maketitle
 
 \wouter{Even over de titel: ik vind Auto for Agda goed klinken. Maar
   er is al Agsy, die ook auto wordt genoemd. Misschien is Auto \emph{in} Agda beter?}
+\pepijn{Absoluut mee eens. :)}
 
 \begin{abstract}
   Proof automation is important. Custom tactic languages are hacky. We
@@ -88,12 +89,14 @@ this paper makes the following novel contributions:
   is not being found automatically?} \pepijn{I don't see how you would
   envision this---all we can say is ``No, all combinations of up to $d$
   of your hints fail to produce anything meaningful''---which, I suppose
-  is not what you're after.}\wouter{I mean: add a 'debugging' mode to the 
+  is not what you're after.}\wouter{I mean: add a 'debugging' mode to the
   auto function, giving some trace information about the search. This can
   help figure out that we are missing a certain lemma -- this is harder to
-  see in Coq using auto. See the debug trace described here 
+  see in Coq using auto. See the debug trace described here
   \url{http://adam.chlipala.net/cpdt/html/LogicProg.html}}
-
+  \pepijn{Hmm. Dat moet te doen zijn. Lijkt me wel iets wat buiten de
+    scope van dit project valt, voor nu. Het zal in ieder geval wat
+    werk zijn.}
 \end{itemize}
 
 All the code described in this paper is freely available from
@@ -139,7 +142,7 @@ function on Boolean values:
 \end{code}
 When evaluated, the term |idTerm| yields the following value:
 \begin{code}
-  lam visible (var 0 []) 
+  lam visible (var 0 [])
 \end{code}
 On the outermost level, the |lam| constructor produces a lambda
 abstraction. It has a single argument that is passed explicitly (as
@@ -244,7 +247,7 @@ hint database:
 The central ingredient is a \emph{function} |auto| with the following
 type:
 \begin{code}
-  auto : ℕ → HintDB → Term → Term  
+  auto : ℕ → HintDB → Term → Term
 \end{code}
 Given a maximum depth, hint database, and goal, it searches for a
 proof |Term| that witnesses our goal. If this term can be found, it is
@@ -279,7 +282,7 @@ to this we encode constants as a |Name| with a fixed arity and a vector of
 arguments.\footnote{
   In our Prolog implementation the type |Name| is left abstract, to be
   supplied by the user. The implementation of |auto| identifies it with
-  an arity-annotated version of the language construct |QName|. 
+  an arity-annotated version of the language construct |QName|.
 }
 
 \wouter{Waarom is |Name : Nat -> Set| ipv een tweetal |Name : Set| en
@@ -287,6 +290,10 @@ arguments.\footnote{
   is |Operator| of |Operation| wat minder verwarrend dan nog een name
   -- dit ligt ook in lijn met het 'standaard' gebruik in Universele
   algebra - \url{http://en.wikipedia.org/wiki/Universal_algebra}}
+\pepijn{Hm. Omdat het handiger was. Het liet je een aantal dingen wat
+beter definieren. Maar inderdaad, het is wel wat me nu tegen houdt
+ook gewoon de Agda namen te gebruiken in deze constructies... Laten we
+dit vrijdag bespreken.}
 
 \begin{code}
   data Term (n : ℕ) : Set where
@@ -296,26 +303,35 @@ arguments.\footnote{
 
 \wouter{What should we call this data type? How can we explicitly
   distinguish it from the |Term| data type in Agda's reflection mechanism?}
+\pepijn{Hm. I reckon we should just keep ``Term'', but if you want it
+  we can switch to using PrologTerm, PTerm or Term$^{P}$ as opposed to
+  AgdaTerm, ATerm or Term$^{A}$?}
 
 \wouter{Give an example Term. How about |Suc (Zero)|?}
+\pepijn{All those |suc|'s and |zero|'s being thrown around, I reckon
+  it may be better if we give the term representing the proof for one
+  of our running examples; nothing too complex, maybe isEven 2?}
 
 \wouter{Should we repeat the definition of |Fin|?}
+\pepijn{Do we really have to? This paper is specifically aimed at
+  people who know Agda (who else would benefit from it?) and |Fin| is
+  about the first thing you learn how to write, your average user's Hello World.}
 
-We shall refrain from further discussion of the unification algorithm itself. 
+We shall refrain from further discussion of the unification algorithm itself.
 Instead, we restrict ourself to presenting the interface that we will use:
 \begin{spec}
   unify : (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
 \end{spec}
 The |unify| function takes two terms $t_1$ and $t_2$ and computes the most general
 unifier, that is, a substition that takes terms with at most $m$ free
-variables to terms with at most $n$. 
+variables to terms with at most $n$.
 \wouter{Do we want to define |Subst|? Or does this  suffice?}
 
 This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
 follows, we will sometimes use the following, more general, function:
 \begin{code}
-  unifyAcc : (t₁ t₂ : Term m) → 
+  unifyAcc : (t₁ t₂ : Term m) →
     ∃ (Subst m) → Maybe (∃ (Subst m))
 \end{code}
 
@@ -337,6 +353,7 @@ should I make a distinction here between, say, |Constr| and |RuleName|?}
 
 \wouter{Give an example of such a rule. For instance: | add(0,x,x)| and |add(n,m,t)
   :- add (suc(n), m, suc(t))|.}
+\pepijn{Will do.}
 
 Lastly, before we can implement some form of proof search, we are
 going to need to define a pair of auxiliary functions. During proof
@@ -376,9 +393,9 @@ type |Fin (m + n)| by repeatedly applying the |suc| constructor.
        \node[place,label=right:3] (three4) [below=of two4] {};
        \node[place,label=right:4] (four4) [below=of three4] {};
 
-       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (one4); 
-       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (two4); 
-       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (three4); 
+       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (one4);
+       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (two4);
+       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (three4);
     \end{tikzpicture}}
 \hspace{7.5em}
   \subfigure[]{
@@ -392,16 +409,18 @@ type |Fin (m + n)| by repeatedly applying the |suc| constructor.
        \node[place,label=right:3] (three4) [below=of two4] {};
        \node[place,label=right:4] (four4) [below=of three4] {};
 
-       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (two4); 
-       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (three4); 
-       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (four4); 
+       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (two4);
+       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (three4);
+       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (four4);
   \end{tikzpicture}}
 
 \vspace{4ex}
 \caption{The graph of the |inject| function (a) and the |raise|
-  function (b) embedding |Fin 3| in |Fin (3 + 1)| }
+  function (b) embedding |Fin 3| in |Fin (3 + 1)|}
+  \pepijn{Thanks, this is MUCH more readable. :)}
   \label{fig:fins}
 \end{figure}
+
 % Why do we need these functions? First, let's examine what they do for finite sets:
 % |inject| will send a number $i$ from a finite set of size $n$, to the \emph{same}
 % number in a set which is $m$ larger.
@@ -411,8 +430,6 @@ type |Fin (m + n)| by repeatedly applying the |suc| constructor.
 Using |inject| and |raise| as defined to work on finite sets, we can
 define similar functions that work on our |Rule| and |Term| data
 types.
-
-
 
 % If we consider the effects of these function on |Term|s, we find that |inject|
 % increases the number of variables that can occur, but keeps the variable names
