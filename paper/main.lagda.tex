@@ -421,30 +421,35 @@ type |Fin (m + n)| by repeatedly applying the |suc| constructor.
   \label{fig:fins}
 \end{figure}
 
-% Why do we need these functions? First, let's examine what they do for finite sets:
-% |inject| will send a number $i$ from a finite set of size $n$, to the \emph{same}
-% number in a set which is $m$ larger.
-% On the contrary, |raise| will send a number $i$ from a finite set of size $n$ to a
-% number $i + m$ in a set which is $m$ larger.
-
 Using |inject| and |raise| as defined to work on finite sets, we can
 define similar functions that work on our |Rule| and |Term| data
 types.
 
-% If we consider the effects of these function on |Term|s, we find that |inject|
-% increases the number of variables that can occur, but keeps the variable names
-% the same; |raise|, however, not only increases the number of variables, but also
-% replaces all variables with variables that are \emph{guaranteed} to be fresh.
-
 
 
 \subsection{Proof search}
+
+Our implementation of proof search is divided up into two steps.
+In the first step we set up an abstract representation of the search
+space in which we implement the basic machinery of sequential rule
+application.
+In the second step we make transform this abstract representation into
+a concrete search tree by introducing a set of rules.
+
+The reason we have chosen to separate these two steps is that it
+neatly separates the machinery for proof search (be it breath-first
+search, depth-first search or some heuristic-driven algorithm) from
+the machinery for unification.
+
+%\subsubsection{Setting up the search space}
 
 \begin{code}
   data SearchSpace (m : ℕ) : Set where
     done : (∃₂ δ n → Subst (m + δ) n) → SearchSpace m
     step : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
 \end{code}
+
+%\subsubsection{Searching the search space}
 
 \begin{code}
   data SearchTree (A : Set) : Set where
