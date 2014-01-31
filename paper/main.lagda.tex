@@ -18,10 +18,6 @@
 
 \maketitle
 
-\wouter{Even over de titel: ik vind Auto for Agda goed klinken. Maar
-  er is al Agsy, die ook auto wordt genoemd. Misschien is Auto \emph{in} Agda beter?}
-\pepijn{Absoluut mee eens. :)}
-
 \begin{abstract}
   Proof automation is important. Custom tactic languages are hacky. We
   show how proof automation can be programmed in a general purpose
@@ -96,7 +92,9 @@ this paper makes the following novel contributions:
   \url{http://adam.chlipala.net/cpdt/html/LogicProg.html}}
   \pepijn{Hmm. Dat moet te doen zijn. Lijkt me wel iets wat buiten de
     scope van dit project valt, voor nu. Het zal in ieder geval wat
-    werk zijn.}
+    werk zijn.}\wouter{Laten we ons eerst richten op dit paper schrijven; 
+    mochten we tijd over hebben, kunnen we altijd naar dit soort dingen
+    kijken.}
 \end{itemize}
 
 All the code described in this paper is freely available from
@@ -306,11 +304,16 @@ dit vrijdag bespreken.}
 \pepijn{Hm. I reckon we should just keep ``Term'', but if you want it
   we can switch to using PrologTerm, PTerm or Term$^{P}$ as opposed to
   AgdaTerm, ATerm or Term$^{A}$?}
+\wouter{Or call it Term, but explicitly write module Prolog (...) where. 
+We can then refer to these terms later as Prolog.Term in the paper, without
+ambiguity}
 
 \wouter{Give an example Term. How about |Suc (Zero)|?}
 \pepijn{All those |suc|'s and |zero|'s being thrown around, I reckon
   it may be better if we give the term representing the proof for one
   of our running examples; nothing too complex, maybe isEven 2?}
+\wouter{The choice of example doesn't really matter, as long as it small enough
+to illustate the concepts involved.}
 
 \wouter{Should we repeat the definition of |Fin|?}
 \pepijn{Do we really have to? This paper is specifically aimed at
