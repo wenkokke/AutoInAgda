@@ -26,8 +26,8 @@ module Prolog
     MonadList  = List.monad
 
   import Unification TermName decEqTermName as UI
-  open UI public using (Term; var; con)
-  open UI using (Subst; snoc; nil; replace; apply; unifyAcc)
+  open UI public using (var; con) renaming (Term to PrologTerm)
+  open UI using (Term; Subst; snoc; nil; replace; apply; unifyAcc)
 
   data Rule (n : ℕ) : Set where
     rule : RuleName → Term n → List (Term n) → Rule n
