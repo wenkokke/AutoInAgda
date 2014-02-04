@@ -2,32 +2,30 @@ open import Function using (_$_; _∘_; id; flip; const)
 open import Category.Monad
 open import Data.Bool using (Bool; true; false)
 open import Data.Fin as Fin using (Fin; suc; zero)
-open import Data.Nat using (ℕ; suc; zero; _+_; _≟_; compare; less; equal; greater) renaming (_⊔_ to max)
+open import Data.Nat as Nat using (ℕ; suc; zero; _+_; compare; less; equal; greater) renaming (_⊔_ to max)
 open import Data.Nat.Show renaming (show to showℕ)
 open import Data.List as List
-  using (List; []; _∷_; [_]; _++_; _∷ʳ_; concatMap; length; InitLast; reverse; initLast; _∷ʳ'_; fromMaybe)
 open import Data.Vec as Vec using (Vec; []; _∷_)
 open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; maybe)
 open import Data.String using (String)
 open import Data.Sum as Sum using () renaming (_⊎_ to Either; inj₁ to left; inj₂ to right; [_,_] to fromEither)
 open import Relation.Nullary using (Dec; yes; no)
+open import Relation.Binary
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
-open import Reflection
-  using (Name; _≟-Name_
-        ; type; Type; el
-        ; Term; def; var; con; lam; pi; sort; unknown
-        ; Arg; arg; visible; relevant
-        ; definition; Definition; function; data-type; record′; constructor′; axiom; primitive′)
+open import Reflection renaming (_≟-Name_ to decEqName; _≟_ to decEqTerm)
 
 module Auto where
 
   -- open up the classes we'll be using
   private
     open RawMonad {{...}}
+    open DecSetoid {{...}} using (_≟_)
     MonadMaybe     = Maybe.monad
     MonadList      = List.monad
     ApplicativeVec = Vec.applicative
+    NameDecSetoid  = PropEq.decSetoid decEqName
+    NatDecSetoid   = PropEq.decSetoid Nat._≟_
 
   data Msg : Set where
     searchSpaceExhausted : Msg
@@ -46,50 +44,59 @@ module Auto where
   -- We can extend Agda names to carry an arity and extend decidable equality to
   -- work with these Prolog names (PName).
 
-  data PName : ℕ → Set where
-    pname : (n : Name) (k : ℕ) → PName k
-    pvar  : (i : ℕ) → PName 0
-    pimpl : PName 2
+  agdaTypeArity : Type → ℕ
+  agdaTypeArity (el _ (pi _ t)) = suc (agdaTypeArity t)
+  agdaTypeArity (el _ t)        = zero
 
-  data RName : Set where
-    rname : Name → RName
-    rvar  : ℕ → RName
+  agdaNameArity : Name → ℕ
+  agdaNameArity n = agdaTypeArity (type n)
 
-  _≟-PName_ : ∀ {k} (x y : PName k) → Dec (x ≡ y)
-  _≟-PName_ {.2}  pimpl       pimpl       = yes refl
-  _≟-PName_ {.2} (pname x .2) pimpl       = no (λ ())
-  _≟-PName_ {.2}  pimpl      (pname y .2) = no (λ ())
-  _≟-PName_ {.0} (pname x .0)(pvar i)     = no (λ ())
-  _≟-PName_ {.0} (pvar i)    (pname y .0) = no (λ ())
-  _≟-PName_ {k} (pname x .k) (pname  y .k) with x ≟-Name y
-  _≟-PName_ {k} (pname x .k) (pname .x .k) | yes refl = yes refl
-  _≟-PName_ {k} (pname x .k) (pname  y .k) | no  x≢y  = no (x≢y ∘ elim)
-    where
-      elim : ∀ {k x y} → pname x k ≡ pname y k → x ≡ y
-      elim {_} {x} {.x} refl = refl
-  _≟-PName_ {.0} (pvar i) (pvar  j) with i ≟ j
-  _≟-PName_ {.0} (pvar i) (pvar .i) | yes refl = yes refl
-  _≟-PName_ {.0} (pvar i) (pvar  j) | no  i≢j  = no (i≢j ∘ elim)
-    where
-      elim : ∀ {i j} → pvar i ≡ pvar j → i ≡ j
-      elim {i} {.i} refl = refl
+  data PrologName : Set where
+    pname : (n : Name) → PrologName
+    pvar  : (i : ℕ) → PrologName
+    pimpl : PrologName
+
+  prologNameArity : PrologName → ℕ
+  prologNameArity (pname n) = agdaNameArity n
+  prologNameArity (pvar _)  = 0
+  prologNameArity (pimpl)   = 2
+
+  pname-injective : ∀ {x y} → pname x ≡ pname y → x ≡ y
+  pname-injective refl = refl
+
+  pvar-injective : ∀ {i j} → pvar i ≡ pvar j → i ≡ j
+  pvar-injective refl = refl
+
+  decEqPrologName : (x y : PrologName) → Dec (x ≡ y)
+  decEqPrologName (pname x) (pname  y) with x ≟ y
+  decEqPrologName (pname x) (pname .x) | yes refl = yes refl
+  decEqPrologName (pname x) (pname  y) | no  x≢y  = no (x≢y ∘ pname-injective)
+  decEqPrologName (pname _) (pvar _)   = no (λ ())
+  decEqPrologName (pname _)  pimpl     = no (λ ())
+  decEqPrologName (pvar _)  (pname _)  = no (λ ())
+  decEqPrologName (pvar i)  (pvar  j)  with i ≟ j
+  decEqPrologName (pvar i)  (pvar .i)  | yes refl = yes refl
+  decEqPrologName (pvar i)  (pvar  j)  | no i≢j = no (i≢j ∘ pvar-injective)
+  decEqPrologName (pvar _)   pimpl     = no (λ ())
+  decEqPrologName  pimpl    (pname _)  = no (λ ())
+  decEqPrologName  pimpl    (pvar _)   = no (λ ())
+  decEqPrologName  pimpl     pimpl     = yes refl
+
+  private
+    PrologNameDecSetoid = PropEq.decSetoid decEqPrologName
+
+  data RuleName : Set where
+    rname : Name → RuleName
+    rvar  : ℕ → RuleName
 
   -- Due to this functionality being unavailable and unimplementable in plain Agda
   -- we'll just have to postulate the existance of a show function for Agda names.
   -- Using this postulate we can then implement a show function for Prolog names.
 
-  postulate
-    primShowQName : Name → String
-
-  showPName : ∀ {n} → PName n → String
-  showPName (pname n _) = primShowQName n
-  showPName (pvar i)    = showℕ i
-  showPName (pimpl)     = "→"
-
-  -- Now we can load the Prolog and Prolog.Show libraries.
+  -- Now we can load the Prolog libraries.
 
   import Prolog
-  module PI = Prolog RName PName _≟-PName_
+  module PI = Prolog RuleName PrologName decEqPrologName
   open PI public renaming (Term to PTerm)
 
   -- We'll implement a few basic functions to ease our working with Agda's
@@ -104,14 +111,14 @@ module Auto where
   -- We'll need the function below later on, when we try to convert found
   -- variables to finitely indexed variables within our domain `n`.
 
-  convDef : Name → ∃₂ (λ k n → Vec (PTerm n) k) → ∃ PTerm
-  convDef f (k , n , ts) = n , con (pname f k) ts
+  convDef : (s : Name) → ∃ (λ n → List (PTerm n)) → ∃ PTerm
+  convDef f (n , ts) = n , con (pname f) ts
 
   record Case : Set where
     field
       forVar : ℕ → ℕ → Error (∃  PTerm)
-      forCon : Name → ∃₂ (λ k n → Vec (PTerm n) k) → ∃ PTerm
-      forDef : Name → ∃₂ (λ k n → Vec (PTerm n) k) → ∃ PTerm
+      forCon : (s : Name) → ∃ (λ n → List (PTerm n)) → ∃ PTerm
+      forDef : (s : Name) → ∃ (λ n → List (PTerm n)) → ∃ PTerm
 
   CaseTerm : Case
   CaseTerm = record { forVar = convVar ; forCon = convDef ; forDef = convDef  }
@@ -133,7 +140,7 @@ module Auto where
 
   splitTerm : ∀ {n} → PTerm n → List (PTerm n)
   splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
-  splitTerm t = return t
+  splitTerm t = List.[ t ]
 
   mutual
     convAcc : Case → ℕ → Term → Error (∃ PTerm)
@@ -157,15 +164,15 @@ module Auto where
     convAcc dict d (sort x)  = left (unsupportedSyntax (sort x))
     convAcc dict d unknown   = left (unsupportedSyntax (unknown))
 
-    convArgsAcc : Case → ℕ → List (Arg Term) → Error (∃₂ (λ k n → Vec (PTerm n) k))
-    convArgsAcc dict d [] = right (0 , 0 , [])
+    convArgsAcc : Case → ℕ → List (Arg Term) → Error (∃ (λ n → List (PTerm n)))
+    convArgsAcc dict d [] = right (0 , [])
     convArgsAcc dict d (arg visible _ t ∷ ts) with convArgsAcc dict d ts
     convArgsAcc dict d (arg visible r t ∷ ts) | left msg = left msg
     convArgsAcc dict d (arg visible r t ∷ ts) | right _ with convAcc dict d t
     convArgsAcc dict d (arg visible r t ∷ ts) | right _ | left msg = left msg
-    convArgsAcc dict d (arg visible r t ∷ ts) | right (k , n₂ , ps) | right (n₁ , p)
-      with matchTermAndVec p ps
-    ... | (p′ , ps′) = right (suc k , max n₁ n₂ , p′ ∷ ps′)
+    convArgsAcc dict d (arg visible r t ∷ ts) | right (n₂ , ps) | right (n₁ , p)
+      with matchTermAndList p ps
+    ... | (p′ , ps′) = right (max n₁ n₂ , p′ ∷ ps′)
     convArgsAcc dict d (arg _ _ _ ∷ ts) = convArgsAcc dict d ts
 
   convTerm : Term → Error (∃ PTerm)
@@ -185,6 +192,7 @@ module Auto where
   -- converts an agda term into a list of terms by splitting at each function
   -- symbol; note the order: the last element of the list will always be the
   -- conclusion of the funciton with the rest of the elements being the premises.
+
   -- convTerm′ : Term → Error (∃ (List ∘ PTerm))
   -- convTerm′ t with convTerm t
   -- convTerm′ t | left msg      = left msg

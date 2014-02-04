@@ -289,25 +289,35 @@ arguments.\footnote{
   is |Operator| of |Operation| wat minder verwarrend dan nog een name
   -- dit ligt ook in lijn met het 'standaard' gebruik in Universele
   algebra - \url{http://en.wikipedia.org/wiki/Universal_algebra}}
-\pepijn{Hm. Omdat het handiger was. Het liet je een aantal dingen wat
-beter definieren. Maar inderdaad, het is wel wat me nu tegen houdt
-ook gewoon de Agda namen te gebruiken in deze constructies... Laten we
-dit vrijdag bespreken.}
+\pepijn{
+  Hm. Omdat het handiger was. Het liet je een aantal dingen wat
+  beter definieren. Maar inderdaad, het is wel wat me nu tegen houdt
+  ook gewoon de Agda namen te gebruiken in deze constructies... Laten we
+  dit vrijdag bespreken.}
+\pepijn{
+  Vergeten dit te bespreken, maar het probleem is dat wanneer je
+  decidable equality wilt testen op names (en je niet deze constructie
+  gebruikt) je afzonderlijk moest testen op de gelijkheid van de
+  ariteiten.
+}
 
 \begin{code}
-  data Term (n : ℕ) : Set where
-    var  : Fin n → Term n
-    con  : ∀ {k} → Name k → Vec (Term n) k → Term n
+data Term (n : ℕ) : Set where
+    var : (x : Fin n) → Term n
+    con : (s : TermName) (ts : List (Term n)) → Term n
 \end{code}
 
-\wouter{What should we call this data type? How can we explicitly
-  distinguish it from the |Term| data type in Agda's reflection mechanism?}
-\pepijn{Hm. I reckon we should just keep ``Term'', but if you want it
-  we can switch to using PrologTerm, PTerm or Term$^{P}$ as opposed to
-  AgdaTerm, ATerm or Term$^{A}$?}
 \wouter{Or call it Term, but explicitly write module Prolog (...) where.
 We can then refer to these terms later as Prolog.Term in the paper, without
-ambiguity}
+ambiguity.}
+\pepijn{That sounds like a verbose idea, I'm more in favour of calling
+it PrologTerm. Though it is defined for unification, so maybe we
+should have the Prolog module reexport it as PrologTerm, but call it
+PrologTerm from the start in the paper?}
+\pepijn{Since I just wrote |favour|, what are we doing? British
+  English spelling or American English spelling? The first has my
+  preference, since that's what I'm used to typing, but I don't know
+  if there are any standard conventions?}
 
 \wouter{Give an example Term. How about |Suc (Zero)|?}
 \pepijn{All those |suc|'s and |zero|'s being thrown around, I reckon
