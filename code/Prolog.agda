@@ -1,39 +1,39 @@
-open import Algebra
-open import Algebra.Structures
-open import Function using (id; const; flip; _∘_; _$_)
+open import Algebra as Alg using ()
+open import Function using (_∘_; _$_)
 open import Coinduction using (∞) renaming (♯_ to ~_; ♭ to !_)
-open import Category.Functor
-open import Category.Monad
+open import Category.Monad as Cat using ()
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.Nat as Nat using (ℕ; suc; zero; _+_; compare; less; equal; greater) renaming (_⊔_ to max)
+open import Data.Nat as Nat using (ℕ; suc; zero; _+_; less; equal; greater) renaming (_⊔_ to max; compare to compare′)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
-open import Data.Colist using (Colist; []; _∷_)
 open import Data.List as List using (List; []; _∷_; _∷ʳ_; _++_; map; foldr; concatMap; fromMaybe; length; take; drop)
-open import Data.Vec as Vec using (Vec; []; _∷_; allFin) renaming (map to vmap)
-open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂) renaming (map to pmap)
+open import Data.Vec as Vec using (Vec; []; _∷_; allFin)
+open import Data.Product as Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
 open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary
+open import Relation.Binary as Rel using (tri<; tri≈; tri>)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 
-module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)) where
+module Prolog
+  (RuleName : Set)
+  (TermName : Set)
+  (decEqTermName : (f g : TermName) → Dec (f ≡ g)) where
 
   private
-    open RawMonad {{...}}
+    open Cat.RawMonad {{...}}
+    open Rel.StrictTotalOrder NatProps.strictTotalOrder using (compare)
+    open Alg.CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
     MonadMaybe = Maybe.monad
     MonadList  = List.monad
-    open StrictTotalOrder NatProps.strictTotalOrder renaming (compare to cmp)
-    open CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
 
-  import Unification Sym decEqSym as UI
-  open UI public using (Term; var; con)
-  open UI using (Subst; snoc; nil; replace; apply; unifyAcc)
+  import Unification TermName decEqTermName as UI
+  open UI public using (var; con) renaming (Term to PrologTerm)
+  open UI using (Term; Subst; snoc; nil; replace; apply; unifyAcc)
 
   data Rule (n : ℕ) : Set where
-    rule : Name → Term n → List (Term n) → Rule n
+    rule : RuleName → Term n → List (Term n) → Rule n
 
-  name : ∀ {n} → Rule n → Name
-  name (rule name _ _) = name
+  ruleName : ∀ {n} → Rule n → RuleName
+  ruleName (rule name _ _) = name
 
   conclusion : ∀ {n} → Rule n → Term n
   conclusion (rule _ cnc _) = cnc
@@ -42,8 +42,8 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   premises (rule _ _ prm) = prm
 
   -- compute the arity of a rule
-  arity : ∀ {n} → Rule n → ℕ
-  arity = length ∘ premises
+  ruleArity : ∀ {n} → Rule n → ℕ
+  ruleArity = length ∘ premises
 
   -- just an alias for a list of rules
   Rules : Set
@@ -58,47 +58,43 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   InjectR : (ℕ → Set) → Set
   InjectR I = ∀ m {n} → I n → I (m + n)
 
-  -- I'm pretty sure these are actually just Fin.inject+
-  -- and Fin.raise but I've reimlemented them here because
-  -- I didn't know... *shucks*
+  injectFin : InjectL Fin
+  injectFin _  zero   = zero
+  injectFin _ (suc i) = suc (injectFin _ i)
 
-  injFinL : InjectL Fin
-  injFinL _  zero   = zero
-  injFinL _ (suc i) = suc (injFinL _ i)
+  raiseFin : InjectR Fin
+  raiseFin zero   i = i
+  raiseFin (suc m) i = suc (raiseFin m i)
 
-  injFinR : InjectR Fin
-  injFinR zero   i = i
-  injFinR (suc m) i = suc (injFinR m i)
+  injectTerm : InjectL Term
+  injectTerm n = replace (var ∘ injectFin n)
 
-  injTermL : InjectL Term
-  injTermL n = replace (var ∘ injFinL n)
+  raiseTerm : InjectR Term
+  raiseTerm m = replace (var ∘ raiseFin m)
 
-  injTermR : InjectR Term
-  injTermR m = replace (var ∘ injFinR m)
+  injectTermList : InjectL (List ∘ Term)
+  injectTermList n = List.map (injectTerm n)
 
-  injListL : InjectL (List ∘ Term)
-  injListL n = List.map (injTermL n)
+  raiseTermList : InjectR (List ∘ Term)
+  raiseTermList m = List.map (raiseTerm m)
 
-  injListR : InjectR (List ∘ Term)
-  injListR m = List.map (injTermR m)
+  -- injectTermVec : ∀ {k} → InjectL (λ n → Vec (Term n) k)
+  -- injectTermVec n = Vec.map (injectTerm n)
 
-  injVecL : ∀ {k} → InjectL (λ n → Vec (Term n) k)
-  injVecL n = Vec.map (injTermL n)
+  -- raiseTermVec : ∀ {k} → InjectR (λ n → Vec (Term n) k)
+  -- raiseTermVec m = Vec.map (raiseTerm m)
 
-  injVecR : ∀ {k} → InjectR (λ n → Vec (Term n) k)
-  injVecR m = Vec.map (injTermR m)
+  injectRule : InjectL Rule
+  injectRule n (rule name cnc prm) = rule name (injectTerm n cnc) (injectTermList n prm)
 
-  injRuleL : InjectL Rule
-  injRuleL n (rule name cnc prm) = rule name (injTermL n cnc) (injListL n prm)
-
-  injRuleR : InjectR Rule
-  injRuleR m { n} (rule name cnc prm) = rule name (injTermR m cnc) (injListR m prm)
+  raiseRule : InjectR Rule
+  raiseRule m { n} (rule name cnc prm) = rule name (raiseTerm m cnc) (raiseTermList m prm)
 
   -- TODO should be an instance of something like Indexed₂ or Indexed should be
   -- generalizeable to include the definiton for Subst; no hurry.
-  injSubstL : ∀ {m n} (ε : ℕ) → Subst m n → Subst (m + ε) (n + ε)
-  injSubstL _ nil = nil
-  injSubstL ε (snoc s t x) = snoc (injSubstL ε s) (injTermL ε t) (injFinL ε x)
+  injectSubst : ∀ {m n} (ε : ℕ) → Subst m n → Subst (m + ε) (n + ε)
+  injectSubst _ nil = nil
+  injectSubst ε (snoc s t x) = snoc (injectSubst ε s) (injectTerm ε t) (injectFin ε x)
 
   -- some lemma's we'll need later on
 
@@ -133,7 +129,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
 
   match : ∀ {n₁ n₂} {I₁ I₂} → InjectL I₁ → InjectL I₂
         → I₁ n₁ → I₂ n₂ → I₁ (max n₁ n₂) × I₂ (max n₁ n₂)
-  match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare n₁ n₂
+  match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare′ n₁ n₂
   match {n₁} {.(suc (n₁ + k))} inj₁ inj₂ p₁ p₂ | less .n₁ k
     rewrite max-lem₁ n₁ k | sym (m+1+n≡1+m+n n₁ k) = (inj₁ (suc k) p₁ , p₂)
   match {n₁} {.n₁} inj₁ inj₂ p₁ p₂ | equal .n₁
@@ -142,13 +138,13 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     rewrite max-lem₃ n₂ k | sym (m+1+n≡1+m+n n₂ k) = (p₁ , inj₂ (suc k) p₂)
 
   matchTerms : ∀ {n₁ n₂} → Term n₁ → Term n₂ → Term (max n₁ n₂) × Term (max n₁ n₂)
-  matchTerms {n₁} {n₂} = match {n₁} {n₂} {Term} {Term} injTermL injTermL
+  matchTerms {n₁} {n₂} = match {n₁} {n₂} {Term} {Term} injectTerm injectTerm
 
   matchTermAndList : ∀ {n₁ n₂} → Term n₁ → List (Term n₂) → Term (max n₁ n₂) × List (Term (max n₁ n₂))
-  matchTermAndList {n₁} {n₂} = match {n₁} {n₂} {Term} {List ∘ Term} injTermL injListL
+  matchTermAndList {n₁} {n₂} = match {n₁} {n₂} {Term} {List ∘ Term} injectTerm injectTermList
 
-  matchTermAndVec : ∀ {k n₁ n₂} → Term n₁ → Vec (Term n₂) k → Term (max n₁ n₂) × Vec (Term (max n₁ n₂)) k
-  matchTermAndVec {k} {n₁} {n₂} = match {n₁} {n₂} {Term} {λ n₂ → Vec (Term n₂) k} injTermL injVecL
+  -- matchTermAndVec : ∀ {k n₁ n₂} → Term n₁ → Vec (Term n₂) k → Term (max n₁ n₂) × Vec (Term (max n₁ n₂)) k
+  -- matchTermAndVec {k} {n₁} {n₂} = match {n₁} {n₂} {Term} {λ n₂ → Vec (Term n₂) k} injectTerm injectTermVec
 
   -- Abstract Search Trees
   --
@@ -202,18 +198,18 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
                 -- lift arguments for unify into the new finite domain, making room for
                 -- the variables used in the chosen rule.
                 g'   : Term (m + (δ₁ + δ₂))
-                g'   rewrite lem = injTermL δ₂ g
+                g'   rewrite lem = injectTerm δ₂ g
                 s'   : ∃ (Subst (m + (δ₁ + δ₂)))
-                s'   rewrite lem = n + δ₂ , injSubstL δ₂ s
+                s'   rewrite lem = n + δ₂ , injectSubst δ₂ s
                 cnc' : Term (m + (δ₁ + δ₂))
-                cnc' rewrite lem = injTermR (m + δ₁) cnc
+                cnc' rewrite lem = raiseTerm (m + δ₁) cnc
 
             -- lift arguments for the recursive call to solve into the new finite domain,
             -- making room for the variables used in the chosen rule.
             gs'  : List (Term (m + (δ₁ + δ₂)))
-            gs'  rewrite lem = injListL δ₂ gs
+            gs'  rewrite lem = injectTermList δ₂ gs
             prm' : List (Term (m + (δ₁ + δ₂)))
-            prm' rewrite lem = injListR (m + δ₁) prm
+            prm' rewrite lem = raiseTermList (m + δ₁) prm
 
   -- Concrete Search Tree
   --
@@ -226,6 +222,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     retn : A → SearchTree A
     fork : ∞ (List (SearchTree A)) → SearchTree A
 
+  -- lets try and keep the types readable, shall we?
   Result : ℕ → Set
   Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
 
@@ -258,7 +255,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
     noVars (var x)    = nothing
     noVars (con s ts) = con s <$> noVarsChildren ts
 
-    noVarsChildren : ∀ {n k} → Vec (Term n) k → Maybe (Vec (Term 0) k)
+    noVarsChildren : ∀ {n} → List (Term n) → Maybe (List (Term 0))
     noVarsChildren [] = just []
     noVarsChildren (t ∷ ts) = noVars t >>= λ t' →
                               noVarsChildren ts >>= λ ts' →
@@ -268,24 +265,24 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   first : {A B C : Set} → (A → B) → A × C → B × C
   first f (x , y) = f x , y
 
-  filterWithVars' : ∀ {m} → List (∃ (λ n → Vec (Term n) m)) → List (Vec (Term 0) m)
+  filterWithVars' : List (∃ (λ n → List (Term n))) → List (List (Term 0))
   filterWithVars' = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
 
-  filterWithVars : ∀ {m} → List (∃ (λ n → Vec (Term n) m) × Rules) → List (Vec (Term 0) m × Rules)
-  filterWithVars {m} rs = concatMap (fromMaybe ∘ noVars') rs
+  filterWithVars : List (∃ (λ n → List (Term n)) × Rules) → List (List (Term 0) × Rules)
+  filterWithVars rs = concatMap (fromMaybe ∘ noVars′) rs
     where
-    noVars' : ∃ (λ n → Vec (Term n) m) × Rules → Maybe (Vec (Term 0) m × Rules)
-    noVars' ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
+      noVars′ : ∃ (λ n → List (Term n)) × Rules → Maybe (List (Term 0) × Rules)
+      noVars′ ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
 
   solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m) × Rules)
   solveToDepth {m} depth rules goal = map (first mkEnv) $ subs
     where
-    vars = allFin m
-    tree = mkTree rules (solve goal)
-    subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
-    subs = dfsToDepth depth tree
-    mkEnv : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
-    mkEnv (δ , n , s) = _ , (Vec.map (λ v → apply s v) (Vec.map (injFinL _) vars))
+      vars = allFin m
+      tree = mkTree rules (solve goal)
+      subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
+      subs = dfsToDepth depth tree
+      mkEnv : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
+      mkEnv (δ , n , s) = _ , (Vec.map (λ v → apply s v) (Vec.map (injectFin _) vars))
 
 
   -- Proof Terms
@@ -295,7 +292,7 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
   -- next `n` rule applications will go towards computing the arguments for the
   -- chosen rule.
   data Proof : Set where
-    con : Name → List Proof → Proof
+    con : RuleName → List Proof → Proof
 
   -- |Reconstruct a list of rules as a proof tree. Anything but a list containing
   --  a single item can be considered an error (either there are multiple trees,
@@ -306,14 +303,14 @@ module Prolog (Name : Set) (Sym : ℕ → Set) (decEqSym : ∀ {k} (f g : Sym k)
       next : ∃ Rule → List Proof → List Proof
       next r ps = next′
         where
-          rₙ = name (proj₂ r)  -- name of the rule
-          rₖ = arity (proj₂ r) -- number of subproofs needed by the rule
-          pₖ = length ps       -- current number of proof terms
+          name      = ruleName (proj₂ r)      -- name of the rule
+          arity     = ruleArity (proj₂ r) -- number of subproofs needed by the rule
+          numProofs = length ps           -- current number of proof terms
 
           next′ : List Proof
-          next′ with cmp rₖ pₖ
-          next′ | tri< r<p r≢p r≯p = con rₙ (take rₖ ps) ∷ drop rₖ ps
-          next′ | tri≈ r≮p r≡p r≯p = con rₙ ps ∷ []
+          next′ with compare arity numProofs
+          next′ | tri< r<p r≢p r≯p = con name (take arity ps) ∷ drop arity ps
+          next′ | tri≈ r≮p r≡p r≯p = con name ps ∷ []
           next′ | tri> r≮p r≢p r>p = [] -- this case should not occur
 
   -- |Reconstruct a list of rules as a proof tree. Runs `toProofAcc` above, and
