@@ -284,27 +284,10 @@ arguments.\footnote{
   an arity-annotated version of the language construct |QName|.
 }
 
-\wouter{Waarom is |Name : Nat -> Set| ipv een tweetal |Name : Set| en
-  |arity : Name -> Nat|? Dat laatste is wat gebruikelijker. Misschien
-  is |Operator| of |Operation| wat minder verwarrend dan nog een name
-  -- dit ligt ook in lijn met het 'standaard' gebruik in Universele
-  algebra - \url{http://en.wikipedia.org/wiki/Universal_algebra}}
-\pepijn{
-  Hm. Omdat het handiger was. Het liet je een aantal dingen wat
-  beter definieren. Maar inderdaad, het is wel wat me nu tegen houdt
-  ook gewoon de Agda namen te gebruiken in deze constructies... Laten we
-  dit vrijdag bespreken.}
-\pepijn{
-  Vergeten dit te bespreken, maar het probleem is dat wanneer je
-  decidable equality wilt testen op names (en je niet deze constructie
-  gebruikt) je afzonderlijk moest testen op de gelijkheid van de
-  ariteiten.
-}
-
 \begin{code}
-data Term (n : ℕ) : Set where
-    var : (x : Fin n) → Term n
-    con : (s : TermName) (ts : List (Term n)) → Term n
+data PrologTerm (n : ℕ) : Set where
+  var  : Fin n → PrologTerm n
+  con  : TermName → List (PrologTerm n) → PrologTerm n
 \end{code}
 
 \wouter{Or call it Term, but explicitly write module Prolog (...) where.
@@ -320,11 +303,21 @@ PrologTerm from the start in the paper?}
   if there are any standard conventions?}
 
 \wouter{Give an example Term. How about |Suc (Zero)|?}
-\pepijn{All those |suc|'s and |zero|'s being thrown around, I reckon
-  it may be better if we give the term representing the proof for one
-  of our running examples; nothing too complex, maybe isEven 2?}
-\wouter{The choice of example doesn't really matter, as long as it small enough
-to illustate the concepts involved.}
+\pepijn{Hmkay. See below. Should we take a shortcut, and simply use
+  strings instead of a custom datatype? Or should we fear that some
+  readers will come away from reading the papers thinking we use
+  strings to encode every name? We probably do, actually... since
+  Agda names are probably Haskell strings internally.}
+
+\begin{code}
+data TermName : Set where
+  Add   : TermName
+  Suc   : TermName
+  Zero  : TermName
+
+One : Prolog 0
+One = con Suc (con Zero ∷ [])
+\end{code}
 
 \wouter{Should we repeat the definition of |Fin|?}
 \pepijn{Do we really have to? This paper is specifically aimed at
@@ -339,7 +332,13 @@ Instead, we restrict ourself to presenting the interface that we will use:
 The |unify| function takes two terms $t_1$ and $t_2$ and computes the most general
 unifier, that is, a substition that takes terms with at most $m$ free
 variables to terms with at most $n$.
+
 \wouter{Do we want to define |Subst|? Or does this  suffice?}
+\pepijn{As far as I've thought about it, we should not discuss
+  elements from McBride's paper that we do not explicitly use. Since
+  we can be sure everyone understands how substitution workds, the
+  exact encoding does not matter; the only thing that does is that we
+  mention that subtitutions remove variables, and thus lower in indices.}
 
 This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
@@ -365,9 +364,39 @@ should I make a distinction here between, say, |Constr| and |RuleName|?}
       premises    : List (Term n)
 \end{code}
 
+
+
 \wouter{Give an example of such a rule. For instance: | add(0,x,x)| and |add(n,m,t)
   :- add (suc(n), m, suc(t))|.}
-\pepijn{Will do.}
+\pepijn{Will do. Don't you think that this example is a bit too long?
+  Maybe just the base or the step rule?}
+\todo{mention usage of the above example's |TermName| datatype}
+
+\begin{code}
+AddBase : Rule 1
+AddBase = record {
+  name        = "AddBase"
+  conclusion  = con Add  (  Zero
+                         ∷  var (# 0)
+                         ∷  var (# 0)
+                         ∷ [])
+  premises    = []
+  }
+
+AddStep : Rule 3
+AddStep = record {
+  name        = "AddStep"
+  conclusion  =  con Add  (  var (# 0)
+                          ∷  var (# 1)
+                          ∷  var (# 2)
+                          ∷ [])
+  premises    =  con Add  (  con Suc (var (# 0) ∷ [])
+                          ∷  var (# 1)
+                          ∷  con Suc (var (# 2) ∷ [])
+                          ∷ [])
+                 ∷ []
+  }
+\end{code}
 
 Lastly, before we can implement some form of proof search, we are
 going to need to define a pair of auxiliary functions. During proof
