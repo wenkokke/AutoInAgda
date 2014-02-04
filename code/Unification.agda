@@ -1,99 +1,86 @@
 open import Function using (_∘_)
-open import Category.Functor
 open import Category.Monad
 open import Data.Fin as Fin using (Fin; zero; suc)
 open import Data.Fin.Props as FinProps using ()
-open import Data.Maybe as Maybe using (Maybe; maybe; just; nothing)
+open import Data.Maybe as Maybe using (Maybe; just; nothing)
 open import Data.Nat as Nat using (ℕ; zero; suc; _+_; _⊔_)
-open import Data.Product using (Σ; ∃; _,_; proj₁; proj₂) renaming (_×_ to _∧_)
-open import Data.Sum using (_⊎_; inj₁; inj₂; [_,_])
-open import Data.Vec as Vec using (Vec; []; _∷_; head; tail)
-open import Data.Vec.Equality as VecEq
+open import Data.Product using (∃; _×_; _,_; proj₁; proj₂)
+open import Data.List as List hiding (_++_)
+open import Data.List.Properties using (∷-injective)
 open import Relation.Nullary using (Dec; yes; no; ¬_)
 open import Relation.Binary
-open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; inspect; [_])
+open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong)
 
-module Unification (Name : ℕ → Set) (decEqName : ∀ {k} (x y : Name k) → Dec (x ≡ y)) where
+module Unification (TermName : Set) (decEqTermName : (x y : TermName) → Dec (x ≡ y)) where
 
-  open RawFunctor {{...}}
-  open RawMonad {{...}} hiding (_<$>_)
-  open DecSetoid {{...}} using (_≟_)
-
-  private MaybeFunctor      = Maybe.functor
-  private MaybeMonad        = Maybe.monad
-  private NatDecSetoid      = PropEq.decSetoid Nat._≟_
-  private FinDecSetoid      : ∀ {n} → DecSetoid _ _
-          FinDecSetoid  {n} = FinProps.decSetoid n
-  private NameDecSetoid     : ∀ {k} → DecSetoid _ _
-          NameDecSetoid {k} = PropEq.decSetoid (decEqName {k})
+  private
+    open RawMonad {{...}}
+    open DecSetoid {{...}} using (_≟_)
+    MaybeMonad         = Maybe.monad
+    NatDecSetoid       = PropEq.decSetoid Nat._≟_
+    FinDecSetoid       : ∀ {n} → DecSetoid _ _
+    FinDecSetoid   {n} = FinProps.decSetoid n
+    TermNameDecSetoid  : DecSetoid _ _
+    TermNameDecSetoid  = PropEq.decSetoid decEqTermName
 
   -- defining terms
   data Term (n : ℕ) : Set where
-    var : Fin n → Term n
-    con : ∀ {k} (s : Name k) → (ts : Vec (Term n) k) → Term n
+    var : (x : Fin n) → Term n
+    con : (s : TermName) (ts : List (Term n)) → Term n
+
+  var-injective : ∀ {n x₁ x₂} → var {n} x₁ ≡ var {n} x₂ → x₁ ≡ x₂
+  var-injective refl = refl
+
+  con-injective : ∀ {n s₁ s₂ ts₁ ts₂} → con {n} s₁ ts₁ ≡ con {n} s₂ ts₂ → s₁ ≡ s₂ × ts₁ ≡ ts₂
+  con-injective refl = (refl , refl)
 
   -- defining decidable equality on terms
   mutual
     decEqTerm : ∀ {n} → (t₁ t₂ : Term n) → Dec (t₁ ≡ t₂)
     decEqTerm (var  x₁) (var x₂) with x₁ ≟ x₂
     decEqTerm (var .x₂) (var x₂) | yes refl = yes refl
-    decEqTerm (var  x₁) (var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ elim)
-      where
-      elim : ∀ {n} {x y : Fin n}
-           → var x ≡ var y → x ≡ y
-      elim {n} {x} {.x} refl = refl
+    decEqTerm (var  x₁) (var x₂) | no x₁≢x₂ = no (x₁≢x₂ ∘ var-injective)
     decEqTerm (var _)   (con _ _) = no (λ ())
     decEqTerm (con _ _) (var _)   = no (λ ())
-    decEqTerm (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) with k₁ ≟ k₂
-    decEqTerm (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) | no k₁≢k₂ = no (k₁≢k₂ ∘ elim)
-      where
-      elim : ∀ {n k₁ k₂ s₁ s₂} {ts₁ : Vec (Term n) k₁} {ts₂ : Vec (Term n) k₂}
-           → con {n} {k₁} s₁ ts₁ ≡ con {n} {k₂} s₂ ts₂ → k₁ ≡ k₂
-      elim {n} {k} {.k} refl = refl
-    decEqTerm (con {.k} s₁ ts₁) (con { k} s₂ ts₂) | yes refl with s₁ ≟ s₂
-    decEqTerm (con s₁ ts₁) (con s₂ ts₂) | yes refl | no s₁≢s₂ = no (s₁≢s₂ ∘ elim)
-      where
-      elim : ∀ {n k s₁ s₂} {ts₁ ts₂ : Vec (Term n) k}
-           → con s₁ ts₁ ≡ con s₂ ts₂ → s₁ ≡ s₂
-      elim {n} {k} {s} {.s} refl = refl
-    decEqTerm (con .s ts₁) (con s ts₂) | yes refl | yes refl with decEqVecTerm ts₁ ts₂
-    decEqTerm (con .s ts₁) (con s ts₂) | yes refl | yes refl | no ts₁≢ts₂  = no (ts₁≢ts₂ ∘ elim)
-      where
-      elim : ∀ {n k s} {ts₁ ts₂ : Vec (Term n) k}
-           → con s ts₁ ≡ con s ts₂ → ts₁ ≡ ts₂
-      elim {n} {k} {s} {ts} {.ts} refl = refl
-    decEqTerm (con .s .ts) (con s ts) | yes refl | yes refl | yes refl = yes refl
+    decEqTerm (con s₁ ts₁) (con  s₂  ts₂) with s₁ ≟ s₂
+    decEqTerm (con s₁ ts₁) (con  s₂  ts₂) | no s₁≢s₂ = no (s₁≢s₂ ∘ proj₁ ∘ con-injective)
+    decEqTerm (con s₁ ts₁) (con .s₁  ts₂) | yes refl with decEqTermList ts₁ ts₂
+    decEqTerm (con s₁ ts₁) (con .s₁  ts₂) | yes refl | no ts₁≢ts₂ = no (ts₁≢ts₂ ∘ proj₂ ∘ con-injective)
+    decEqTerm (con s₁ ts₁) (con .s₁ .ts₁) | yes refl | yes refl = yes refl
 
-    decEqVecTerm : ∀ {n k} → (xs ys : Vec (Term n) k) → Dec (xs ≡ ys)
-    decEqVecTerm [] [] = yes refl
-    decEqVecTerm (x ∷ xs) ( y ∷  ys) with decEqTerm x y | decEqVecTerm xs ys
-    decEqVecTerm (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
-    decEqVecTerm (x ∷ xs) ( y ∷  ys) | yes _    | no xs≢ys = no (xs≢ys ∘ cong tail)
-    decEqVecTerm (x ∷ xs) ( y ∷  ys) | no x≢y   | _        = no (x≢y ∘ cong head)
+    decEqTermList : ∀ {n} (xs ys : List (Term n)) → Dec (xs ≡ ys)
+    decEqTermList [] [] = yes refl
+    decEqTermList [] (_  ∷ _) = no (λ ())
+    decEqTermList (_ ∷ _) [] = no (λ ())
+    decEqTermList (x ∷ xs) ( y ∷  ys) with decEqTerm x y
+    decEqTermList (x ∷ xs) ( y ∷  ys) | no x≢y = no (x≢y ∘ proj₁ ∘ ∷-injective)
+    decEqTermList (x ∷ xs) (.x ∷  ys) | yes refl with decEqTermList xs ys
+    decEqTermList (x ∷ xs) (.x ∷  ys) | yes refl | no xs≢ys = no (xs≢ys ∘ proj₂ ∘ ∷-injective)
+    decEqTermList (x ∷ xs) (.x ∷ .xs) | yes refl | yes refl = yes refl
 
-  termDecSetoid : ∀ {n} → DecSetoid _ _
-  termDecSetoid {n} = PropEq.decSetoid (decEqTerm {n})
+
+  private
+    TermDecSetoid : ∀ {n} → DecSetoid _ _
+    TermDecSetoid {n} = PropEq.decSetoid (decEqTerm {n})
+
 
   -- defining replacement function (written _◂ in McBride, 2003)
-
   mutual
     replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
     replace f (var i)  = f i
     replace f (con s ts) = con s (replaceChildren f ts)
 
-    replaceChildren : ∀ {n m k} → (Fin n → Term m) → Vec (Term n) k → Vec (Term m) k
+    replaceChildren : ∀ {n m} → (Fin n → Term m) → (List (Term n) → List (Term m))
     replaceChildren f []       = []
     replaceChildren f (x ∷ xs) = replace f x ∷ (replaceChildren f xs)
 
 
   -- defining replacement composition
-
   _◇_ : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) → Fin l → Term n
   _◇_ f g = replace f ∘ g
 
 
   -- defining thick and thin
-
   thin : {n : ℕ} -> Fin (suc n) -> Fin n -> Fin (suc n)
   thin  zero    y      = suc y
   thin (suc x)  zero   = zero
@@ -107,38 +94,38 @@ module Unification (Name : ℕ → Set) (decEqName : ∀ {k} (x y : Name k) → 
   thick {suc n} (suc x) (suc y) = suc <$> thick x y
 
 
-  -- | defining an occurs check (**check** in McBride, 2003)
+  -- defining an occurs check (**check** in McBride, 2003)
   mutual
     check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
     check x₁ (var x₂)   = var <$> thick x₁ x₂
     check x₁ (con s ts) = con s <$> checkChildren x₁ ts
 
-    checkChildren : ∀ {n k} (x : Fin (suc n)) (ts : Vec (Term (suc n)) k) → Maybe (Vec (Term n) k)
+    checkChildren : ∀ {n} (x : Fin (suc n)) (ts : List (Term (suc n))) → Maybe (List (Term n))
     checkChildren x₁ [] = just []
     checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
       checkChildren x₁ ts >>= λ ts' → return (t' ∷ ts')
 
 
-  -- | datatype for substitutions (AList in McBride, 2003)
+  -- datatype for substitutions (AList in McBride, 2003)
   data Subst : ℕ → ℕ → Set where
     nil  : ∀ {n}   → Subst n n
     snoc : ∀ {m n} → (s : Subst m n) → (t : Term m) → (x : Fin (suc m)) → Subst (suc m) n
 
 
-  -- | substitutes t for x (**for** in McBride, 2003)
+  -- substitutes t for x (**for** in McBride, 2003)
   _for_ : ∀ {n} (t : Term n) (x : Fin (suc n)) → Fin (suc n) → Term n
   _for_ t x y with thick x y
   _for_ t x y | just y' = var y'
   _for_ t x y | nothing = t
 
 
-  -- | substitution application (**sub** in McBride, 2003)
+  -- substitution application (**sub** in McBride, 2003)
   apply : ∀ {m n} → Subst m n → Fin m → Term n
   apply nil = var
   apply (snoc s t x) = (apply s) ◇ (t for x)
 
 
-  -- | composes two substitutions
+  -- composes two substitutions
   _++_ : ∀ {l m n} → Subst m n → Subst l m → Subst l n
   s₁ ++ nil = s₁
   s₁ ++ (snoc s₂ t x) = snoc (s₁ ++ s₂) t x
@@ -158,23 +145,21 @@ module Unification (Name : ℕ → Set) (decEqName : ∀ {k} (x y : Name k) → 
 
   mutual
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
-    unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc with k₁ ≟ k₂
-    unifyAcc (con {k₁} s₁ ts₁) (con {k₂} s₂ ts₂) acc | no k₁≢k₂ = nothing
-    unifyAcc (con { k} s₁ ts₁) (con {.k} s₂ ts₂) acc | yes refl with s₁ ≟ s₂
-    unifyAcc (con { k} s₁ ts₁) (con {.k} s₂ ts₂) acc | yes refl | no s₁≢s₂ = nothing
-    unifyAcc (con { k} .s ts₁) (con {.k}  s ts₂) acc | yes refl | yes refl = unifyAccChildren ts₁ ts₂ acc
+    unifyAcc (con s₁ ts₁) (con  s₂ ts₂) acc with s₁ ≟ s₂
+    unifyAcc (con s₁ ts₁) (con .s₁ ts₂) acc | yes refl = unifyAccChildren ts₁ ts₂ acc
+    unifyAcc (con s₁ ts₁) (con  s₂ ts₂) acc | no s₁≢s₂ = nothing
     unifyAcc (var x₁) (var x₂) (n , nil) = just (flexFlex x₁ x₂)
-    unifyAcc (var x₁) t₂       (n , nil) = flexRigid x₁ t₂
-    unifyAcc t₁       (var x₂) (n , nil) = flexRigid x₂ t₁
-    unifyAcc t₁ t₂ (n , snoc s t' x) =
-      ( λ s → proj₁ s , snoc (proj₂ s) t' x )
-        <$> unifyAcc (replace (t' for x) t₁) (replace (t' for x) t₂) (n , s)
+    unifyAcc t (var x) (n , nil) = flexRigid x t
+    unifyAcc (var x) t (n , nil) = flexRigid x t
+    unifyAcc t₁ t₂ (n , snoc s t′ x) =
+      ( λ s → proj₁ s , snoc (proj₂ s) t′ x )
+        <$> unifyAcc (replace (t′ for x) t₁) (replace (t′ for x) t₂) (n , s)
 
-    unifyAccChildren : ∀ {n k} → (ts₁ ts₂ : Vec (Term n) k) → ∃ (Subst n) → Maybe (∃ (Subst n))
-    unifyAccChildren []         []         acc = just acc
+    unifyAccChildren : ∀ {n} → (ts₁ ts₂ : List (Term n)) → ∃ (Subst n) → Maybe (∃ (Subst n))
+    unifyAccChildren []         []       acc = just acc
+    unifyAccChildren []         _        _   = nothing
+    unifyAccChildren _          []       _   = nothing
     unifyAccChildren (t₁ ∷ ts₁) (t₂ ∷ ts₂) acc = unifyAcc t₁ t₂ acc >>= unifyAccChildren ts₁ ts₂
 
   unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ (Subst m))
   unify {m} t₁ t₂ = unifyAcc t₁ t₂ (m , nil)
-
-  -- * concept of compactness for terms
