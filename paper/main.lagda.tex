@@ -1,6 +1,5 @@
 \documentclass[preprint]{sigplanconf}
 
-\def\textmu{}
 %include agda.fmt
 %include main.fmt
 \include{preamble}
@@ -92,13 +91,15 @@ this paper makes the following novel contributions:
   \url{http://adam.chlipala.net/cpdt/html/LogicProg.html}}
   \pepijn{Hmm. Dat moet te doen zijn. Lijkt me wel iets wat buiten de
     scope van dit project valt, voor nu. Het zal in ieder geval wat
-    werk zijn.}\wouter{Laten we ons eerst richten op dit paper schrijven; 
+    werk zijn.}\wouter{Laten we ons eerst richten op dit paper schrijven;
     mochten we tijd over hebben, kunnen we altijd naar dit soort dingen
     kijken.}
 \end{itemize}
 
 All the code described in this paper is freely available from
-GitHub\todo{add link}. It is important to emphasize that all our code
+GitHub\footnote{
+  See \url{https://github.com/pepijnkokke/AutoInAgda}.
+}. It is important to emphasize that all our code
 is written in the safe fragment of Agda: it does not depend on any
 postulates or foreign functions; all definitions pass Agda's
 termination checker; all metavariables are solved.
@@ -304,7 +305,7 @@ dit vrijdag bespreken.}
 \pepijn{Hm. I reckon we should just keep ``Term'', but if you want it
   we can switch to using PrologTerm, PTerm or Term$^{P}$ as opposed to
   AgdaTerm, ATerm or Term$^{A}$?}
-\wouter{Or call it Term, but explicitly write module Prolog (...) where. 
+\wouter{Or call it Term, but explicitly write module Prolog (...) where.
 We can then refer to these terms later as Prolog.Term in the paper, without
 ambiguity}
 
