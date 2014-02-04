@@ -51,12 +51,12 @@ module Auto where
   agdaNameArity : Name → ℕ
   agdaNameArity n = agdaTypeArity (type n)
 
-  data PrologName : Set where
-    pname : (n : Name) → PrologName
-    pvar  : (i : ℕ) → PrologName
-    pimpl : PrologName
+  data TermName : Set where
+    pname : (n : Name) → TermName
+    pvar  : (i : ℕ) → TermName
+    pimpl : TermName
 
-  prologNameArity : PrologName → ℕ
+  prologNameArity : TermName → ℕ
   prologNameArity (pname n) = agdaNameArity n
   prologNameArity (pvar _)  = 0
   prologNameArity (pimpl)   = 2
@@ -67,23 +67,23 @@ module Auto where
   pvar-injective : ∀ {i j} → pvar i ≡ pvar j → i ≡ j
   pvar-injective refl = refl
 
-  decEqPrologName : (x y : PrologName) → Dec (x ≡ y)
-  decEqPrologName (pname x) (pname  y) with x ≟ y
-  decEqPrologName (pname x) (pname .x) | yes refl = yes refl
-  decEqPrologName (pname x) (pname  y) | no  x≢y  = no (x≢y ∘ pname-injective)
-  decEqPrologName (pname _) (pvar _)   = no (λ ())
-  decEqPrologName (pname _)  pimpl     = no (λ ())
-  decEqPrologName (pvar _)  (pname _)  = no (λ ())
-  decEqPrologName (pvar i)  (pvar  j)  with i ≟ j
-  decEqPrologName (pvar i)  (pvar .i)  | yes refl = yes refl
-  decEqPrologName (pvar i)  (pvar  j)  | no i≢j = no (i≢j ∘ pvar-injective)
-  decEqPrologName (pvar _)   pimpl     = no (λ ())
-  decEqPrologName  pimpl    (pname _)  = no (λ ())
-  decEqPrologName  pimpl    (pvar _)   = no (λ ())
-  decEqPrologName  pimpl     pimpl     = yes refl
+  decEqTermName : (x y : TermName) → Dec (x ≡ y)
+  decEqTermName (pname x) (pname  y) with x ≟ y
+  decEqTermName (pname x) (pname .x) | yes refl = yes refl
+  decEqTermName (pname x) (pname  y) | no  x≢y  = no (x≢y ∘ pname-injective)
+  decEqTermName (pname _) (pvar _)   = no (λ ())
+  decEqTermName (pname _)  pimpl     = no (λ ())
+  decEqTermName (pvar _)  (pname _)  = no (λ ())
+  decEqTermName (pvar i)  (pvar  j)  with i ≟ j
+  decEqTermName (pvar i)  (pvar .i)  | yes refl = yes refl
+  decEqTermName (pvar i)  (pvar  j)  | no i≢j = no (i≢j ∘ pvar-injective)
+  decEqTermName (pvar _)   pimpl     = no (λ ())
+  decEqTermName  pimpl    (pname _)  = no (λ ())
+  decEqTermName  pimpl    (pvar _)   = no (λ ())
+  decEqTermName  pimpl     pimpl     = yes refl
 
   private
-    PrologNameDecSetoid = PropEq.decSetoid decEqPrologName
+    TermNameDecSetoid = PropEq.decSetoid decEqTermName
 
   data RuleName : Set where
     rname : Name → RuleName
@@ -95,9 +95,7 @@ module Auto where
 
   -- Now we can load the Prolog libraries.
 
-  import Prolog
-  module PI = Prolog RuleName PrologName decEqPrologName
-  open PI public renaming (Term to PTerm)
+  open import Prolog RuleName TermName decEqTermName as PI public
 
   -- We'll implement a few basic functions to ease our working with Agda's
   -- Reflection library.
@@ -111,19 +109,19 @@ module Auto where
   -- We'll need the function below later on, when we try to convert found
   -- variables to finitely indexed variables within our domain `n`.
 
-  convDef : (s : Name) → ∃ (λ n → List (PTerm n)) → ∃ PTerm
+  convDef : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
   convDef f (n , ts) = n , con (pname f) ts
 
   record Case : Set where
     field
-      forVar : ℕ → ℕ → Error (∃  PTerm)
-      forCon : (s : Name) → ∃ (λ n → List (PTerm n)) → ∃ PTerm
-      forDef : (s : Name) → ∃ (λ n → List (PTerm n)) → ∃ PTerm
+      forVar : ℕ → ℕ → Error (∃  PrologTerm)
+      forCon : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
+      forDef : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
 
   CaseTerm : Case
   CaseTerm = record { forVar = convVar ; forCon = convDef ; forDef = convDef  }
     where
-      convVar : ℕ → ℕ → Error (∃ PTerm)
+      convVar : ℕ → ℕ → Error (∃ PrologTerm)
       convVar  d i with compare d i
       convVar  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
       convVar .i i              | equal   .i   = right (1     , var (Fin.fromℕ 0))
@@ -132,18 +130,18 @@ module Auto where
   CaseGoal : Case
   CaseGoal = record { forVar = convPar ; forCon = convDef ; forDef = convDef }
     where
-      convPar : ℕ → ℕ → Error (∃ PTerm)
+      convPar : ℕ → ℕ → Error (∃ PrologTerm)
       convPar  d i with compare d i
       convPar  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
       convPar .i i              | equal   .i   = right (0 , con (pvar 0) [])
       convPar .(suc (i + k)) i  | greater .i k = right (0 , con (pvar k) [])
 
-  splitTerm : ∀ {n} → PTerm n → List (PTerm n)
+  splitTerm : ∀ {n} → PrologTerm n → List (PrologTerm n)
   splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
   splitTerm t = List.[ t ]
 
   mutual
-    convAcc : Case → ℕ → Term → Error (∃ PTerm)
+    convAcc : Case → ℕ → Term → Error (∃ PrologTerm)
     convAcc dict d (var i [])   = Case.forVar dict d i
     convAcc dict d (var i args) = left (unsupportedSyntax (var i args))
     convAcc dict d (con c args) with convArgsAcc dict d args
@@ -164,7 +162,7 @@ module Auto where
     convAcc dict d (sort x)  = left (unsupportedSyntax (sort x))
     convAcc dict d unknown   = left (unsupportedSyntax (unknown))
 
-    convArgsAcc : Case → ℕ → List (Arg Term) → Error (∃ (λ n → List (PTerm n)))
+    convArgsAcc : Case → ℕ → List (Arg Term) → Error (∃ (λ n → List (PrologTerm n)))
     convArgsAcc dict d [] = right (0 , [])
     convArgsAcc dict d (arg visible _ t ∷ ts) with convArgsAcc dict d ts
     convArgsAcc dict d (arg visible r t ∷ ts) | left msg = left msg
@@ -175,17 +173,17 @@ module Auto where
     ... | (p′ , ps′) = right (max n₁ n₂ , p′ ∷ ps′)
     convArgsAcc dict d (arg _ _ _ ∷ ts) = convArgsAcc dict d ts
 
-  convTerm : Term → Error (∃ PTerm)
+  convTerm : Term → Error (∃ PrologTerm)
   convTerm t = convAcc CaseTerm 0 t
 
-  convGoal : Term → Error (∃ PTerm × Rules)
+  convGoal : Term → Error (∃ PrologTerm × Rules)
   convGoal t with convAcc CaseGoal 0 t
   ... | left msg = left msg
   ... | right (n , p) with reverse (splitTerm p)
   ... | []       = left panic!
   ... | (g ∷ rs) = right ((n , g) , mkArgs 0 rs)
     where
-      mkArgs : ℕ → List (PTerm n) → Rules
+      mkArgs : ℕ → List (PrologTerm n) → Rules
       mkArgs i [] = []
       mkArgs i (t ∷ ts) = (n , rule (rvar i) t []) ∷ mkArgs (suc i) ts
 
@@ -193,7 +191,7 @@ module Auto where
   -- symbol; note the order: the last element of the list will always be the
   -- conclusion of the funciton with the rest of the elements being the premises.
 
-  -- convTerm′ : Term → Error (∃ (List ∘ PTerm))
+  -- convTerm′ : Term → Error (∃ (List ∘ PrologTerm))
   -- convTerm′ t with convTerm t
   -- convTerm′ t | left msg      = left msg
   -- convTerm′ t | right (n , p) = right (n , splitTerm p)
@@ -223,7 +221,7 @@ module Auto where
   ... | left msg = left msg
   ... | right (n , t) = mkRule′ (n , splitTerm t)
     where
-      mkRule′ : ∃ (List ∘ PTerm) → Error (∃ Rule)
+      mkRule′ : ∃ (List ∘ PrologTerm) → Error (∃ Rule)
       mkRule′ (n , xs) with initLast xs
       mkRule′ (n , .[]) | [] = left panic!
       mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
@@ -261,7 +259,7 @@ module Auto where
       fromError : {A : Set} → Error A → List A
       fromError = fromEither (const []) [_]
 
-  ruleset : HintDB → Term → Maybe (∃ PTerm × Rules)
+  ruleset : HintDB → Term → Maybe (∃ PrologTerm × Rules)
   ruleset rules type
     with convGoal type
   ... | left msg = nothing
