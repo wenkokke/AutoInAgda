@@ -314,7 +314,9 @@ data TermName : Set where
   Add   : TermName
   Suc   : TermName
   Zero  : TermName
+\end{code}
 
+\begin{code}
 One : Prolog 0
 One = con Suc (con Zero ∷ [])
 \end{code}
@@ -382,7 +384,9 @@ AddBase = record {
                          ∷ [])
   premises    = []
   }
+\end{code}
 
+\begin{code}
 AddStep : Rule 3
 AddStep = record {
   name        = "AddStep"
