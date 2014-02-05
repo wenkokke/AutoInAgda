@@ -280,9 +280,8 @@ be structurally recusive on the number of variables in a term. In addition
 to this we encode constants as a |TermName| with a list of
 arguments.\footnote{
   In our Prolog implementation the type |TermName| is left abstract,
-  to be supplied by the user. The implementation of |auto|
-  identifies it with Agda's |Name| extended with constructors for
-  variable names and function types.
+  to be supplied by the user, though the implementation of |auto|
+  identifies it with a concrete type.
 }
 
 \begin{spec}
@@ -309,19 +308,17 @@ PrologTerm from the start in the paper?}
   strings to encode every name? We probably do, actually... since
   Agda names are probably Haskell strings internally.}
 
+\noindent
 Using this term data type, we can represent first-order terms with a
 finite set of variables. For instance, using the following small set
 of names, we can encode numbers and simple arithmetic expressions.
-
 \begin{spec}
 data TermName : Set where
   Suc   : TermName
   Zero  : TermName
   Add   : TermName
 \end{spec}
-
 Such as this variable-free encoding of the number one.
-
 \begin{spec}
 One : Prolog 0
 One = con Suc (con Zero ∷ [])
@@ -356,13 +353,14 @@ follows, we will sometimes use the following, more general, function:
     ∃ (Subst m) → Maybe (∃ (Subst m))
 \end{spec}
 
-Next we define Prolog rules as records containing a rulename and terms for its
-premises and conclusion---and again the datatype is quantified over the number of
-variables used by its constituents. Note that variables are shared between the
-premises and conclusion. \pepijn{Is having two types called |Name| confusing?
-In the Auto module I make the distinction between |AgdaName| and |PrologName|;
-should I make a distinction here between, say, |Constr| and |RuleName|?}
-\wouter{I'd disambiguate. Name is really the built-in Agda reflection type.}
+Next we define Prolog rules as records containing a rulename\footnote{
+  RuleName is left abstract in our implementation of Prolog, though
+  our implementation of the |auto| tactic will identify it with a
+  concrete type.
+} and terms for its
+premises and conclusion---and again the data type is quantified over
+the number of variables used by its constituents. Note that variables
+are shared between the premises and conclusion.
 
 \begin{spec}
   record Rule (n : ℕ) : Set where
@@ -372,13 +370,17 @@ should I make a distinction here between, say, |Constr| and |RuleName|?}
       premises    : List (PrologTerm n)
 \end{spec}
 
+Using our newly defined |Rule| we can give a simple encoding of, for
+instance, addition. In Prolog, this would be written as follows.
 
+\begin{lstlisting}[language=Prolog]
+  add(0, x, x).
+  add(x, y, z) :- add(suc(x), y, suc(z)).
+\end{lstlisting}
 
-\wouter{Give an example of such a rule. For instance: | add(0,x,x)| and |add(n,m,t)
-  :- add (suc(n), m, suc(t))|.}
-\pepijn{Will do. Don't you think that this example is a bit too long?
-  Maybe just the base or the step rule?}
-\todo{mention usage of the above example's |TermName| datatype}
+Unfortunately, the named equivalents in our Agda implementation are a
+bit more verbose. Note that we have, for the sake of this example,
+instantiated the abstract |RuleName| with the |String| type.
 
 \begin{spec}
 AddBase : Rule 1
