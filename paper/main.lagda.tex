@@ -135,14 +135,14 @@ language constructs for quoting and unquoting program fragments. The simplest
 example of the reflection mechanism is the quotation of a single
 term. In the definition of |idTerm| below, we quote the identity
 function on Boolean values:
-\begin{code}
+\begin{spec}
   idTerm : Term
   idTerm = quoteTerm (\ (x : Bool) -> x)
-\end{code}
+\end{spec}
 When evaluated, the term |idTerm| yields the following value:
-\begin{code}
+\begin{spec}
   lam visible (var 0 [])
-\end{code}
+\end{spec}
 On the outermost level, the |lam| constructor produces a lambda
 abstraction. It has a single argument that is passed explicitly (as
 opposed to Agda's implicit arguments). The body of the lambda consists
@@ -157,10 +157,10 @@ such names.
 Dual to quotation, the |unquote| mechanism allows users to splice in a
 |Term|, replacing it with a its concrete syntax. For example, we could
 give a convoluted definition of the |K| combinator as follows:
-\begin{code}
+\begin{spec}
   const : ∀ {a b} -> a  -> b -> a
   const = unquote (lam visible (lam visible (var 1 [])))
-\end{code}
+\end{spec}
 The language construct |unquote| is followed by a value of type
 |Term|. In this example, we manually construct a |Term| representing
 the |K| combinator and splice it in the definition of |const|.
@@ -168,10 +168,10 @@ the |K| combinator and splice it in the definition of |const|.
 The final piece of the reflection mechanism that we will use is the
 |quoteGoal| construct. The usage of |quoteGoal| is best illustrated
 with an example:
-\begin{code}
+\begin{spec}
   goalInHole : ℕ
   goalInHole = quoteGoal g in hole
-\end{code}
+\end{spec}
 In this example, the construct |quoteGoal g| binds the |Term|
 representing the \emph{type} of the current goal, |ℕ|, to the variable
 |g|. When completing this definition by filling in the hole labelled
@@ -183,30 +183,30 @@ to |def ℕ []|, the |Term| representing the type |ℕ|.
 To illustrate the usage of our proof automation, we begin by defining a
 predicate |Even| on natural numbers as follows:
 
-\begin{code}
+\begin{spec}
   data Even : ℕ → Set where
     Base : Even 0
     Step : ∀ {n} → Even n → Even (suc (suc n))
-\end{code}
+\end{spec}
 %
 Next we may want to prove properties of this definition:
 %
-\begin{code}
+\begin{spec}
   even+ : ∀ {n m} → Even n → Even m → Even (n + m)
   even+ Base       e2  = e2
   even+ (Step e1)  e2  = Step (even+ e1 e2)
-\end{code}
+\end{spec}
 %
 As shown by Van der Walt and Swierstra~\cite{van-der-walt}, it is easy
 to prove the |Even| property for closed terms using proof by
-reflection. The interesting terms, however, are never closed.  For
+reflection. The interesting terms, however, are seldom closed.  For
 instance, if we would like to use the |even+| lemma in the proof
 below, we need to call it explicitly.
 
-\begin{code}
+\begin{spec}
   simple : ∀ {n} → Even n → Even (n + 2)
   simple e = even+ e (Step Base)
-\end{code}
+\end{spec}
 Manually constructing explicit proof objects
 in this fashion is not easy. The proof is brittle. We cannot easily
 reuse it to prove similar statements such as |Even (n + 4)|. If we
@@ -225,11 +225,11 @@ tactic in Agda.
 Before we can use our |auto| function, we need to construct a hint
 database, containing our |even+| lemma and the constructors of the
 |Even| predicate:
-\begin{code}
+\begin{spec}
   hints : HintDB
   hints = hintdb
     (quote Base :: quote Step :: quote even+ :: [])
-\end{code}
+\end{spec}
 To construct such a database, we |quote| any terms that we wish to
 include in it and pass them to the |hintdb| function.  We
 defer any discussion about the |hintdb| function for the moment. Note,
@@ -239,15 +239,15 @@ a function.
 
 We now give an alternative proof of the |simple| lemma, using this
 hint database:
-\begin{code}
+\begin{spec}
   simple : ∀ {n} → Even n → Even (n + 2)
   simple = quoteGoal g in unquote (auto 5 hints g)
-\end{code}
+\end{spec}
 The central ingredient is a \emph{function} |auto| with the following
 type:
-\begin{code}
-  auto : ℕ → HintDB → Term → Term
-\end{code}
+\begin{spec}
+  auto : (depth : ℕ) → HintDB → Term → Term
+\end{spec}
 Given a maximum depth, hint database, and goal, it searches for a
 proof |Term| that witnesses our goal. If this term can be found, it is
 spliced back into our program using the |unquote| statement.
@@ -277,18 +277,19 @@ The heart of our proof search implementation is the structurally recursive
 unification algorithm described by~\citet{unification}. In this approach, terms
 are encoded using finite sets for variables. This allows the algorithm to
 be structurally recusive on the number of variables in a term. In addition
-to this we encode constants as a |Name| with a fixed arity and a vector of
+to this we encode constants as a |TermName| with a list of
 arguments.\footnote{
-  In our Prolog implementation the type |Name| is left abstract, to be
-  supplied by the user. The implementation of |auto| identifies it with
-  an arity-annotated version of the language construct |QName|.
+  In our Prolog implementation the type |TermName| is left abstract,
+  to be supplied by the user. The implementation of |auto|
+  identifies it with Agda's |Name| extended with constructors for
+  variable names and function types.
 }
 
-\begin{code}
+\begin{spec}
 data PrologTerm (n : ℕ) : Set where
   var  : Fin n → PrologTerm n
   con  : TermName → List (PrologTerm n) → PrologTerm n
-\end{code}
+\end{spec}
 
 \wouter{Or call it Term, but explicitly write module Prolog (...) where.
 We can then refer to these terms later as Prolog.Term in the paper, without
@@ -301,7 +302,6 @@ PrologTerm from the start in the paper?}
   English spelling or American English spelling? The first has my
   preference, since that's what I'm used to typing, but I don't know
   if there are any standard conventions?}
-
 \wouter{Give an example Term. How about |Suc (Zero)|?}
 \pepijn{Hmkay. See below. Should we take a shortcut, and simply use
   strings instead of a custom datatype? Or should we fear that some
@@ -309,17 +309,23 @@ PrologTerm from the start in the paper?}
   strings to encode every name? We probably do, actually... since
   Agda names are probably Haskell strings internally.}
 
-\begin{code}
+Using this term data type, we can represent first-order terms with a
+finite set of variables. For instance, using the following small set
+of names, we can encode numbers and simple arithmetic expressions.
+
+\begin{spec}
 data TermName : Set where
-  Add   : TermName
   Suc   : TermName
   Zero  : TermName
-\end{code}
+  Add   : TermName
+\end{spec}
 
-\begin{code}
+Such as this variable-free encoding of the number one.
+
+\begin{spec}
 One : Prolog 0
 One = con Suc (con Zero ∷ [])
-\end{code}
+\end{spec}
 
 \wouter{Should we repeat the definition of |Fin|?}
 \pepijn{Do we really have to? This paper is specifically aimed at
@@ -345,10 +351,10 @@ variables to terms with at most $n$.
 This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
 follows, we will sometimes use the following, more general, function:
-\begin{code}
+\begin{spec}
   unifyAcc : (t₁ t₂ : Term m) →
     ∃ (Subst m) → Maybe (∃ (Subst m))
-\end{code}
+\end{spec}
 
 Next we define Prolog rules as records containing a rulename and terms for its
 premises and conclusion---and again the datatype is quantified over the number of
@@ -358,13 +364,13 @@ In the Auto module I make the distinction between |AgdaName| and |PrologName|;
 should I make a distinction here between, say, |Constr| and |RuleName|?}
 \wouter{I'd disambiguate. Name is really the built-in Agda reflection type.}
 
-\begin{code}
+\begin{spec}
   record Rule (n : ℕ) : Set where
     field
-      name        : Name
-      conclusion  : Term n
-      premises    : List (Term n)
-\end{code}
+      name        : RuleName
+      conclusion  : PrologTerm n
+      premises    : List (PrologTerm n)
+\end{spec}
 
 
 
@@ -374,7 +380,7 @@ should I make a distinction here between, say, |Constr| and |RuleName|?}
   Maybe just the base or the step rule?}
 \todo{mention usage of the above example's |TermName| datatype}
 
-\begin{code}
+\begin{spec}
 AddBase : Rule 1
 AddBase = record {
   name        = "AddBase"
@@ -384,9 +390,9 @@ AddBase = record {
                          ∷ [])
   premises    = []
   }
-\end{code}
+\end{spec}
 
-\begin{code}
+\begin{spec}
 AddStep : Rule 3
 AddStep = record {
   name        = "AddStep"
@@ -400,7 +406,7 @@ AddStep = record {
                           ∷ [])
                  ∷ []
   }
-\end{code}
+\end{spec}
 
 Lastly, before we can implement some form of proof search, we are
 going to need to define a pair of auxiliary functions. During proof
@@ -408,7 +414,7 @@ resolution, we will need to work with terms and rules containing a
 different number of variable. We will use the following pair of
 functions, |inject| and |raise|, to weaken bound variables, that is,
 map values of type |Fin n| to some larger finite type.
-\begin{code}
+\begin{spec}
   inject : ∀ {m} n → Fin m → Fin (m + n)
   inject n  zero    = zero
   inject n (suc i)  = suc (inject n i)
@@ -416,7 +422,7 @@ map values of type |Fin n| to some larger finite type.
   raise : ∀ m {n} → Fin n → Fin (m + n)
   raise  zero   i  = i
   raise (suc m) i  = suc (raise m i)
-\end{code}
+\end{spec}
 We have tried to visualize the behaviour of |inject| and |raise|,
 embedding |Fin 3| into |Fin (3 + 1)| in Figure~\ref{fig:fins}. On the
 surface, the |inject| function appears to be the identity. When you
@@ -490,20 +496,20 @@ the machinery for unification.
 
 %\subsubsection{Setting up the search space}
 
-\begin{code}
+\begin{spec}
   data SearchSpace (m : ℕ) : Set where
     done : (∃₂ δ n → Subst (m + δ) n) → SearchSpace m
     step : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
-\end{code}
+\end{spec}
 
 %\subsubsection{Searching the search space}
 
-\begin{code}
+\begin{spec}
   data SearchTree (A : Set) : Set where
     fail : SearchTree A
     retn : A → SearchTree A
     fork : ∞ (List (SearchTree A)) → SearchTree A
-\end{code}
+\end{spec}
 
 
 \section{Constructing proof trees}
