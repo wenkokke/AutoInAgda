@@ -3,7 +3,7 @@ open import Function using (_∘_; _$_)
 open import Coinduction using (∞) renaming (♯_ to ~_; ♭ to !_)
 open import Category.Monad as Cat using ()
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.Nat as Nat using (ℕ; suc; zero; _+_; less; equal; greater) renaming (_⊔_ to max; compare to compare′)
+open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _≤?_; compare; less; equal; greater) renaming (_⊔_ to max)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
 open import Data.List as List hiding (monad)
@@ -20,7 +20,6 @@ module Prolog
 
   private
     open Cat.RawMonad {{...}}
-    open Rel.StrictTotalOrder NatProps.strictTotalOrder using (compare)
     open Alg.CommutativeSemiring NatProps.commutativeSemiring using (+-assoc; +-identity)
     MonadMaybe = Maybe.monad
     MonadList  = List.monad
@@ -32,8 +31,8 @@ module Prolog
   data Rule (n : ℕ) : Set where
     rule : RuleName → Term n → List (Term n) → Rule n
 
-  ruleName : ∀ {n} → Rule n → RuleName
-  ruleName (rule name _ _) = name
+  name : ∀ {n} → Rule n → RuleName
+  name (rule nm _ _) = nm
 
   conclusion : ∀ {n} → Rule n → Term n
   conclusion (rule _ cnc _) = cnc
@@ -42,8 +41,8 @@ module Prolog
   premises (rule _ _ prm) = prm
 
   -- compute the arity of a rule
-  ruleArity : ∀ {n} → Rule n → ℕ
-  ruleArity = length ∘ premises
+  arity : ∀ {n} → Rule n → ℕ
+  arity = length ∘ premises
 
   -- just an alias for a list of rules
   Rules : Set
@@ -129,10 +128,10 @@ module Prolog
 
   match : ∀ {n₁ n₂} {I₁ I₂} → InjectL I₁ → InjectL I₂
         → I₁ n₁ → I₂ n₂ → I₁ (max n₁ n₂) × I₂ (max n₁ n₂)
-  match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare′ n₁ n₂
+  match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare n₁ n₂
   match {n₁} {.(suc (n₁ + k))} inj₁ inj₂ p₁ p₂ | less .n₁ k
     rewrite max-lem₁ n₁ k | sym (m+1+n≡1+m+n n₁ k) = (inj₁ (suc k) p₁ , p₂)
-  match {n₁} {.n₁} inj₁ inj₂ p₁ p₂ | equal .n₁
+  match {n₁} {.n₁} inj₁ inj₂ p₁ p₂             | equal .n₁
     rewrite max-lem₂ n₁                            = (p₁ , p₂)
   match {.(suc (n₂ + k))} {n₂} inj₁ inj₂ p₁ p₂ | greater .n₂ k
     rewrite max-lem₃ n₂ k | sym (m+1+n≡1+m+n n₂ k) = (p₁ , inj₂ (suc k) p₂)
@@ -232,8 +231,9 @@ module Prolog
 
     mkTreeAcc : ∀ {m} → Rules → SearchSpace m → Rules → SearchTree (Result m)
     mkTreeAcc {_} rs₀ (done s) ap = retn (s , ap)
-    mkTreeAcc {m} rs₀ (step f) ap = fork (~ (mkTreeAccChildren rs₀))
+    mkTreeAcc {m} rs₀ (step f) ap = fork (~ mkTreeAccChildren rs₀)
       where
+        -- when written with a simple `map`, termination checker complains
         mkTreeAccChildren : Rules → List (SearchTree (Result m))
         mkTreeAccChildren [] = []
         mkTreeAccChildren (r ∷ rs) = mkTreeAcc rs₀ (! f r) (ap ∷ʳ r) ∷ mkTreeAccChildren rs
@@ -261,6 +261,9 @@ module Prolog
       bfsAcc (suc k) (retn x)  = (x ∷ []) ∷ empty
       bfsAcc (suc k) (fork xs) = [] ∷ foldr merge empty (map (bfsAcc k) (! xs))
 
+  searchToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (Result m)
+  searchToDepth {m} depth rules goal = dfs depth (mkTree rules (solve goal))
+
   -- while we should be able to guarantee that the terms after substitution
   -- contain no variables (and all free variables in the domain occur because
   -- of unused rules), the required proof of this is currently still unimplemented
@@ -277,29 +280,11 @@ module Prolog
                               noVarsChildren ts >>= λ ts' →
                               return (t' ∷ ts')
 
-  -- `first` combinator from control.arrow
-  first : {A B C : Set} → (A → B) → A × C → B × C
-  first f (x , y) = f x , y
-
-  filterWithVars' : List (∃ (λ n → List (Term n))) → List (List (Term 0))
-  filterWithVars' = concatMap (fromMaybe ∘ noVarsChildren ∘ proj₂)
-
   filterWithVars : List (∃ (λ n → List (Term n)) × Rules) → List (List (Term 0) × Rules)
   filterWithVars rs = concatMap (fromMaybe ∘ noVars′) rs
     where
       noVars′ : ∃ (λ n → List (Term n)) × Rules → Maybe (List (Term 0) × Rules)
       noVars′ ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
-
-  solveToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (∃ (λ n → Vec (Term n) m) × Rules)
-  solveToDepth {m} depth rules goal = map (first mkEnv) $ subs
-    where
-      vars = allFin m
-      tree = mkTree rules (solve goal)
-      subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
-      subs = dfs depth tree
-      mkEnv : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
-      mkEnv (δ , n , s) = _ , (Vec.map (λ v → apply s v) (Vec.map (injectFin _) vars))
-
 
   -- Proof Terms
   --
@@ -307,31 +292,23 @@ module Prolog
   -- tree, using the arity of the used rules and the fact that therefore the
   -- next `n` rule applications will go towards computing the arguments for the
   -- chosen rule.
-  data Proof : Set where
-    con : RuleName → List Proof → Proof
+  data ProofTerm : Set where
+    con : RuleName → List ProofTerm → ProofTerm
 
   -- |Reconstruct a list of rules as a proof tree. Anything but a list containing
   --  a single item can be considered an error (either there are multiple trees,
   --  or at some point there were not enough items to fill all a rule's arguments)
-  toProofAcc : Rules → List Proof
-  toProofAcc = foldr next []
+  toProofTerms : Rules → List ProofTerm
+  toProofTerms = foldr next []
     where
-      next : ∃ Rule → List Proof → List Proof
-      next r ps = next′
-        where
-          name      = ruleName (proj₂ r)      -- name of the rule
-          arity     = ruleArity (proj₂ r) -- number of subproofs needed by the rule
-          numProofs = length ps           -- current number of proof terms
+      next : ∃ Rule → List ProofTerm → List ProofTerm
+      next (δ , r) pfs with arity r ≤? length pfs
+      ... | yes r≤p = con (name r) (take (arity r) pfs) ∷ (drop (arity r) pfs)
+      ... | no  r>p = []
 
-          next′ : List Proof
-          next′ with compare arity numProofs
-          next′ | tri< r<p r≢p r≯p = con name (take arity ps) ∷ drop arity ps
-          next′ | tri≈ r≮p r≡p r≯p = con name ps ∷ []
-          next′ | tri> r≮p r≢p r>p = [] -- this case should not occur
-
-  -- |Reconstruct a list of rules as a proof tree. Runs `toProofAcc` above, and
+  -- |Reconstruct a list of rules as a proof tree. Runs `toProofTerms` above, and
   --  checks if the result is a list containing a single proof tree.
-  toProof : Rules → Maybe Proof
-  toProof rs with toProofAcc rs
+  toProofTerm : Rules → Maybe ProofTerm
+  toProofTerm rs with toProofTerms rs
   ... | []    = nothing
   ... | p ∷ _ = just p
