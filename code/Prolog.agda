@@ -6,8 +6,8 @@ open import Data.Maybe as Maybe using (Maybe; just; nothing)
 open import Data.Nat as Nat using (ℕ; suc; zero; _+_; less; equal; greater) renaming (_⊔_ to max; compare to compare′)
 open import Data.Nat.Properties as NatProps using ()
 open import Data.Fin using (Fin; suc; zero)
-open import Data.List as List using (List; []; _∷_; _∷ʳ_; _++_; map; foldr; concatMap; fromMaybe; length; take; drop)
-open import Data.Vec as Vec using (Vec; []; _∷_; allFin)
+open import Data.List as List hiding (monad)
+open import Data.Vec as Vec using (Vec; []; _∷_; allFin; toList)
 open import Data.Product as Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary as Rel using (tri<; tri≈; tri>)
@@ -238,12 +238,28 @@ module Prolog
         mkTreeAccChildren [] = []
         mkTreeAccChildren (r ∷ rs) = mkTreeAcc rs₀ (! f r) (ap ∷ʳ r) ∷ mkTreeAccChildren rs
 
-  dfsToDepth : ∀ {A} → ℕ → SearchTree A → List A
-  dfsToDepth zero     _        = []
-  dfsToDepth (suc k)  fail     = []
-  dfsToDepth (suc k) (retn x)  = return x
-  dfsToDepth (suc k) (fork xs) = concatMap (dfsToDepth k) (! xs)
+  dfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
+  dfs  zero    _        = []
+  dfs (suc k)  fail     = []
+  dfs (suc k) (retn x)  = return x
+  dfs (suc k) (fork xs) = concatMap (dfs k) (! xs)
 
+  bfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
+  bfs depth t = concat (toList (bfsAcc depth t))
+    where
+      merge : ∀ {A : Set} {k} → (xs ys : Vec (List A) k) → Vec (List A) k
+      merge [] [] = []
+      merge (x ∷ xs) (y ∷ ys) = (x ++ y) ∷ merge xs ys
+
+      empty : ∀ {A : Set} {k} → Vec (List A) k
+      empty {k = zero}  = []
+      empty {k = suc k} = [] ∷ empty
+
+      bfsAcc : ∀ {A} (depth : ℕ) → SearchTree A → Vec (List A) depth
+      bfsAcc  zero   _         = []
+      bfsAcc (suc k)  fail     = empty
+      bfsAcc (suc k) (retn x)  = (x ∷ []) ∷ empty
+      bfsAcc (suc k) (fork xs) = [] ∷ foldr merge empty (map (bfsAcc k) (! xs))
 
   -- while we should be able to guarantee that the terms after substitution
   -- contain no variables (and all free variables in the domain occur because
@@ -280,7 +296,7 @@ module Prolog
       vars = allFin m
       tree = mkTree rules (solve goal)
       subs : List (∃ (λ δ → ∃ (Subst (m + δ))) × Rules)
-      subs = dfsToDepth depth tree
+      subs = dfs depth tree
       mkEnv : ∃₂ (λ δ n → Subst (m + δ) n) → ∃ (λ n → Vec (Term n) m)
       mkEnv (δ , n , s) = _ , (Vec.map (λ v → apply s v) (Vec.map (injectFin _) vars))
 
