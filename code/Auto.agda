@@ -227,17 +227,17 @@ module Auto where
       mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
 
   mutual
-    reify : Proof → Term
+    reify : ProofTerm → Term
     reify (con (rvar i) ps) = var i []
     reify (con (rname n) ps) with definition n
     ... | function x   = def n (reifyChildren ps)
+    ... | constructor′ = con n (reifyChildren ps)
     ... | data-type x  = unknown
     ... | record′ x    = unknown
-    ... | constructor′ = con n (reifyChildren ps)
     ... | axiom        = unknown
     ... | primitive′   = unknown
 
-    reifyChildren : List Proof → List (Arg Term)
+    reifyChildren : List ProofTerm → List (Arg Term)
     reifyChildren [] = []
     reifyChildren (p ∷ ps) = toArg (reify p) ∷ reifyChildren ps
       where
@@ -270,10 +270,10 @@ module Auto where
     with convGoal type
   ... | left msg = quoteMsg msg
   ... | right ((n , g) , args)
-    with solveToDepth depth (args ++ rules) g
+    with searchToDepth depth (args ++ rules) g
   ... | [] = quoteMsg searchSpaceExhausted
   ... | (_ , ap) ∷ _
-    with toProof ap
+    with toProofTerm ap
   ... | nothing = quoteMsg panic!
   ... | just p  = intros (reify p)
     where
