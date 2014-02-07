@@ -3,8 +3,9 @@
 \usepackage{tikz}%
 \usepackage{subfigure}%
 \usetikzlibrary{arrows,positioning}%
+\usepackage{listings}%
 \usepackage{url}%
-\usepackage{agda}%
+% \usepackage{agda}%
 
 % Unicode support
 \usepackage{textgreek}
@@ -19,7 +20,7 @@
 \usepackage{ifthen}
 \newboolean{showNotes}
 \newboolean{marginNotes}
-\setboolean{showNotes}{true}
+\setboolean{showNotes}{false}
 \setboolean{marginNotes}{false}
 \newcommand{\marginNote}[1]{
 \ifthenelse
