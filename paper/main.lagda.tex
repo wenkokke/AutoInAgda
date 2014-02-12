@@ -994,6 +994,9 @@ hintdb = concatMap (fromError ∘ toRule)
 
 \todo{mention utility function |quoteMsg| which returns the AST of a
   message}
+\todo{mention that we \emph{could} theoretically return, for instance,
+the specific bit of syntax that is unsupported, but that since we
+cannot quote the |Term| type, we cannot just pass the terms around.}
 
 \begin{code}
 auto : ℕ → HintDB → Term → Term
