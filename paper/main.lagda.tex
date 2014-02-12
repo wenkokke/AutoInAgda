@@ -276,9 +276,9 @@ implemented.
 The heart of our proof search implementation is the structurally recursive
 unification algorithm described by~\citet{unification}. In this approach, terms
 are encoded using finite sets for variables. This allows the algorithm to
-be structurally recusive on the number of variables in a term. In addition
-to this we encode constants as a |TermName| with a list of
-arguments.\footnote{
+be structurally recusive on the number of variables in a term. In
+addition to variables, we will encode first-order constants as a
+|TermName| with a list of arguments.\footnote{
   In our Prolog implementation the type |TermName| is left abstract,
   to be supplied by the user, though the implementation of |auto|
   identifies it with a concrete type.
@@ -289,26 +289,11 @@ data PrologTerm (n : ℕ) : Set where
   var  : Fin n → PrologTerm n
   con  : TermName → List (PrologTerm n) → PrologTerm n
 \end{code}
-
-\wouter{Or call it Term, but explicitly write module Prolog (...) where.
-We can then refer to these terms later as Prolog.Term in the paper, without
-ambiguity.}
-\pepijn{That sounds like a verbose idea, I'm more in favour of calling
-it PrologTerm. Though it is defined for unification, so maybe we
-should have the Prolog module reexport it as PrologTerm, but call it
-PrologTerm from the start in the paper?}
-\pepijn{Since I just wrote |favour|, what are we doing? British
-  English spelling or American English spelling? The first has my
-  preference, since that's what I'm used to typing, but I don't know
-  if there are any standard conventions?}
-\wouter{Give an example Term. How about |Suc (Zero)|?}
-\pepijn{Hmkay. See below. Should we take a shortcut, and simply use
-  strings instead of a custom datatype? Or should we fear that some
-  readers will come away from reading the papers thinking we use
-  strings to encode every name? We probably do, actually... since
-  Agda names are probably Haskell strings internally.}
-
-\noindent
+\pepijn{Should we take a shortcut, as below, and simply use
+strings instead of a custom datatype? Or should we fear that some
+readers will come away from reading the papers thinking we use
+strings to encode every name? (We probably do, actually... since
+Agda names are probably Haskell strings internally.)}
 Using this term data type, we can represent first-order terms with a
 finite set of variables. For instance, using the following small set
 of names, we can encode numbers and simple arithmetic expressions.
@@ -318,25 +303,24 @@ data TermName : Set where
   Zero  : TermName
   Add   : TermName
 \end{code}
-Such as this variable-free encoding of the number one.
+Such as the below variable-free encoding of the number one.
 \begin{code}
 One : Prolog 0
 One = con Suc (con Zero ∷ [])
 \end{code}
-
-\wouter{Should we repeat the definition of |Fin|?}
-\pepijn{Do we really have to? This paper is specifically aimed at
-  people who know Agda (who else would benefit from it?) and |Fin| is
-  about the first thing you learn how to write, your average user's Hello World.}
-
+Or the following abstract syntax tree for the addition $x + 1$.
+\begin{code}
+Suc′ : Prolog 1
+Suc′ = con Add (var (# 1) ∷ con One ∷ [])
+\end{code}
 We shall refrain from further discussion of the unification algorithm itself.
 Instead, we restrict ourself to presenting the interface that we will use:
 \begin{code}
-  unify : (t₁ t₂ : Term m) → Maybe (∃ n → Subst m n)
+  unify  : (t₁ t₂ : PrologTerm m)
+         → Maybe (∃ (Subst m))
 \end{code}
-\pepijn{to be fair, we don't actually use this
-  definition... ever... it's all just once usage of the unifyAcc
-  function, so?}
+\pepijn{In all fairness, I never use |unify|, only |unifyAcc|... but I
+do feel we should present it as |unify| defined by |unifyAcc|, don't you?}
 The |unify| function takes two terms $t_1$ and $t_2$ and computes the most general
 unifier, that is, a substition that takes terms with at most $m$ free
 variables to terms with at most $n$.
@@ -352,9 +336,11 @@ This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
 follows, we will sometimes use the following, more general, function:
 \begin{code}
-  unifyAcc : (t₁ t₂ : Term m) →
-    ∃ (Subst m) → Maybe (∃ (Subst m))
+  unifyAcc  : (t₁ t₂ : PrologTerm m) (acc: ∃ (Subst m))
+            → Maybe (∃ (Subst m))
 \end{code}
+
+
 
 Next we define Prolog rules as records containing a rulename\footnote{
   RuleName is left abstract in our implementation of Prolog, though
@@ -364,7 +350,6 @@ Next we define Prolog rules as records containing a rulename\footnote{
 premises and conclusion---and again the data type is quantified over
 the number of variables used by its constituents. Note that variables
 are shared between the premises and conclusion.
-
 \begin{code}
   record Rule (n : ℕ) : Set where
     field
@@ -372,19 +357,15 @@ are shared between the premises and conclusion.
       conclusion  : PrologTerm n
       premises    : List (PrologTerm n)
 \end{code}
-
 Using our newly defined |Rule| we can give a simple encoding of, for
 instance, addition. In Prolog, this would be written as follows.
-
 \begin{lstlisting}[language=Prolog]
   add(0, x, x).
   add(x, y, z) :- add(suc(x), y, suc(z)).
 \end{lstlisting}
-
 Unfortunately, the named equivalents in our Agda implementation are a
 bit more verbose. Note that we have, for the sake of this example,
-instantiated the abstract |RuleName| with the |String| type.
-
+instantiated the abstract |RuleName| to the |String| type.
 \begin{code}
 AddBase : Rule 1
 AddBase = record {
@@ -395,8 +376,7 @@ AddBase = record {
                          ∷ [])
   premises    = []
   }
-\end{code}
-
+\end{code}%
 \begin{code}
 AddStep : Rule 3
 AddStep = record {
@@ -412,11 +392,10 @@ AddStep = record {
                  ∷ []
   }
 \end{code}
-
 Lastly, before we can implement some form of proof search, we are
 going to need to define a pair of auxiliary functions. During proof
 resolution, we will need to work with terms and rules containing a
-different number of variable. We will use the following pair of
+different number of variables. We will use the following pair of
 functions, |inject| and |raise|, to weaken bound variables, that is,
 map values of type |Fin n| to some larger finite type.
 \begin{code}
@@ -425,8 +404,8 @@ map values of type |Fin n| to some larger finite type.
   inject n (suc i)  = suc (inject n i)
 
   raise : ∀ m {n} → Fin n → Fin (m + n)
-  raise  zero   i  = i
-  raise (suc m) i  = suc (raise m i)
+  raise  zero    i  = i
+  raise (suc m)  i  = suc (raise m i)
 \end{code}
 We have tried to visualize the behaviour of |inject| and |raise|,
 embedding |Fin 3| into |Fin (3 + 1)| in Figure~\ref{fig:fins}. On the
@@ -477,7 +456,6 @@ type |Fin (m + n)| by repeatedly applying the |suc| constructor.
   function (b) embedding |Fin 3| in |Fin (3 + 1)|}
   \label{fig:fins}
 \end{figure}
-
 Using |inject| and |raise| as defined to work on finite sets, we can
 define similar functions that work on our |Rule| and |Term| data
 types.
@@ -514,8 +492,8 @@ abstract search space.
 In the above definition, |m| will denote the number of variables in
 the goal; $\delta$ will denote the number of space that is needed for
 rule application; and |n| will denote the number of variables
-remaining after substitution. In fact, this naming is consistent, and
-will also apply to further definitions.
+remaining after substitution. This naming will be used consistently,
+and will also apply to later definitions.
 
 The |done| constructor can then be read as returning a ``substitution
 over terms with at least |m| free variables, which results a term with
@@ -530,19 +508,21 @@ rule furthers the search.
 We then define a function |solve| that will be in charge of building
 up an instance of |SearchSpace| from a goal, with the following
 signature.
-
 \pepijn{The following code will not actually compile, since we need to
-rewrite with a proof that $(x + 0) = x$; but this definition is clearer.}
-
+rewrite with a proof that $(x + 0) = x$; but this definition is
+clearer.}
+\footnote{
+  |Goal| is an alias for the |PrologTerm| data type, to emphasise that
+  it is a goal.
+}
 \begin{code}
-  solve : ∀ {m} → (goal : Term m) → SearchSpace m
+  solve : ∀ {m} → Goal m → SearchSpace m
   solve {m} g = solveAcc {m} {0} (just (m , nil)) (g ∷ [])
 \end{code}
-
 The |solve| function is once again defined by an helper function with
-an accumulating parameter, this time accumulating partial
-substitutions while attempting to solve a list of (sub)goals.
-
+an accumulating parameter, which does the interesting work. This time
+we will accumulate partial substitutions while attempting to solve a
+list of sub-goals.
 \begin{code}
   solveAcc  : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n))
             → List (Goal (m + δ₁)) → SearchSpace m
@@ -550,16 +530,14 @@ substitutions while attempting to solve a list of (sub)goals.
   solveAcc {m} {δ₁}  nothing         _         = loop
   solveAcc {m} {δ₁}  (just (n , s))  (g ∷ gs)  = step next
 \end{code}
-
 If we have solved all sub-goals, we can simply return our
 accumulating parameter, wrapped in a |done|.
 
-However, if at any point the chosen rule is not unifiable with the
-current sub-goal, the search space will resort to just looping. We will
-see this below.
-
+However, if at any point the chosen rule in the previous step was not
+unifiable with the first sub-goal (and thus the accumulating parameter
+has become |nothing|), the search space will resort to looping.
 \begin{code}
-  loop : ∀ {m} → SearchSpace m
+  loop : SearchSpace m
   loop = step (λ _ → ~ loop)
 \end{code}
 
@@ -567,7 +545,28 @@ And last, but not least, the interesting case. If we still have goals
 to solve, and have not yet failed, we must recursively construct a new
 |SearchSpace| (note that |next| is defined within the scope of
 |solveAcc|).
+\begin{code}
+  next : ∃ Rule → ∞ (SearchSpace m)
+  next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm′ ++ gs′)
+    where
+      mgu   : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
+      mgu   = unifyAcc g′ cnc′ s′
+        where
+          g′    : PrologTerm (m + (δ₁ + δ₂))
+          g′    = injectTerm δ₂ g
 
+          s′    : ∃ (Subst (m + (δ₁ + δ₂)))
+          s′    = n + δ₂ , injectSubst δ₂ s
+
+          cnc′  : PrologTerm (m + (δ₁ + δ₂))
+          cnc′  = raiseTerm (m + δ₁) (conclusion r)
+
+      gs′   : List (PrologTerm (m + (δ₁ + δ₂)))
+      gs′   = injectTermList δ₂ gs
+
+      prm′  : List (PrologTerm (m + (δ₁ + δ₂)))
+      prm′  = raiseTermList (m + δ₁) (premises r)
+\end{code}
 For a given rule |r|, we compute the most general unifier of the
 conclusion of |r| and our first sub-goal, prepend |r|'s premises to
 the list of sub-goals, and continue our search from there.
@@ -598,69 +597,48 @@ is added to $\delta_1$ (the amount of space that had to be made for
 previous rule applications). This means that the amount of space to be
 made will grow throughout the proof search.
 
-\begin{code}
-  next : ∃ Rule → ∞ (SearchSpace m)
-  next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm′ ++ gs′)
-    where
-      mgu   : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
-      mgu   = unifyAcc g′ cnc′ s′
-        where
-          g′    : Term (m + (δ₁ + δ₂))
-          g′    = injectTerm δ₂ g
 
-          s′    : ∃ (Subst (m + (δ₁ + δ₂)))
-          s′    = n + δ₂ , injectSubst δ₂ s
-
-          cnc′  : Term (m + (δ₁ + δ₂))
-          cnc′  = raiseTerm (m + δ₁) (conclusion r)
-
-      gs′   : List (Term (m + (δ₁ + δ₂)))
-      gs′   = injectTermList δ₂ gs
-
-      prm′  : List (Term (m + (δ₁ + δ₂)))
-      prm′  = raiseTermList (m + δ₁) (premises r)
-\end{code}
 
 \subsubsection*{Constructing search trees}
 
 The second step in our proof search implementation is to transform the
-|SearchSpace| we have just constructed into an N-ary search tree. We
-do this by branching once for every rule, at every |step| constructor.
-In addition to this, we maintain a trace of the used rules.
-
-The result is expressed in terms of the following data type.
-
+|SearchSpace| we have just constructed into an N-ary tree. We do this
+by branching once for every rule, at every |step| constructor.
+The result of this transformation shall be expressed in terms of the
+following data type.
 \begin{code}
 data SearchTree (A : Set) : Set where
   fail  : SearchTree A
   retn  : A → SearchTree A
   fork  : ∞ (List (SearchTree A)) → SearchTree A
 \end{code}
-
-Where in our case, the type |A| becomes a tuple containing the
-substitution that was our previous result, together a list of
-rules. In order to keep the code readable, let us introduce the
-following alias.
-
+In our case, the type |A| becomes a tuple containing the substitution
+that was our previous result, together with a trace that keeps track
+of all the applied tules. In order to keep the code readable, let us
+introduce the following alias.\footnote{
+  |Rules| is an alias for a list of existentially quantified rules
+  |List (∃ Rule)|.
+}
 \begin{code}
-  Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
+  Result m  = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
 \end{code}
 
 The function that takes care of the transformation is almost
 trivial. For a given set of rules, we simply traverse the
 |SearchSpace| structure, where at every |step| we apply the
-continuation to every rule.
-
+continuation to every rule. However, since we also wish to maintain a
+rule trace, we shall define this transformation using an
+\pepijn{Did we mention that we'd use implicit universal quantification
+  yet? Because I am slowly moving towards this notation.}
 \begin{code}
-mkTree : ∀ {m} → Rules → SearchSpace m → SearchTree (Result m)
+mkTree : Rules → SearchSpace m → SearchTree (Result m)
 mkTree rs₀ s = mkTreeAcc rs₀ s []
 \end{code}
-
 The |mkTree| function is defined using an helper with an accumulating
 parameter, which keeps track of the applied rules.
 
 \begin{code}
-mkTreeAcc : ∀ {m} → Rules → SearchSpace m → Rules → SearchTree (Result m)
+mkTreeAcc : Rules → SearchSpace m → Rules → SearchTree (Result m)
 mkTreeAcc rs₀ (done s)  ap  = retn (s , ap)
 mkTreeAcc rs₀ (step f)  ap  =
   fork (~ map (λ r → mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) rs₀)
@@ -672,7 +650,7 @@ depth-first search (shown below) or breadth-first search (not shown,
 but implemented).
 
 \begin{code}
-  dfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
+  dfs : (depth : ℕ) → SearchTree A → List A
   dfs  zero    _          = []
   dfs (suc k)  fail       = []
   dfs (suc k)  (retn x)   = return x
@@ -685,15 +663,12 @@ constructs the |SearchSpace|, converts it to a |SearchTree|, and
 searches this tree (in this case using |dfs|) up to depth |d|.
 
 \begin{code}
-searchToDepth : ∀ {m} → ℕ → Rules → Goal m → List (Result m)
+searchToDepth :
+  ∀ {m} → ℕ → Rules → Goal m → List (Result m)
 searchToDepth depth rules goal =
   dfs depth (mkTree rules (solve goal))
 \end{code}
 
-\pepijn{I have never introduced the goal type... and somewhere above I
-use (goal : Term m), but I think that using Goal is less
-verbose... though maybe somewhat less clear... I can also just go for
-using Term... any thoughts?}
 
 
 \section{Constructing proof trees}
@@ -701,22 +676,21 @@ using Term... any thoughts?}
 
 In the previous section we have discussed the implementation of proof
 search, returning a substitution which, when applied to the goal, will
-provide the user with a variable-free term \pepijn{shoul probably
-  change or remove this bit}.
+provide the user with a variable-free term \pepijn{should probably
+change or remove this bit}.
 
 Another piece of information which was returned by the proof search
 was a trace of the applied rules. In the following section we will
-discuss using this information to reconstruct the proof terms. That
-is, we will construct terms of the following type. That is, the type
-of closed terms.
-
+discuss using this information to reconstruct a proof term. That
+is, we will construct terms of the following type, the type of closed
+terms.
 \begin{code}
 data ProofTerm : Set where
   con : RuleName → List ProofTerm → ProofTerm
 \end{code}
-
-Since we know the arities of the rules, the algorithm for
-reconstructing these terms is simple.
+Since we know the arity of every rules (as we can simply count the
+number of premises), the algorithm for reconstructing these terms is
+simple.
 
 We start from the back of the trace. Our invariant is that the trace
 corresponds to a valid proof, and thus we know that the last rule
@@ -761,9 +735,279 @@ toProofTerm rs with toProofTerms rs
 \end{code}
 
 
+
 \section{Adding reflection}
 \label{sec:reflection}
 
+What remains is to give a pair of functions |to| and |from| which can
+convert from |Reflection|'s |Term| data type to our first-order
+|PrologTerm| data type and vice versa.
+
+The first thing we will need if we are to provide such functions are
+two concrete definitions for the |TermName| and |RuleName| data types.
+It would be desirable to identify both types with Agda's |Name| type,
+but unfortunately the Agda does not assign a name to the function
+symbol $\_\!\!\to\!\!\_$, nor does it assign names to
+variables. Therefore we will define two name data types, which handle
+these cases.
+
+Note that the |pvar| constructor has nothing to do with |PrologTerm|'s
+|var| constructor; it is not used to construct a variable, but to use
+an Agda variable as a Prolog constant. Its index $i$ is used in a
+similar manner to Prolog variables, where two variables with the same
+index are considered to have the same referent.
+\begin{code}
+data TermName : Set where
+  pname  : (n : Name) → TermName
+  pvar   : (i : ℕ) → TermName
+  pimpl  : TermName
+\end{code}
+Conversely, the |rvar| constructor is used to be able to use Agda
+variables as rules. Therefore, its index $i$ is used as a de Bruijn
+index---its value can be used directly as an argument to |var| in
+Agda's |Term| data type.
+\begin{code}
+data RuleName : Set where
+  rname  : (n : Name) → RuleName
+  rvar   : (i : ℕ) → RuleName
+\end{code}
+Last, we need one more auxiliary function, which we call |match|. This
+function implements the intuition that if we have two data structures
+limited to $m$ and $n$ variables, respectively, we should be able to
+encode either with at most $m ⊔ n$ variables.
+
+Below we present the reader with a sketch of the implementation of
+|match| for finite sets.\todo{As to the |compare| function, the stdlib
+mentions it is taken from "View from the left" by McBride \&
+McKinna. Maybe we should turn this into an actual reference?}
+\begin{code}
+match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
+match i j with compare m n
+match i j | less     .m k  = (inject (suc k) i , j)  -- n ≡ suc (m + k)
+match i j | equal    .m    = (i , j)                 -- n ≡ m
+match i j | greater  .n k  = (i , inject (suc k) j)  -- m ≡ suc (n + k)
+\end{code}
+Using this function we define the derived functions |matchTerms|,
+which matches two terms, and |matchTermAndList|, which matches a term
+to a list of terms.
+
+
+
+\subsection*{Constructing terms}
+
+An overview of the term conversion algorithm is as follows:
+\begin{itemize}
+\item %
+  the algorithm traverses the abstract syntax tree, keeping track of
+  how many function types have been passed, i.e.\ it keeps track of the
+  current depth w.r.t.\ used de Bruijn indices;
+\item %
+  variables are converted using a customisable |fromVar| function,
+  which is allowed to use the current depth;
+\item %
+  applications of definitions and constructors are converted using a
+  customisable |fromDef| function;
+\item %
+  all function symbols $\_\!\!\to\!\!\_$ are converted to constant
+  applications of the |pimpl| symbol, and for visible arguments the
+  traversal of the right sub-tree continues with an increased depth;
+\item %
+  any other term (i.e.\ higher-order variables, lambda abstractions,
+  instances of |unknown|) trigger an |unsupportedSyntax| error.
+\end{itemize}
+A sketch of the conversion function is presented below. Note that for
+the combination of two sub-terms, we first ensure that their domains
+match.
+\begin{code}
+fromTerm : ℕ → Term → Error (∃ PrologTerm)
+fromTerm d (var i [])    = fromVar d i
+fromTerm d (con c args)  = fromDef c ⟨$⟩ fromArgs d args
+fromTerm d (def f args)  = fromDef f ⟨$⟩ fromArgs d args
+fromTerm d (pi (arg visible _ (el _ t₁)) (el _ t₂))
+  with fromTerm d t₁ | fromTerm (suc d) t₂
+... | left msg         | _         = left msg
+... | _                | left msg  = left msg
+... | right (n₁ , p₁)  | right (n₂ , p₂)
+  with matchTerms p₁ p₂
+... | (p₁′ , p₂′) = right (n₁ ⊔ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
+fromTerm d (pi (arg _ _ _) (el _ t₂)) = fromTerm (suc d) t₂
+fromTerm _ _  = left unsupportedSyntax
+\end{code}
+The |fromArgs| function converts a list of |Term| arguments to a list
+of Prolog terms, by stripping the |arg| constructor and recursively
+applying the |fromTerm| function. Note that it filters non-visible
+arguments.
+\begin{code}
+fromArgs : ℕ → List (Arg Term) → Error (∃ (List ∘ PrologTerm))
+fromArgs d [] = right (0 , [])
+fromArgs d (arg visible _ t ∷ ts) with fromTerm d t | fromArgs d ts
+... | left msg       | _              = left msg
+... | _              | left msg       = left msg
+... | right (m , p)  | right (n , ps) with matchTermAndList p ps
+... | (p′ , ps′)                      = right (m ⊔ n , p′ ∷ ps′)
+fromArgs d (arg _ _ _ ∷ ts)           = fromArgs d ts
+\end{code}
+Next, the |fromDef| function simply constructs a first-order constant.
+\begin{code}
+fromDef : Name → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
+fromDef f (n , ts) = n , con (pname f) ts
+\end{code}
+Last, the |fromVar| function converts de Bruijn variables from the
+abstract syntax tree to Prolog style named variables. It does this by
+taking the difference between the current depth and the index as the
+variable name.
+\begin{code}
+fromVar : ℕ → ℕ → Error (∃ PrologTerm)
+fromVar d i with compare d i
+... | less     _ k  = left indexOutOfBounds
+... | equal    _    = right (1     , var zero
+... | greater  _ k  = right (suc k , var (fromℕ k))
+\end{code}
+Putting it all together, we are left with simple function that sends
+Agda |Terms|s to |PrologTerm|s.
+\begin{code}
+toPrologTerm : Term → PrologTerm
+toPrologTerm = fromTerm 0
+\end{code}
+
+
+
+\subsection*{Constructing rules}
+
+Our next goal is to construct rules; or, more specifically, to convert
+the quoted |Name|'s we would like to keep in our hint databases to
+useful Prolog rules.
+For this we will need to define two auxiliary functions. The first,
+|fromName|, converts an Agda |Name| to a |PrologTerm|. It does this by
+requesting the corresponding |Type|, stripping the outermost
+constructor |el|, and converting the resutling Agda |Term|.
+\begin{code}
+fromName : Name → Error (∃ PrologTerm)
+fromName = toPrologTerm ∘ unel ∘ type
+\end{code}
+The second takes a |PrologTerm| and splits it at every outermost
+occurrence of the function symbol |pimpl|. Note that it would be
+possible to define this function directly on Agda's |Term| data type,
+but defining it on the |PrologTerm| data type gives a much cleaner
+definition.
+\begin{code}
+splitTerm : PrologTerm n → List (PrologTerm n)
+splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
+splitTerm t = t ∷ []
+\end{code}
+Using these auxiliary functions, we can now trivially construct rules
+from names. We convert the |Name| to a |PrologTerm|, split it, take
+the last element as the rule's conclusion, and the initial list as its
+premises.
+\begin{code}
+toRule : Name → Error (∃ Rule)
+toRule name with fromName name
+... | left msg       = left msg
+... | right (n , t)  = toRule′ (n , splitTerm t)
+  where
+    toRule′ : ∃ (List ∘ PrologTerm) → Error (∃ Rule)
+    toRule′ (n , xs) with initLast xs
+    toRule′ (n , ._)  | []        = left panic!
+    toRule′ (n , ._)  | xs ∷ʳ' x  = right (n , rule (rname name) x xs)
+\end{code}
+
+\todo{mention existence and usage of the |rule| constructor.}
+
+\pepijn{Should we mention alternatives for rule construction?
+  Generating all possible partial applications; generating the rules
+  only as an atomic rule |(fromName n) :- .| and adding function application
+  and composition?}
+
+\subsection*{Constructing goals}
+
+The construction of goal terms differs slightly from the construction
+of Prolog terms. To see why, imagine we would use the above function
+for converting goal types as well as hints.
+
+\todo{add example where treatment of variables fucks things up}
+
+Therefore, we will need a slightly different treatment of variables in
+goal types. The conversion algorithm is similar to the implementation
+of |fromTerm| above, but one mayor difference is in the |fromVar|
+function.
+\begin{code}
+fromVar′ : ℕ → ℕ → Error (∃ PrologTerm)
+fromVar′  d i with compare d i
+... | less    _ k = left indexOutOfBounds
+... | equal   _   = right (0 , con (pvar 0) [])
+... | greater _ k = right (0 , con (pvar k) [])
+\end{code}
+Using a definition of |fromTerm| which uses the definition of
+|fromVar′| as just given, we can define a conversion function which
+constructs goal terms.
+\begin{code}
+toGoal : Term → Error (∃ PrologTerm × Rules)
+toGoal with fromTerm′ 0
+... | left msg = left msg
+... | right (n , p) with reverse (splitTerm p)
+... | []       = left panic!
+... | (t ∷ ts) = right ((n , t) , toRules 0 ts)
+  where
+    toRules : ℕ → List (PrologTerm n) → Rules
+    toRules d [] = []
+    toRules d (t ∷ ts) = (n , rule (rvar d) t []) ∷ toRules (suc d) ts
+\end{code}
+
+
+
+\subsection*{Reification of proof terms}
+
+\begin{code}
+fromProofTerm : ProofTerm → Term
+fromProofTerm (con (rvar i) ps) = var i []
+fromProofTerm (con (rname n) ps) with definition n
+... | function x    = def n ∘ toArg ∘ fromProofTerm ⟨$⟩ ps
+... | constructor′  = con n ∘ toArg ∘ fromProofTerm ⟨$⟩ ps
+... | _             = unknown
+  where
+   toArg = arg visible relevant
+\end{code}
+
+
+
+\subsection*{Putting it all together}
+
+\begin{code}
+intros : Term → Term
+intros = introsAcc (length args)
+  where
+    introsAcc : ℕ → Term → Term
+    introsAcc  zero   t = t
+    introsAcc (suc k) t = lam visible (introsAcc k t)
+\end{code}
+
+\begin{code}
+HintDB : Set
+HintDB = List (∃ Rule)
+
+hintdb : List Name → HintDB
+hintdb = concatMap (fromError ∘ toRule)
+  where
+    fromError : Error A → List A
+    fromError = fromEither (const []) [_]
+\end{code}
+
+\todo{mention utility function |quoteMsg| which returns the AST of a
+  message}
+
+\begin{code}
+auto : ℕ → HintDB → Term → Term
+auto depth rules goalType
+  with toGoal goalType
+... | left msg = quoteMsg msg
+... | right ((n , g) , args)
+  with searchToDepth depth (args ++ rules) g
+... | [] = quoteMsg searchSpaceExhausted
+... | (_ , trace) ∷ _
+  with toProofTerm trace
+... | nothing = quoteMsg panic!
+... | just p  = intros (fromProofTerm p)
+\end{code}
 
 \section{Extended example}
 \label{sec:example}
@@ -789,19 +1033,14 @@ Future work: auto rewrite; setoid rewrite; proof combinators.
 limitations of using recursion in hint data base
 
 Cf Agsy
-
-
-
-Combining hint data bases (\pepijn{It's called ``concatenation'', use
-  $\_\plus\_$ :)})
-
+Combining hint data bases (use $\_\plus\_$ :)
 Debugging failed auto attempts, or other examples from
 \url{http://adam.chlipala.net/cpdt/html/LogicProg.html}
 
 We cannot `insert goals' in the term produced by a call to auto. This
 could be useful if you want to allow a tactic to return an unfinished
 proof. Or can we? \pepijn{Nope? I'm afraid I still don't understand
-the concept of |auto| generating existentials (or |iauto|?).}
+the concept of |auto| generating existentials (or |iauto|).}
 
 Work with \emph{typed} term language. This is a hard problem.
 
