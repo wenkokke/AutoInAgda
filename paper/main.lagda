@@ -254,7 +254,7 @@ Of course, such invocations of the |auto| function may fail. What
 happens if no proof exists? For example, trying to prove |Even n →
 Even (n + 3)| in this style gives the following error:
 \begin{verbatim}
-  Err searchSpaceExhausted !=<
+  Exception searchSpaceExhausted !=<
     Even .n -> Even (.n + 3) of type Set
 \end{verbatim}
 When no proof can be found, the |auto| function generates a dummy
@@ -277,7 +277,7 @@ the reflection mechanism and suitably invoked in the definition of the
 |auto| function. The code in this section is contained in its own Agda
 module, parameterized by two sets:
 
-> module Prolog 
+> module Prolog
 >    (TermName : Set) (RuleName : Set) where
 
 \subsection*{Terms and Rules}
@@ -291,7 +291,7 @@ the following definition of terms:
 \begin{code}
 data PrologTerm (n : ℕ) : Set where
   var  : Fin n → PrologTerm n
-  con  : TermName → List (PrologTerm n) 
+  con  : TermName → List (PrologTerm n)
          → PrologTerm n
 \end{code}
 In addition to variables, we will encode first-order constants as a
@@ -494,7 +494,7 @@ abstract search space.
 \begin{code}
   data SearchSpace (m : ℕ) : Set where
     done  : Subst (m + δ) n → SearchSpace m
-    step  : (∃ Rule → ∞ (SearchSpace m)) 
+    step  : (∃ Rule → ∞ (SearchSpace m))
           → SearchSpace m
 \end{code}
 Ignoring the indices for the moment, the |SearchSpace| type has two
@@ -539,7 +539,7 @@ substitution and a list of goals that only contains the initial goal
 |g|. The |resolveAcc| function will attempt to resolve a list of
 sub-goals, accumulating a substitution along the way:
 \begin{code}
-  resolveAcc  : ∀ {m δ : ℕ} 
+  resolveAcc  : ∀ {m δ : ℕ}
     → Maybe (∃ (λ n → Subst (m + δ) n))
     → List (Goal (m + δ)) → SearchSpace m
   resolveAcc (just (n , subst))  []              = done subst
@@ -558,7 +558,7 @@ computes the remainder of the |SearchSpace| after trying to apply a
 given rule:
 \begin{code}
   next : ∃ Rule → ∞ (SearchSpace m)
-  next (δ' , rule) = 
+  next (δ' , rule) =
     ~ resolveAcc mgu (newGoals ++ oldGoals)
     where
       mgu   : Maybe (∃ (λ n → Subst (m + (δ + δ')) n))
@@ -757,9 +757,9 @@ toProofTerm rs with toProofTerms rs
 \section{Adding reflection}
 \label{sec:reflection}
 
-What remains is to give a pair of functions |to| and |from| which can
-convert from |Reflection|'s |Term| data type to our first-order
-|PrologTerm| data type and vice versa.
+What remains is to give a pair of functions which can convert from
+|Reflection|'s |Term| data type to our first-order |PrologTerm| data
+type and vice versa.
 
 The first thing we will need if we are to provide such functions are
 two concrete definitions for the |TermName| and |RuleName| data types.
@@ -908,8 +908,8 @@ fromName = toPrologTerm ∘ unel ∘ type
 The second takes a |PrologTerm| and splits it at every outermost
 occurrence of the function symbol |pimpl|. Note that it would be
 possible to define this function directly on Agda's |Term| data type,
-but defining it on the |PrologTerm| data type gives a much cleaner
-definition.
+but defining it on the |PrologTerm| data type is much cleaner, as all
+unsupported syntax will already have been stripped.
 \begin{code}
 splitTerm : PrologTerm n → List (PrologTerm n)
 splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
@@ -941,34 +941,51 @@ toRule name with fromName name
 \subsection*{Constructing goals}
 
 The construction of goal terms differs slightly from the construction
-of Prolog terms. To see why, imagine we would use the above function
-for converting goal types as well as hints.
+of Prolog terms. The reason for this is as follows: if we are given a
+goal-type |(n : ℕ) → Even n|, it is much easier to search for a proof
+of |Even n| given a premise |n : ℕ|, then to search for an inhabitant
+of the function-type. \pepijn{Why is this? Something with having to
+add function application and composition to the |HintDB|?}
 
-\todo{add example where treatment of variables fucks things up}
+Because of this, we will split the goal-type into two parts. The first
+part is the result-type, which will be used as the goal for proof
+search. The second part is a list of parameters, which will be
+used as premises in the proof search.
 
-Therefore, we will need a slightly different treatment of variables in
-goal types. The conversion algorithm is similar to the implementation
-of |fromTerm| above, but one mayor difference is in the |fromVar|
-function.
+Our approach constructs goal terms and premises as follows.
+\begin{itemize}
+\item %
+  convert the goal-type to a |PrologTerm| using (a modifier version
+  of) the |fromTerm| function;
+\item %
+  split the resulting |PrologTerm| at every top-level occurrence of
+  the function symbol |pimpl|;
+\item %
+  return the goal parameters (i.e.\ the |init|) as premises, and the
+  result-type (i.e.\ the |last| element) as the actual goal.
+\end{code}
+
+\begin{code}
+toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
+toGoalAndPremises with fromTerm′ 0
+... | left msg = left msg
+... | right (n , p) with reverse (splitTerm p)
+... | []       = left panic!
+... | (t ∷ ts) = right ((n , t) , toPremises 0 ts)
+\end{code}
+
+\begin{code}
+toPremises : ℕ → List (PrologTerm n) → Rules
+toPremises d [] = []
+toPremises d (t ∷ ts) = (n , rule (rvar d) t []) ∷ toPremises (suc d) ts
+\end{code}
+
 \begin{code}
 fromVar′ : ℕ → ℕ → Error (∃ PrologTerm)
 fromVar′  d i with compare d i
 ... | less    _ k = left indexOutOfBounds
 ... | equal   _   = right (0 , con (pvar 0) [])
 ... | greater _ k = right (0 , con (pvar k) [])
-\end{code}
-
-\begin{code}
-toGoal : Term → Error (∃ PrologTerm × Rules)
-toGoal with fromTerm′ 0
-... | left msg = left msg
-... | right (n , p) with reverse (splitTerm p)
-... | []       = left panic!
-... | (t ∷ ts) = right ((n , t) , toRules 0 ts)
-  where
-    toRules : ℕ → List (PrologTerm n) → Rules
-    toRules d [] = []
-    toRules d (t ∷ ts) = (n , rule (rvar d) t []) ∷ toRules (suc d) ts
 \end{code}
 
 

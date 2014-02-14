@@ -167,8 +167,8 @@ module Prolog
   loop : ∀ {m} → SearchSpace m
   loop = step (λ _ → ~ loop)
 
-  solve : ∀ {m} → Goal m → SearchSpace m
-  solve {m} g = solveAcc {m} {0} (just (m , s₀)) (g₀ ∷ [])
+  resolve : ∀ {m} → Goal m → SearchSpace m
+  resolve {m} g = resolveAcc {m} {0} (just (m , s₀)) (g₀ ∷ [])
     where
 
     -- small proofs that the initial domain (with room for m goal variables and
@@ -178,13 +178,13 @@ module Prolog
     g₀ : Goal (m + 0)
     g₀ rewrite proj₂ +-identity m = g
 
-    solveAcc : ∀ {m δ} → Maybe (∃ (λ n → Subst (m + δ) n)) → List (Goal (m + δ)) → SearchSpace m
-    solveAcc {m} {δ} nothing _ = loop
-    solveAcc {m} {δ} (just (n , s)) [] = done s
-    solveAcc {m} {δ} (just (n , s)) (g ∷ gs) = step next
+    resolveAcc : ∀ {m δ} → Maybe (∃ (λ n → Subst (m + δ) n)) → List (Goal (m + δ)) → SearchSpace m
+    resolveAcc {m} {δ} nothing _ = loop
+    resolveAcc {m} {δ} (just (n , s)) [] = done s
+    resolveAcc {m} {δ} (just (n , s)) (g ∷ gs) = step next
       where
         next : ∃ Rule → ∞ (SearchSpace m)
-        next (δ₂ , rule name cnc prm) = ~ solveAcc mgu (prm' ++ gs')
+        next (δ₂ , rule name cnc prm) = ~ resolveAcc mgu (prm' ++ gs')
           where
             lem : (m + (δ + δ₂)) ≡ ((m + δ) + δ₂)
             lem = sym (+-assoc m δ δ₂)
@@ -203,7 +203,7 @@ module Prolog
                 cnc' : Term (m + (δ + δ₂))
                 cnc' rewrite lem = raiseTerm (m + δ) cnc
 
-            -- lift arguments for the recursive call to solve into the new finite domain,
+            -- lift arguments for the recursive call to resolve into the new finite domain,
             -- making room for the variables used in the chosen rule.
             gs'  : List (Term (m + (δ + δ₂)))
             gs'  rewrite lem = injectTermList δ₂ gs
@@ -230,7 +230,7 @@ module Prolog
     mkTree rs₀ s = mkTreeAcc rs₀ s []
 
     mkTreeAcc : ∀ {m} → Rules → SearchSpace m → Rules → SearchTree (Result m)
-    mkTreeAcc {_} rs₀ (done s) ap = retn ((_ , (_ , s)) , ap) 
+    mkTreeAcc {_} rs₀ (done s) ap = retn ((_ , (_ , s)) , ap)
     mkTreeAcc {m} rs₀ (step f) ap = fork (~ mkTreeAccChildren rs₀)
       where
         -- when written with a simple `map`, termination checker complains
@@ -262,7 +262,7 @@ module Prolog
       bfsAcc (suc k) (fork xs) = [] ∷ foldr merge empty (map (bfsAcc k) (! xs))
 
   searchToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (Result m)
-  searchToDepth {m} depth rules goal = dfs depth (mkTree rules (solve goal))
+  searchToDepth {m} depth rules goal = dfs depth (mkTree rules (resolve goal))
 
   -- while we should be able to guarantee that the terms after substitution
   -- contain no variables (and all free variables in the domain occur because
