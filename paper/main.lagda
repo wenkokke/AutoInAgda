@@ -795,7 +795,9 @@ limited to $m$ and $n$ variables, respectively, we should be able to
 encode either with at most $m ⊔ n$ variables.
 
 Below we present the reader with a sketch of the implementation of
-|match| for finite sets.\todo{As to the |compare| function, the stdlib
+|match| for finite sets based on the implementation of |compare| as
+described in \citet{compare}.
+\todo{As to the |compare| function, the stdlib
 mentions it is taken from "View from the left" by McBride \&
 McKinna. Maybe we should turn this into an actual reference?}
 \begin{code}
@@ -955,9 +957,7 @@ fromVar′  d i with compare d i
 ... | equal   _   = right (0 , con (pvar 0) [])
 ... | greater _ k = right (0 , con (pvar k) [])
 \end{code}
-Using a definition of |fromTerm| which uses the definition of
-|fromVar′| as just given, we can define a conversion function which
-constructs goal terms.
+
 \begin{code}
 toGoal : Term → Error (∃ PrologTerm × Rules)
 toGoal with fromTerm′ 0
@@ -1037,6 +1037,8 @@ auto depth rules goalType
 
 \section{Discussion}
 \label{sec:discussion}
+
+\todo{Mention the first-orderness of our implementation of |auto|.}
 
 \pepijn{One ``problem'' with our current implementation of proof
   search is that, while we encode the maximum number of variables used
