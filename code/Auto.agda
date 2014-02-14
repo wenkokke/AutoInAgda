@@ -170,34 +170,34 @@ module Auto where
     ... | (p′ , ps′)                      = right (m ⊔ n , p′ ∷ ps′)
     fromArgs dict d (arg _ _ _ ∷ ts) = fromArgs dict d ts
 
-  convTerm : Term → Error (∃ PrologTerm)
-  convTerm t = fromTerm CaseTerm 0 t
+  toTerm : Term → Error (∃ PrologTerm)
+  toTerm t = fromTerm CaseTerm 0 t
 
-  convGoal : Term → Error (∃ PrologTerm × Rules)
-  convGoal t with fromTerm CaseGoal 0 t
+  toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
+  toGoalAndPremises t with fromTerm CaseGoal 0 t
   ... | left msg = left msg
   ... | right (n , p) with reverse (splitTerm p)
   ... | []       = left panic!
-  ... | (g ∷ rs) = right ((n , g) , mkArgs 0 rs)
+  ... | (g ∷ rs) = right ((n , g) , toPremises 0 rs)
     where
-      mkArgs : ℕ → List (PrologTerm n) → Rules
-      mkArgs i [] = []
-      mkArgs i (t ∷ ts) = (n , rule (rvar i) t []) ∷ mkArgs (suc i) ts
+      toPremises : ℕ → List (PrologTerm n) → Rules
+      toPremises i [] = []
+      toPremises i (t ∷ ts) = (n , rule (rvar i) t []) ∷ toPremises (suc i) ts
 
   -- converts an agda term into a list of terms by splitting at each function
   -- symbol; note the order: the last element of the list will always be the
   -- conclusion of the funciton with the rest of the elements being the premises.
 
-  -- convTerm′ : Term → Error (∃ (List ∘ PrologTerm))
-  -- convTerm′ t with convTerm t
-  -- convTerm′ t | left msg      = left msg
-  -- convTerm′ t | right (n , p) = right (n , splitTerm p)
+  -- toTerm′ : Term → Error (∃ (List ∘ PrologTerm))
+  -- toTerm′ t with toTerm t
+  -- toTerm′ t | left msg      = left msg
+  -- toTerm′ t | right (n , p) = right (n , splitTerm p)
 
   -- We're interested in the rules formed by our types, so we will create a
   -- term by checking the type associated with a name and then removing the
   -- type constructor `el`.
   fromName : Name → Error (∃ PrologTerm)
-  fromName = convTerm ∘ unel ∘ type
+  fromName = toTerm ∘ unel ∘ type
 
   -- name2rule:
   --   converts names into a single rule, where the function type for the name
@@ -261,7 +261,7 @@ module Auto where
 
   auto : ℕ → HintDB → Term → Term
   auto depth rules type
-    with convGoal type
+    with toGoalAndPremises type
   ... | left msg = quoteMsg msg
   ... | right ((n , g) , args)
     with searchToDepth depth (args ++ rules) g
