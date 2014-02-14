@@ -1,4 +1,4 @@
-\documentclass[preprint]{sigplanconf}
+\documentclass[preprint,draft]{sigplanconf}
 
 %include agda.fmt
 %include main.fmt
@@ -7,6 +7,7 @@
 \begin{document}
 
 \conferenceinfo{ICFP'14} {September 1--3, 2014, G\"oteborg, Sweden}
+\titlebanner{Under preparation for ICFP 2014}
 
 \title{Auto in Agda}
 \subtitle{Programming proof search}
@@ -80,20 +81,12 @@ this paper makes the following novel contributions:
   finally, \emph{unquote} the resulting proof term, thereby proving
   the desired lemma.
 \item %
-  \wouter{Example? Can we use our proof search to find out why a proof
-  is not being found automatically?} \pepijn{I don't see how you would
-  envision this---all we can say is ``No, all combinations of up to $d$
-  of your hints fail to produce anything meaningful''---which, I suppose
-  is not what you're after.}\wouter{I mean: add a 'debugging' mode to the
-  auto function, giving some trace information about the search. This can
-  help figure out that we are missing a certain lemma -- this is harder to
-  see in Coq using auto. See the debug trace described here
-  \url{http://adam.chlipala.net/cpdt/html/LogicProg.html}}
-  \pepijn{Hmm. Dat moet te doen zijn. Lijkt me wel iets wat buiten de
-    scope van dit project valt, voor nu. Het zal in ieder geval wat
-    werk zijn.}\wouter{Laten we ons eerst richten op dit paper schrijven;
-    mochten we tijd over hebben, kunnen we altijd naar dit soort dingen
-    kijken.}
+  Finally, we show how we can use our proof search together with
+  Agda's \emph{instance arguments}~\cite{instance-args} to implement
+  lightweight type classes in Agda
+  (Section~\ref{sec:type-classes}). This resolves one of the major
+  restrictions of instance arguments: the lack of recursively search
+  procedure for their construction.
 \end{itemize}
 
 All the code described in this paper is freely available from
@@ -102,7 +95,7 @@ GitHub\footnote{
 }. It is important to emphasize that all our code
 is written in the safe fragment of Agda: it does not depend on any
 postulates or foreign functions; all definitions pass Agda's
-termination checker; all metavariables are solved.
+termination checker; and all metavariables are resolved.
 
 
 \section{Motivation}
@@ -134,12 +127,12 @@ that defines an abstract syntax tree for Agda terms. There are several
 language constructs for quoting and unquoting program fragments. The simplest
 example of the reflection mechanism is the quotation of a single
 term. In the definition of |idTerm| below, we quote the identity
-function on Boolean values:
+function on Boolean values.
 \begin{code}
   idTerm : Term
   idTerm = quoteTerm (\ (x : Bool) -> x)
 \end{code}
-When evaluated, the term |idTerm| yields the following value:
+When evaluated, the |idTerm| yields the following value:
 \begin{code}
   lam visible (var 0 [])
 \end{code}
@@ -215,16 +208,17 @@ instead, we need to rewrite our proof. Proof automation can make
 propositions more robust against such changes.
 
 Coq's proof search tactics, such as |auto|, can be customized with a
-\emph{hint database}, containing useful lemmas. Proving the |simple|
-lemma above using such tactics result in proofs that are more robust
-against reformulation and refactoring. In contrast to the construction
-of explicit proof terms, Slight changes to the theorem statement need
-not break the proof. This paper shows how to implement such an |auto|
-tactic in Agda.
+\emph{hint database}, containing a collection of lemmas. In our
+example, |auto| would be able to prove the |simple| lemma, provided it
+the hint database contains at least the constructors of the |Even|
+data type and the |even+| lemma.
+The resulting proof is robust against reformulation and refactoring. In
+contrast to the construction of explicit proof terms, changes to the
+theorem statement need not break the proof. This paper shows how to
+implement such a tactic similar to |auto| in Agda.
 
 Before we can use our |auto| function, we need to construct a hint
-database, containing our |even+| lemma and the constructors of the
-|Even| predicate:
+database:
 \begin{code}
   hints : HintDB
   hints = hintdb
@@ -260,10 +254,11 @@ Even (n + 3)| in this style gives the following error:
     Even .n -> Even (.n + 3) of type Set
 \end{verbatim}
 When no proof can be found, the |auto| function generates a dummy
-term, whose type explains that the search space has been
-exhausted. Unquoting this term, then gives the type error message
-above. It is up to the programmer to fix this, either by providing a
-manual proof or diagnosing why no proof could be found.
+term, whose type explains the reason why the search has failed. In
+this example, the search space has been exhausted. Unquoting this
+term, then gives the type error message above. It is up to the
+programmer to fix this, either by providing a manual proof or
+diagnosing why no proof could be found.
 
 The remainder of this paper will explain how this |auto| function is
 implemented.
@@ -285,6 +280,8 @@ addition to variables, we will encode first-order constants as a
 }
 
 \begin{code}
+module Prolog (TermName : Set) (RuleName : Set) where
+
 data PrologTerm (n : ℕ) : Set where
   var  : Fin n → PrologTerm n
   con  : TermName → List (PrologTerm n) → PrologTerm n
@@ -293,59 +290,59 @@ data PrologTerm (n : ℕ) : Set where
 strings instead of a custom datatype? Or should we fear that some
 readers will come away from reading the papers thinking we use
 strings to encode every name? (We probably do, actually... since
-Agda names are probably Haskell strings internally.)}
+Agda names are probably Haskell strings internally.)}\wouter{I'd just 
+write the module header, stating that the prolog interpreter module 
+abstracts over the exact TermNames}
 Using this term data type, we can represent first-order terms with a
-finite set of variables. For instance, using the following small set
-of names, we can encode numbers and simple arithmetic expressions.
+finite set of variables. For instance, if we choose to instantiate the |TermName|
+with the following data type, we can encode numbers and simple arithmetic expressions.
 \begin{code}
 data TermName : Set where
   Suc   : TermName
   Zero  : TermName
   Add   : TermName
 \end{code}
-Such as the below variable-free encoding of the number one.
+For instance, the closed term corresponding to the number one could be written as follows:
 \begin{code}
-One : Prolog 0
+One : PrologTerm 0
 One = con Suc (con Zero ∷ [])
 \end{code}
-Or the following abstract syntax tree for the addition $x + 1$.
+Similarly, we can use the |var| constructor to represent open terms, such as |x + 1|:
 \begin{code}
-Suc′ : Prolog 1
-Suc′ = con Add (var (# 1) ∷ con One ∷ [])
+AddOne : PrologTerm 1
+AddOne = con Add (var (# 0) ∷ con One ∷ [])
 \end{code}
+\wouter{Hekjes uitlegen?}
 We shall refrain from further discussion of the unification algorithm itself.
 Instead, we restrict ourself to presenting the interface that we will use:
 \begin{code}
-  unify  : (t₁ t₂ : PrologTerm m)
-         → Maybe (∃ (Subst m))
+  unify  : (t₁ t₂ : PrologTerm m) → Maybe (∃ (Subst m))
 \end{code}
-\pepijn{In all fairness, I never use |unify|, only |unifyAcc|... but I
-do feel we should present it as |unify| defined by |unifyAcc|, don't you?}
+% \pepijn{In all fairness, I never use |unify|, only |unifyAcc|... but I
+% do feel we should present it as |unify| defined by |unifyAcc|, don't you?}\wouter{Prima}
 The |unify| function takes two terms $t_1$ and $t_2$ and computes the most general
 unifier, that is, a substition that takes terms with at most $m$ free
-variables to terms with at most $n$.
+variables to terms with at most $n$. \wouter{Hier wel even uitleggen wat de existentiele quantor doet}
 
-\wouter{Do we want to define |Subst|? Or does this  suffice?}
-\pepijn{As far as I've thought about it, we should not discuss
-  elements from McBride's paper that we do not explicitly use. Since
-  we can be sure everyone understands how substitution workds, the
-  exact encoding does not matter; the only thing that does is that we
-  mention that subtitutions remove variables, and thus lower in indices.}
-
+% \wouter{Do we want to define |Subst|? Or does this  suffice?}
+% \pepijn{As far as I've thought about it, we should not discuss
+%   elements from McBride's paper that we do not explicitly use. Since
+%   we can be sure everyone understands how substitution workds, the
+%   exact encoding does not matter; the only thing that does is that we
+%   mention that subtitutions remove variables, and thus lower in indices.}
+% \wouter{Prima}
 This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
 follows, we will sometimes use the following, more general, function:
 \begin{code}
-  unifyAcc  : (t₁ t₂ : PrologTerm m) (acc: ∃ (Subst m))
-            → Maybe (∃ (Subst m))
+  unifyAcc  : (t₁ t₂ : PrologTerm m) ->
+            ∃ (Subst m) → Maybe (∃ (Subst m))
 \end{code}
-
-
 
 Next we define Prolog rules as records containing a rulename\footnote{
   RuleName is left abstract in our implementation of Prolog, though
   our implementation of the |auto| tactic will identify it with a
-  concrete type.
+  concrete type. \wouter{Door de module header toe te voegen kan deze footnote weg}
 } and terms for its
 premises and conclusion---and again the data type is quantified over
 the number of variables used by its constituents. Note that variables
@@ -456,73 +453,75 @@ type |Fin (m + n)| by repeatedly applying the |suc| constructor.
   function (b) embedding |Fin 3| in |Fin (3 + 1)|}
   \label{fig:fins}
 \end{figure}
-Using |inject| and |raise| as defined to work on finite sets, we can
-define similar functions that work on our |Rule| and |Term| data
-types.
-
-
+We can use these |inject| and |raise| to define similar functions
+that work on our |Rule| and |Term| data types, by mapping them over
+all the variables that they contain.
 
 \subsection{Proof search}
 
 Our implementation of proof search is divided up into two steps.
 In the first step we set up an abstract representation of the search
-space in which we implement the basic machinery of sequential rule
-application.
-In the second step we transform this abstract representation into a
-concrete search tree by branching over a set of rules.
+space in which we try to apply the various rules one by one, trying
+to resolve our goal.
+In the second step we transform this abstract representation to a
+concrete search tree that branches over a set of rules.
 
-The reason we have chosen to separate these two steps is that it
-neatly separates the machinery for proof search (be it breath-first
-search, depth-first search or some heuristic-driven algorithm) from
-the machinery for unification.
-
-Below we wil discuss both steps in turn.
+By separating our resolution into these two phases, we keep the nitty
+gritty details involved with unification and weakening used in the
+first phase separate from the actual proof search. By doing so, we can
+implement various search strategies, such as breadth-first search,
+depth-first search or an heuristic-driven algorithm, by simply
+traversing the search tree in a different order.
 
 \subsubsection*{Setting up the search space}
 
-First off, let us discuss the data type that we will use to model the
+We start by defining the following type synonym to distinguish goals
+from regular Prolog terms:
+\begin{code}
+  Goal : ℕ → Set
+  Goal n = Term n
+\end{code}
+
+Next we define the data type that we will use to model the
 abstract search space.
 
 \begin{code}
   data SearchSpace (m : ℕ) : Set where
-    done  : (∃₂ δ n → Subst (m + δ) n) → SearchSpace m
+    done  : Subst (m + δ) n → SearchSpace m
     step  : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
 \end{code}
+Ignoring the indices for the moment, thet |SearchSpace| type has two
+constructors: |done| and |step|. In the first case, we have found a
+substitution that resolves the goal we are trying to prove. In the
+|step| constructor, we have not yet resolved the goal, and instead
+need to choose a |Rule| to apply, before we continue searching. As
+this search need not terminate, the |SearchSpace| resulting from
+applying a rule are marked as coinductive.
 
-In the above definition, |m| will denote the number of variables in
-the goal; $\delta$ will denote the number of space that is needed for
-rule application; and |n| will denote the number of variables
-remaining after substitution. This naming will be used consistently,
-and will also apply to later definitions.
-
-The |done| constructor can then be read as returning a ``substitution
-over terms with at least |m| free variables, which results a term with
-|n| free variables when applied.''
-
-The |step| constructor is what makes the representation abstract; it
-provides a function that, when given any rule, will tell you how that
-rule furthers the search.
+Now let us turn our attention to the indices. The variable 
+|m| denotes the number of variables in
+the goal; $\delta$ denotes the number of fresh variables necessary
+to apply a rule; and |n| will denote the number of variables
+remaining after we have resolved the goal. This naming will be used consistently
+in subsequent definitions. 
 
 \pepijn{Shall we use standard ``musical'' notation for coinductives?}
+\wouter{I really dislike it. But it is kind of standard. Hmm.}
 
-We then define a function |solve| that will be in charge of building
-up an instance of |SearchSpace| from a goal, with the following
-signature.
+Next, we define a function |solve| that will be in charge of building
+up a value of type |SearchSpace| from an initial goal:
 \pepijn{The following code will not actually compile, since we need to
 rewrite with a proof that $(x + 0) = x$; but this definition is
 clearer.}
-\footnote{
-  |Goal| is an alias for the |PrologTerm| data type, to emphasise that
-  it is a goal.
-}
 \begin{code}
-  solve : ∀ {m} → Goal m → SearchSpace m
-  solve {m} g = solveAcc {m} {0} (just (m , nil)) (g ∷ [])
+  solve : Goal m → SearchSpace m
+  solve g = solveAcc (just (m , nil)) [ g ]
 \end{code}
-The |solve| function is once again defined by an helper function with
-an accumulating parameter, which does the interesting work. This time
-we will accumulate partial substitutions while attempting to solve a
-list of sub-goals.
+The |solve| function is once again defined by calling an auxiliary
+function that uses an accumulating parameter. It starts with an empty
+substitution and a list of goals containing the single goal |g|. This
+time we will accumulate partial substitutions while attempting to
+solve a list of sub-goals.
 \begin{code}
   solveAcc  : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n))
             → List (Goal (m + δ₁)) → SearchSpace m
@@ -530,8 +529,8 @@ list of sub-goals.
   solveAcc {m} {δ₁}  nothing         _         = loop
   solveAcc {m} {δ₁}  (just (n , s))  (g ∷ gs)  = step next
 \end{code}
-If we have solved all sub-goals, we can simply return our
-accumulating parameter, wrapped in a |done|.
+If we have no remaining goals, we can use the |done| constructor to
+return the substitution we have accumulated so far.
 
 However, if at any point the chosen rule in the previous step was not
 unifiable with the first sub-goal (and thus the accumulating parameter
@@ -540,11 +539,17 @@ has become |nothing|), the search space will resort to looping.
   loop : SearchSpace m
   loop = step (λ _ → ~ loop)
 \end{code}
+\wouter{Is dit niet een beetje lelijk? Kunnen we dan niet beter een
+  Fail toevoegen aan de search space?}
 
+
+\wouter{Moeten we nog ergens zeggen waar de Rules vandaan komen?}
+
+\wouter{Ik zal dit stukje misschien nog eens proberen op te schonen}
 And last, but not least, the interesting case. If we still have goals
-to solve, and have not yet failed, we must recursively construct a new
-|SearchSpace| (note that |next| is defined within the scope of
-|solveAcc|).
+to solve, we must recursively construct a new
+|SearchSpace|. To do so, we use the |step| constructor and try to apply every
+rule:
 \begin{code}
   next : ∃ Rule → ∞ (SearchSpace m)
   next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm′ ++ gs′)
@@ -597,8 +602,6 @@ is added to $\delta_1$ (the amount of space that had to be made for
 previous rule applications). This means that the amount of space to be
 made will grow throughout the proof search.
 
-
-
 \subsubsection*{Constructing search trees}
 
 The second step in our proof search implementation is to transform the
@@ -629,7 +632,7 @@ trivial. For a given set of rules, we simply traverse the
 continuation to every rule. However, since we also wish to maintain a
 rule trace, we shall define this transformation using an
 \pepijn{Did we mention that we'd use implicit universal quantification
-  yet? Because I am slowly moving towards this notation.}
+  yet? Because I am slowly moving towards this notation.}\wouter{No, we should do so much earlier - beginning of section 3 or so. We should also adapt all code to follow the same convention.}
 \begin{code}
 mkTree : Rules → SearchSpace m → SearchTree (Result m)
 mkTree rs₀ s = mkTreeAcc rs₀ s []
@@ -1012,8 +1015,8 @@ auto depth rules goalType
 ... | just p  = intros (fromProofTerm p)
 \end{code}
 
-\section{Extended example}
-\label{sec:example}
+\section{Type classes}
+\label{sec:type-classes}
 
 \todo{Give a bigger example of debugging/automated proving}
 
