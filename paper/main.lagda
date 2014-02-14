@@ -643,8 +643,6 @@ trivial. For a given set of rules, we simply traverse the
 |SearchSpace| structure, where at every |step| we apply the
 continuation to every rule. However, since we also wish to maintain a
 rule trace, we shall define this transformation using an
-\pepijn{Did we mention that we'd use implicit universal quantification
-  yet? Because I am slowly moving towards this notation.}\wouter{No, we should do so much earlier - beginning of section 3 or so. We should also adapt all code to follow the same convention.}
 \begin{code}
 mkTree : Rules → SearchSpace m → SearchTree (Result m)
 mkTree rs₀ s = mkTreeAcc rs₀ s []
@@ -1070,6 +1068,9 @@ Work with \emph{typed} term language. This is a hard problem.
 Compare with Mtac.
 
 Cite Devriese paper.
+
+\todo{Make sure that we use implicit universal quantification all the
+  way through.}
 
 \bibliographystyle{plainnat}
 \bibliography{main}
