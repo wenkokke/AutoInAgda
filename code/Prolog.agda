@@ -178,37 +178,37 @@ module Prolog
     g₀ : Goal (m + 0)
     g₀ rewrite proj₂ +-identity m = g
 
-    solveAcc : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n)) → List (Goal (m + δ₁)) → SearchSpace m
-    solveAcc {m} {δ₁} nothing _ = loop
-    solveAcc {m} {δ₁} (just (n , s)) [] = done s
-    solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next
+    solveAcc : ∀ {m δ} → Maybe (∃ (λ n → Subst (m + δ) n)) → List (Goal (m + δ)) → SearchSpace m
+    solveAcc {m} {δ} nothing _ = loop
+    solveAcc {m} {δ} (just (n , s)) [] = done s
+    solveAcc {m} {δ} (just (n , s)) (g ∷ gs) = step next
       where
         next : ∃ Rule → ∞ (SearchSpace m)
-        next (δ₂ , rule name cnc prm) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm' ++ gs')
+        next (δ₂ , rule name cnc prm) = ~ solveAcc mgu (prm' ++ gs')
           where
-            lem : (m + (δ₁ + δ₂)) ≡ ((m + δ₁) + δ₂)
-            lem = sym (+-assoc m δ₁ δ₂)
+            lem : (m + (δ + δ₂)) ≡ ((m + δ) + δ₂)
+            lem = sym (+-assoc m δ δ₂)
 
             -- compute an mgu for the current sub-goal and the chosen rule
-            mgu : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
+            mgu : Maybe (∃ (λ n → Subst (m + (δ + δ₂)) n))
             mgu = unifyAcc g' cnc' s'
               where
 
                 -- lift arguments for unify into the new finite domain, making room for
                 -- the variables used in the chosen rule.
-                g'   : Term (m + (δ₁ + δ₂))
+                g'   : Term (m + (δ + δ₂))
                 g'   rewrite lem = injectTerm δ₂ g
-                s'   : ∃ (Subst (m + (δ₁ + δ₂)))
+                s'   : ∃ (Subst (m + (δ + δ₂)))
                 s'   rewrite lem = n + δ₂ , injectSubst δ₂ s
-                cnc' : Term (m + (δ₁ + δ₂))
-                cnc' rewrite lem = raiseTerm (m + δ₁) cnc
+                cnc' : Term (m + (δ + δ₂))
+                cnc' rewrite lem = raiseTerm (m + δ) cnc
 
             -- lift arguments for the recursive call to solve into the new finite domain,
             -- making room for the variables used in the chosen rule.
-            gs'  : List (Term (m + (δ₁ + δ₂)))
+            gs'  : List (Term (m + (δ + δ₂)))
             gs'  rewrite lem = injectTermList δ₂ gs
-            prm' : List (Term (m + (δ₁ + δ₂)))
-            prm' rewrite lem = raiseTermList (m + δ₁) prm
+            prm' : List (Term (m + (δ + δ₂)))
+            prm' rewrite lem = raiseTermList (m + δ) prm
 
   -- Concrete Search Tree
   --
