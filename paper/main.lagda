@@ -467,19 +467,18 @@ all the variables that they contain.
 
 \subsection{Proof search}
 
-Our implementation of proof search is divided up into two steps.
-In the first step we set up an abstract representation of the search
-space in which we try to apply the various rules one by one, trying
-to resolve our goal.
-In the second step we transform this abstract representation to a
-concrete search tree that branches over a set of rules.
+Our implementation of proof search is split into two steps.  In the
+first step we set up an higher-order representation of the search
+space, where we branch over some collection of undetermined rules at
+every step. In the second step we flatten this abstract representation
+to a concrete first-order search tree.
 
-By separating our resolution into these two phases, we keep the nitty
+The distinction between these two phases keeps the nitty
 gritty details involved with unification and weakening used in the
 first phase separate from the actual proof search. By doing so, we can
 implement various search strategies, such as breadth-first search,
 depth-first search or an heuristic-driven algorithm, by simply
-traversing the search tree in a different order.
+traversing the final search tree in a different order.
 
 \subsubsection*{Setting up the search space}
 
@@ -492,110 +491,115 @@ from regular Prolog terms:
 
 Next we define the data type that we will use to model the
 abstract search space.
-
 \begin{code}
   data SearchSpace (m : ℕ) : Set where
     done  : Subst (m + δ) n → SearchSpace m
-    step  : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
+    step  : (∃ Rule → ∞ (SearchSpace m)) 
+          → SearchSpace m
 \end{code}
-Ignoring the indices for the moment, thet |SearchSpace| type has two
+Ignoring the indices for the moment, the |SearchSpace| type has two
 constructors: |done| and |step|. In the first case, we have found a
 substitution that resolves the goal we are trying to prove. In the
 |step| constructor, we have not yet resolved the goal, and instead
-need to choose a |Rule| to apply, before we continue searching. As
-this search need not terminate, the |SearchSpace| resulting from
-applying a rule are marked as coinductive.
+have a choice of which |Rule| to apply. Note that we do not specify
+\emph{which} rules may be used; only how the choice of \emph{any} rule
+determines the remainder of the search. As a search need not
+terminate, the |SearchSpace| resulting from applying a rule are marked
+as coinductive.
 
-Now let us turn our attention to the indices. The variable 
-|m| denotes the number of variables in
-the goal; $\delta$ denotes the number of fresh variables necessary
-to apply a rule; and |n| will denote the number of variables
-remaining after we have resolved the goal. This naming will be used consistently
-in subsequent definitions. 
+Now let us turn our attention to the indices. The variable |m| denotes
+the number of variables in the goal; |δ| denotes the number of fresh
+variables necessary to apply a rule; and |n| will denote the number of
+variables remaining after we have resolved the goal. This naming will
+be used consistently in subsequent definitions.
 
-\pepijn{Shall we use standard ``musical'' notation for coinductives?}
-\wouter{I really dislike it. But it is kind of standard. Hmm.}
-
-Next, we define a function |solve| that will be in charge of building
-up a value of type |SearchSpace| from an initial goal:
-\pepijn{The following code will not actually compile, since we need to
-rewrite with a proof that $(x + 0) = x$; but this definition is
-clearer.}
+We can define a trivial |SearchSpace| that fails to return a
+substitution:
 \begin{code}
-  solve : Goal m → SearchSpace m
-  solve g = solveAcc (just (m , nil)) [ g ]
-\end{code}
-The |solve| function is once again defined by calling an auxiliary
-function that uses an accumulating parameter. It starts with an empty
-substitution and a list of goals containing the single goal |g|. This
-time we will accumulate partial substitutions while attempting to
-solve a list of sub-goals.
-\begin{code}
-  solveAcc  : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n))
-            → List (Goal (m + δ₁)) → SearchSpace m
-  solveAcc {m} {δ₁}  (just (n , s))  []        = done (δ₁ , n , s)
-  solveAcc {m} {δ₁}  nothing         _         = loop
-  solveAcc {m} {δ₁}  (just (n , s))  (g ∷ gs)  = step next
-\end{code}
-If we have no remaining goals, we can use the |done| constructor to
-return the substitution we have accumulated so far.
-
-However, if at any point the chosen rule in the previous step was not
-unifiable with the first sub-goal (and thus the accumulating parameter
-has become |nothing|), the search space will resort to looping.
-\begin{code}
-  loop : SearchSpace m
-  loop = step (λ _ → ~ loop)
+  fail : SearchSpace m
+  fail = step (λ _ → ~ fail)
 \end{code}
 \wouter{Is dit niet een beetje lelijk? Kunnen we dan niet beter een
   Fail toevoegen aan de search space?}
+Note that we rename Agda's notation for coinduction to more closely
+resemble notation already familiar to Haskell programmers. Coinductive
+suspensions are created with the prefix operator |~| rather than |♯|;
+such suspensions can be forced using a bang, |!|, rather than the
+usual |♭|.
 
-
-\wouter{Moeten we nog ergens zeggen waar de Rules vandaan komen?}
-
-\wouter{Ik zal dit stukje misschien nog eens proberen op te schonen}
-And last, but not least, the interesting case. If we still have goals
-to solve, we must recursively construct a new
-|SearchSpace|. To do so, we use the |step| constructor and try to apply every
-rule:
+We can now define a function |resolve| that will be in charge of building
+up a value of type |SearchSpace| from an initial goal:
+\begin{code}
+  resolve : ∀ {m} -> Goal m → SearchSpace m
+  resolve {m} g = resolveAcc (just (m , nil)) [ g ]
+\end{code}
+The |resolve| function is once again defined by calling an auxiliary
+function defined using an accumulating parameter. It starts with an empty
+substitution and a list of goals that only contains the initial goal
+|g|. The |resolveAcc| function will attempt to resolve a list of
+sub-goals, accumulating a substitution along the way:
+\begin{code}
+  resolveAcc  : ∀ {m δ : ℕ} 
+    → Maybe (∃ (λ n → Subst (m + δ) n))
+    → List (Goal (m + δ)) → SearchSpace m
+  resolveAcc (just (n , subst))  []              = done subst
+  resolveAcc nothing         _                   = fail
+  resolveAcc (just (n , subst))  (goal ∷ goals)  = step next
+\end{code}
+If we have no remaining goals, we can use the |done| constructor to
+return the substitution we have accumulated so far. If at any point,
+however, the conclusion of the chosen rule was not unifiable with the
+next open subgoal---and thus the accumulating parameter has become
+|nothing|---the search will fail. The only interesting case is the
+third one. If there are remaining goals to resolve, we recursively
+construct a new |SearchSpace|. To do so, we use the |step| constructor
+and branch over the choice of rule. The |next| function defined below
+computes the remainder of the |SearchSpace| after trying to apply a
+given rule:
 \begin{code}
   next : ∃ Rule → ∞ (SearchSpace m)
-  next (δ₂ , r) = ~ solveAcc {m} {δ₁ + δ₂} mgu (prm′ ++ gs′)
+  next (δ' , rule) = 
+    ~ resolveAcc mgu (newGoals ++ oldGoals)
     where
-      mgu   : Maybe (∃ (λ n → Subst (m + (δ₁ + δ₂)) n))
-      mgu   = unifyAcc g′ cnc′ s′
+      mgu   : Maybe (∃ (λ n → Subst (m + (δ + δ')) n))
+      mgu   = unifyAcc goal' concl' subst'
         where
-          g′    : PrologTerm (m + (δ₁ + δ₂))
-          g′    = injectTerm δ₂ g
+          goal'    : PrologTerm (m + (δ + δ'))
+          goal'    = injectTerm δ' goal
 
-          s′    : ∃ (Subst (m + (δ₁ + δ₂)))
-          s′    = n + δ₂ , injectSubst δ₂ s
+          subst'    : ∃ (Subst (m + (δ + δ')))
+          subst'    = n + δ' , injectSubst δ' subst
 
-          cnc′  : PrologTerm (m + (δ₁ + δ₂))
-          cnc′  = raiseTerm (m + δ₁) (conclusion r)
+          concl'  : PrologTerm (m + (δ + δ'))
+          concl'  = raiseTerm (m + δ) (conclusion rule)
 
-      gs′   : List (PrologTerm (m + (δ₁ + δ₂)))
-      gs′   = injectTermList δ₂ gs
+      oldGoals   : List (PrologTerm (m + (δ + δ')))
+      oldGoals   = injectTermList δ' goals
 
-      prm′  : List (PrologTerm (m + (δ₁ + δ₂)))
-      prm′  = raiseTermList (m + δ₁) (premises r)
+      newGoals  : List (PrologTerm (m + (δ + δ')))
+      newGoals  = raiseTermList (m + δ) (premises rule)
 \end{code}
-For a given rule |r|, we compute the most general unifier of the
-conclusion of |r| and our first sub-goal, prepend |r|'s premises to
-the list of sub-goals, and continue our search from there.
+For the moment, try to ignore the various calls to |raise| and
+|inject|.  Given the |rule| that we must be applied, the |next|
+function computes most general unifier of the conclusion of |rule| and
+our current |goal|. The resulting substitution is passed to
+|resolveAcc|, which continues the construction of the
+|SearchSpace|. The premises of the |rule| are added to the list of
+open goals that must be resolved. The apparent complexity of the
+|next| function comes from the careful treatment of variables.
 
-There are a few details to note here.
-First of all, note that we pass any existing substitutions to
-|unifyAcc| as its accumulating parameter. This ensures that they are
-applied before computing any new unifiers, and that they are passed on
-to the resulting modifier.
+First of all, note that we pass the substitution accumulated so far to
+|unifyAcc|. This ensures that this substitution is applied to the two
+terms being unified.
 
-Next, there is the problem of variables. We can only unify two terms
-that are built up over the same set of variables. Therefore we must
-ensure that the goal, the rule's conclusion and its premises share a
-common set of variables.
-However, if we want the resulting substitution to have any meaning, we
-would like the variables used in the initial goal term to remain the
+\wouter{Tot hier ben ik zo'n beetje.}
+
+Next, there is the problem of avoiding variable capture. We can only
+unify two terms that are built up over the same set of
+variables. Therefore we must ensure that the goal, the rule's
+conclusion and its premises share a common set of variables.  However,
+if we want the resulting substitution to have any meaning, we would
+like the variables used in the initial goal term to remain the
 same. This is where |inject| and |raise| come in.
 
 Recall that injecting a variable into a larger set would keep its
@@ -655,6 +659,9 @@ mkTreeAcc rs₀ (step f)  ap  =
   fork (~ map (λ r → mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) rs₀)
 \end{code}
 
+\wouter{Hier een voorbeeld waar je speelt met het wel/niet mogen
+  toepassen van bepaalde regels}
+
 After the transformation, we are left with a simple tree structure,
 for which we can define simple traversal strategies, such as
 depth-first search (shown below) or breadth-first search (not shown,
@@ -677,7 +684,7 @@ searches this tree (in this case using |dfs|) up to depth |d|.
 searchToDepth :
   ∀ {m} → ℕ → Rules → Goal m → List (Result m)
 searchToDepth depth rules goal =
-  dfs depth (mkTree rules (solve goal))
+  dfs depth (mkTree rules (resolve goal))
 \end{code}
 
 
