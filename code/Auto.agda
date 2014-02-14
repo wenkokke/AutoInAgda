@@ -1,8 +1,9 @@
+open import Level using (Level) renaming (suc to lsuc; zero to lzero)
 open import Function using (_$_; _∘_; id; flip; const)
-open import Category.Monad
+open import Category.Applicative
 open import Data.Bool using (Bool; true; false)
-open import Data.Fin as Fin using (Fin; suc; zero)
-open import Data.Nat as Nat using (ℕ; suc; zero; _+_; compare; less; equal; greater) renaming (_⊔_ to max)
+open import Data.Fin as Fin using (Fin; suc; zero; #_)
+open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _⊔_; compare; less; equal; greater)
 open import Data.Nat.Show renaming (show to showℕ)
 open import Data.List as List
 open import Data.Vec as Vec using (Vec; []; _∷_)
@@ -19,25 +20,27 @@ module Auto where
 
   -- open up the classes we'll be using
   private
-    open RawMonad {{...}}
+    open RawApplicative {{...}} renaming (_⊛_ to _⟨*⟩_; _<$>_ to _⟨$⟩_)
     open DecSetoid {{...}} using (_≟_)
-    MonadMaybe     = Maybe.monad
-    MonadList      = List.monad
-    ApplicativeVec = Vec.applicative
     NameDecSetoid  = PropEq.decSetoid decEqName
     NatDecSetoid   = PropEq.decSetoid Nat._≟_
 
-  data Msg : Set where
-    searchSpaceExhausted : Msg
-    indexOutOfBounds     : Msg
-    unsupportedSyntax    : Term → Msg
-    panic!               : Msg
+  data Message : Set where
+    searchSpaceExhausted : Message
+    indexOutOfBounds     : Message
+    unsupportedSyntax    : Message
+    panic!               : Message
 
-  data Err : Msg → Set where
-    err : (msg : Msg) → Err msg
+  Error : ∀ {a} (A : Set a) → Set a
+  Error A = Either Message A
 
-  Error : ∀ A → Set
-  Error A = Either Msg A
+  AppError : ∀ {f} → RawApplicative (Error {a = f})
+  AppError = record { pure = right ; _⊛_ = _⊛_ }
+    where
+    _⊛_ : ∀ {a b} {A : Set a} {B : Set b} → Error (A → B) → Error A → Error B
+    left  m ⊛ _        = left m
+    right f ⊛ left  m  = left m
+    right f ⊛ right x  = right (f x)
 
   -- Agda Names & Prolog Names
   --
@@ -114,70 +117,64 @@ module Auto where
 
   record Case : Set where
     field
-      forVar : ℕ → ℕ → Error (∃  PrologTerm)
-      forCon : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
-      forDef : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
+      fromVar : ℕ → ℕ → Error (∃  PrologTerm)
+      fromCon : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
+      fromDef : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
 
   CaseTerm : Case
-  CaseTerm = record { forVar = convVar ; forCon = convDef ; forDef = convDef  }
+  CaseTerm = record { fromVar = fromVar ; fromCon = convDef ; fromDef = convDef  }
     where
-      convVar : ℕ → ℕ → Error (∃ PrologTerm)
-      convVar  d i with compare d i
-      convVar  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
-      convVar .i i              | equal   .i   = right (1     , var (Fin.fromℕ 0))
-      convVar .(suc (i + k)) i  | greater .i k = right (suc k , var (Fin.fromℕ k))
+      fromVar : ℕ → ℕ → Error (∃ PrologTerm)
+      fromVar  d i with compare d i
+      fromVar  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
+      fromVar .i i              | equal   .i   = right (1     , var zero)
+      fromVar .(suc (i + k)) i  | greater .i k = right (suc k , var (Fin.fromℕ k))
 
   CaseGoal : Case
-  CaseGoal = record { forVar = convPar ; forCon = convDef ; forDef = convDef }
+  CaseGoal = record { fromVar = fromVar′ ; fromCon = convDef ; fromDef = convDef }
     where
-      convPar : ℕ → ℕ → Error (∃ PrologTerm)
-      convPar  d i with compare d i
-      convPar  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
-      convPar .i i              | equal   .i   = right (0 , con (pvar 0) [])
-      convPar .(suc (i + k)) i  | greater .i k = right (0 , con (pvar k) [])
+      fromVar′ : ℕ → ℕ → Error (∃ PrologTerm)
+      fromVar′  d i with compare d i
+      fromVar′  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
+      fromVar′ .i i              | equal   .i   = right (0 , con (pvar 0) [])
+      fromVar′ .(suc (i + k)) i  | greater .i k = right (0 , con (pvar k) [])
 
   splitTerm : ∀ {n} → PrologTerm n → List (PrologTerm n)
   splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
   splitTerm t = List.[ t ]
 
   mutual
-    convAcc : Case → ℕ → Term → Error (∃ PrologTerm)
-    convAcc dict d (var i [])   = Case.forVar dict d i
-    convAcc dict d (var i args) = left (unsupportedSyntax (var i args))
-    convAcc dict d (con c args) with convArgsAcc dict d args
-    ... | left msg = left msg
-    ... | right xs = right (Case.forCon dict c xs)
-    convAcc dict d (def f args) with convArgsAcc dict d args
-    ... | left msg = left msg
-    ... | right xs = right (Case.forDef dict f xs)
-    convAcc dict d (pi (arg visible _ (el _ t₁)) (el _ t₂))
-      with convAcc dict d t₁ | convAcc dict (suc d) t₂
+    fromTerm : Case → ℕ → Term → Error (∃ PrologTerm)
+    fromTerm dict d (var i [])   = Case.fromVar dict d i
+    fromTerm dict d (var i args) = left unsupportedSyntax
+    fromTerm dict d (con c args) = Case.fromCon dict c ⟨$⟩ fromArgs dict d args
+    fromTerm dict d (def f args) = Case.fromDef dict f ⟨$⟩ fromArgs dict d args
+    fromTerm dict d (pi (arg visible _ (el _ t₁)) (el _ t₂))
+      with fromTerm dict d t₁ | fromTerm dict (suc d) t₂
     ... | left msg | _        = left msg
     ... | _        | left msg = left msg
     ... | right (n₁ , p₁) | right (n₂ , p₂)
       with matchTerms p₁ p₂
-    ... | (p₁′ , p₂′) = right (max n₁ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
-    convAcc dict d (pi (arg _ _ _) (el _ t₂)) = convAcc dict (suc d) t₂
-    convAcc dict d (lam v t) = left (unsupportedSyntax (lam v t))
-    convAcc dict d (sort x)  = left (unsupportedSyntax (sort x))
-    convAcc dict d unknown   = left (unsupportedSyntax (unknown))
+    ... | (p₁′ , p₂′) = right (n₁ ⊔ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
+    fromTerm dict d (pi (arg _ _ _) (el _ t₂)) = fromTerm dict (suc d) t₂
+    fromTerm dict d (lam v t) = left unsupportedSyntax
+    fromTerm dict d (sort x)  = left unsupportedSyntax
+    fromTerm dict d unknown   = left unsupportedSyntax
 
-    convArgsAcc : Case → ℕ → List (Arg Term) → Error (∃ (λ n → List (PrologTerm n)))
-    convArgsAcc dict d [] = right (0 , [])
-    convArgsAcc dict d (arg visible _ t ∷ ts) with convArgsAcc dict d ts
-    convArgsAcc dict d (arg visible r t ∷ ts) | left msg = left msg
-    convArgsAcc dict d (arg visible r t ∷ ts) | right _ with convAcc dict d t
-    convArgsAcc dict d (arg visible r t ∷ ts) | right _ | left msg = left msg
-    convArgsAcc dict d (arg visible r t ∷ ts) | right (n₂ , ps) | right (n₁ , p)
-      with matchTermAndList p ps
-    ... | (p′ , ps′) = right (max n₁ n₂ , p′ ∷ ps′)
-    convArgsAcc dict d (arg _ _ _ ∷ ts) = convArgsAcc dict d ts
+    fromArgs : Case → ℕ → List (Arg Term) → Error (∃ (λ n → List (PrologTerm n)))
+    fromArgs dict d [] = right (0 , [])
+    fromArgs dict d (arg visible _ t ∷ ts) with fromTerm dict d t | fromArgs dict d ts
+    ... | left msg       | _              = left msg
+    ... | _              | left msg       = left msg
+    ... | right (m , p)  | right (n , ps) with matchTermAndList p ps
+    ... | (p′ , ps′)                      = right (m ⊔ n , p′ ∷ ps′)
+    fromArgs dict d (arg _ _ _ ∷ ts) = fromArgs dict d ts
 
   convTerm : Term → Error (∃ PrologTerm)
-  convTerm t = convAcc CaseTerm 0 t
+  convTerm t = fromTerm CaseTerm 0 t
 
   convGoal : Term → Error (∃ PrologTerm × Rules)
-  convGoal t with convAcc CaseGoal 0 t
+  convGoal t with fromTerm CaseGoal 0 t
   ... | left msg = left msg
   ... | right (n , p) with reverse (splitTerm p)
   ... | []       = left panic!
@@ -199,8 +196,8 @@ module Auto where
   -- We're interested in the rules formed by our types, so we will create a
   -- term by checking the type associated with a name and then removing the
   -- type constructor `el`.
-  convName : Name → Term
-  convName = unel ∘ type
+  fromName : Name → Error (∃ PrologTerm)
+  fromName = convTerm ∘ unel ∘ type
 
   -- name2rule:
   --   converts names into a single rule, where the function type for the name
@@ -217,14 +214,14 @@ module Auto where
   --   still need to add an inference rule for function application in order to
   --   be able to apply them (as with name2rule″).
   mkRule : Name → Error (∃ Rule)
-  mkRule name with convTerm (convName name)
+  mkRule name with fromName name
   ... | left msg = left msg
   ... | right (n , t) = mkRule′ (n , splitTerm t)
     where
       mkRule′ : ∃ (List ∘ PrologTerm) → Error (∃ Rule)
       mkRule′ (n , xs) with initLast xs
-      mkRule′ (n , .[]) | [] = left panic!
-      mkRule′ (n , .(xs ++ x ∷ [])) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
+      mkRule′ (n , ._) | [] = left panic!
+      mkRule′ (n , ._) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
 
   mutual
     reify : ProofTerm → Term
@@ -244,11 +241,14 @@ module Auto where
         toArg : Term → Arg Term
         toArg = arg visible relevant
 
-  quoteMsg : Msg → Term
-  quoteMsg (searchSpaceExhausted) = quoteTerm (err searchSpaceExhausted)
-  quoteMsg (indexOutOfBounds)     = quoteTerm (err indexOutOfBounds)
-  quoteMsg (unsupportedSyntax x)  = quoteTerm (err (unsupportedSyntax x))
-  quoteMsg (panic!)               = quoteTerm (err panic!)
+  data Exception : Message → Set where
+    throw : (msg : Message) → Exception msg
+
+  quoteMsg : Message → Term
+  quoteMsg (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
+  quoteMsg (indexOutOfBounds)     = quoteTerm (throw indexOutOfBounds)
+  quoteMsg (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
+  quoteMsg (panic!)               = quoteTerm (throw panic!)
 
   HintDB : Set
   HintDB = Rules
@@ -258,12 +258,6 @@ module Auto where
     where
       fromError : {A : Set} → Error A → List A
       fromError = fromEither (const []) [_]
-
-  ruleset : HintDB → Term → Maybe (∃ PrologTerm × Rules)
-  ruleset rules type
-    with convGoal type
-  ... | left msg = nothing
-  ... | right (g , args) = just (g , args ++ rules)
 
   auto : ℕ → HintDB → Term → Term
   auto depth rules type
