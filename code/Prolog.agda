@@ -161,7 +161,7 @@ module Prolog
   --   is why we have the hack with the `filter noVars`
 
   data SearchSpace (m : ℕ) : Set where
-    done : ∃₂ (λ δ n → Subst (m + δ) n) → SearchSpace m
+    done : forall {δ n} → Subst (m + δ) n → SearchSpace m
     step : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
 
   loop : ∀ {m} → SearchSpace m
@@ -180,7 +180,7 @@ module Prolog
 
     solveAcc : ∀ {m δ₁} → Maybe (∃ (λ n → Subst (m + δ₁) n)) → List (Goal (m + δ₁)) → SearchSpace m
     solveAcc {m} {δ₁} nothing _ = loop
-    solveAcc {m} {δ₁} (just (n , s)) [] = done (δ₁ , n , s)
+    solveAcc {m} {δ₁} (just (n , s)) [] = done s
     solveAcc {m} {δ₁} (just (n , s)) (g ∷ gs) = step next
       where
         next : ∃ Rule → ∞ (SearchSpace m)
@@ -230,7 +230,7 @@ module Prolog
     mkTree rs₀ s = mkTreeAcc rs₀ s []
 
     mkTreeAcc : ∀ {m} → Rules → SearchSpace m → Rules → SearchTree (Result m)
-    mkTreeAcc {_} rs₀ (done s) ap = retn (s , ap)
+    mkTreeAcc {_} rs₀ (done s) ap = retn ((_ , (_ , s)) , ap) 
     mkTreeAcc {m} rs₀ (step f) ap = fork (~ mkTreeAccChildren rs₀)
       where
         -- when written with a simple `map`, termination checker complains
