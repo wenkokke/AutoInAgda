@@ -185,19 +185,23 @@ predicate |Even| on natural numbers as follows:
 Next we may want to prove properties of this definition:
 %
 \begin{code}
-  even+ : ∀ {n m} → Even n → Even m → Even (n + m)
+  even+ : Even n → Even m → Even (n + m)
   even+ Base       e2  = e2
   even+ (Step e1)  e2  = Step (even+ e1 e2)
 \end{code}
 %
+Note that we omit universally quantified implicit arguments from the
+typeset version of this paper, in accordance with convention used by
+Haskell~\cite{haskell-report} and Idris~\cite{idris}.
+
 As shown by Van der Walt and Swierstra~\cite{van-der-walt}, it is easy
-to prove the |Even| property for closed terms using proof by
+to decide the |Even| property for closed terms using proof by
 reflection. The interesting terms, however, are seldom closed.  For
 instance, if we would like to use the |even+| lemma in the proof
 below, we need to call it explicitly.
 
 \begin{code}
-  simple : ∀ {n} → Even n → Even (n + 2)
+  simple : Even n → Even (n + 2)
   simple e = even+ e (Step Base)
 \end{code}
 Manually constructing explicit proof objects
@@ -234,7 +238,7 @@ a function.
 We now give an alternative proof of the |simple| lemma, using this
 hint database:
 \begin{code}
-  simple : ∀ {n} → Even n → Even (n + 2)
+  simple : Even n → Even (n + 2)
   simple = quoteGoal g in unquote (auto 5 hints g)
 \end{code}
 The central ingredient is a \emph{function} |auto| with the following
@@ -254,7 +258,7 @@ Even (n + 3)| in this style gives the following error:
     Even .n -> Even (.n + 3) of type Set
 \end{verbatim}
 When no proof can be found, the |auto| function generates a dummy
-term, whose type explains the reason why the search has failed. In
+term whose type explains the reason why the search has failed. In
 this example, the search space has been exhausted. Unquoting this
 term, then gives the type error message above. It is up to the
 programmer to fix this, either by providing a manual proof or
@@ -266,87 +270,85 @@ implemented.
 \section{Prolog in Agda}
 \label{sec:prolog}
 
+Let us set aside Agda's reflection mechanism for the moment. In this
+section, we will present a standalone Prolog
+interpreter. Subsequently, we will show how this can be combined with
+the reflection mechanism and suitably invoked in the definition of the
+|auto| function. The code in this section is contained in its own Agda
+module, parameterized by two sets:
+
+> module Prolog 
+>    (TermName : Set) (RuleName : Set) where
+
 \subsection*{Terms and Rules}
 
-The heart of our proof search implementation is the structurally recursive
-unification algorithm described by~\citet{unification}. In this approach, terms
-are encoded using finite sets for variables. This allows the algorithm to
-be structurally recusive on the number of variables in a term. In
-addition to variables, we will encode first-order constants as a
-|TermName| with a list of arguments.\footnote{
-  In our Prolog implementation the type |TermName| is left abstract,
-  to be supplied by the user, though the implementation of |auto|
-  identifies it with a concrete type.
-}
-
+The heart of our proof search implementation is the structurally
+recursive unification algorithm described by~\citet{unification}. Here
+the type of terms is indexed by the number of variables a given term
+may contain. Doing so enables the unification algorithm to formulated
+by structural induction on the number of free variables. This yields
+the following definition of terms:
 \begin{code}
-module Prolog (TermName : Set) (RuleName : Set) where
-
 data PrologTerm (n : ℕ) : Set where
   var  : Fin n → PrologTerm n
-  con  : TermName → List (PrologTerm n) → PrologTerm n
+  con  : TermName → List (PrologTerm n) 
+         → PrologTerm n
 \end{code}
-\pepijn{Should we take a shortcut, as below, and simply use
-strings instead of a custom datatype? Or should we fear that some
-readers will come away from reading the papers thinking we use
-strings to encode every name? (We probably do, actually... since
-Agda names are probably Haskell strings internally.)}\wouter{I'd just 
-write the module header, stating that the prolog interpreter module 
-abstracts over the exact TermNames}
-Using this term data type, we can represent first-order terms with a
-finite set of variables. For instance, if we choose to instantiate the |TermName|
-with the following data type, we can encode numbers and simple arithmetic expressions.
+In addition to variables, we will encode first-order constants as a
+|TermName| with a list of arguments.
+
+For instance, if we choose to instantiate the |TermName| with the
+following |Arith| data type, we can encode numbers and simple
+arithmetic expressions:
 \begin{code}
-data TermName : Set where
-  Suc   : TermName
-  Zero  : TermName
-  Add   : TermName
+data Arith : Set where
+  Suc   : Arith
+  Zero  : Arith
+  Add   : Arith
 \end{code}
-For instance, the closed term corresponding to the number one could be written as follows:
+The closed term corresponding to the number one could be written as follows:
 \begin{code}
 One : PrologTerm 0
 One = con Suc (con Zero ∷ [])
 \end{code}
-Similarly, we can use the |var| constructor to represent open terms, such as |x + 1|:
+Similarly, we can use the |var| constructor to represent open terms,
+such as |x + 1|. We use the prefix operator |#| to convert from
+natural numbers to finite types:
 \begin{code}
 AddOne : PrologTerm 1
 AddOne = con Add (var (# 0) ∷ con One ∷ [])
 \end{code}
-\wouter{Hekjes uitlegen?}
+Note that this representation of terms is untyped. There is no check
+that enforces addition is provided precisily two arguments. Although
+we could add further type information to this effect, this introduces
+additional overhead without adding safety to the proof automation
+presented in this paper. For the sake of simplicity, we have therefore
+chosen to work with this untyped definition.
+
 We shall refrain from further discussion of the unification algorithm itself.
 Instead, we restrict ourself to presenting the interface that we will use:
 \begin{code}
   unify  : (t₁ t₂ : PrologTerm m) → Maybe (∃ (Subst m))
 \end{code}
-% \pepijn{In all fairness, I never use |unify|, only |unifyAcc|... but I
-% do feel we should present it as |unify| defined by |unifyAcc|, don't you?}\wouter{Prima}
-The |unify| function takes two terms $t_1$ and $t_2$ and computes the most general
-unifier, that is, a substition that takes terms with at most $m$ free
-variables to terms with at most $n$. \wouter{Hier wel even uitleggen wat de existentiele quantor doet}
+Substitutions are indexed by two natural numbers |n| and |m|. A
+substitution of type |Subst m n| can be applied to a |PrologTerm m| to
+produce a value of type |PrologTerm n|. The |unify| function takes two
+terms |t₁| and |t₂| and tries to compute the most general unifier. As
+unification may fail, the result is wrapped in the |Maybe| monad. The
+number of variables in the terms resulting from the unifying
+substition is not known \emph{a priori}, hence this number is
+existentially quantified over.
 
-% \wouter{Do we want to define |Subst|? Or does this  suffice?}
-% \pepijn{As far as I've thought about it, we should not discuss
-%   elements from McBride's paper that we do not explicitly use. Since
-%   we can be sure everyone understands how substitution workds, the
-%   exact encoding does not matter; the only thing that does is that we
-%   mention that subtitutions remove variables, and thus lower in indices.}
-% \wouter{Prima}
 This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
-follows, we will sometimes use the following, more general, function:
+follows, we will use the following, more general, function:
 \begin{code}
   unifyAcc  : (t₁ t₂ : PrologTerm m) ->
             ∃ (Subst m) → Maybe (∃ (Subst m))
 \end{code}
 
-Next we define Prolog rules as records containing a rulename\footnote{
-  RuleName is left abstract in our implementation of Prolog, though
-  our implementation of the |auto| tactic will identify it with a
-  concrete type. \wouter{Door de module header toe te voegen kan deze footnote weg}
-} and terms for its
-premises and conclusion---and again the data type is quantified over
-the number of variables used by its constituents. Note that variables
-are shared between the premises and conclusion.
+Next we define Prolog rules as records containing a name and terms for its
+premises and conclusion:
 \begin{code}
   record Rule (n : ℕ) : Set where
     field
@@ -354,15 +356,20 @@ are shared between the premises and conclusion.
       conclusion  : PrologTerm n
       premises    : List (PrologTerm n)
 \end{code}
-Using our newly defined |Rule| we can give a simple encoding of, for
-instance, addition. In Prolog, this would be written as follows.
+Again the data type is quantified over
+the number of variables used by its constituents. Note that variables
+are shared between the premises and conclusion.
+
+Using our newly defined |Rule| we can give a simple definition of
+addition. In Prolog, this would be written as follows.
 \begin{verbatim}
   add(0, x, x).
   add(x, y, z) :- add(suc(x), y, suc(z)).
 \end{verbatim}
 Unfortunately, the named equivalents in our Agda implementation are a
 bit more verbose. Note that we have, for the sake of this example,
-instantiated the abstract |RuleName| to the |String| type.
+instantiated the |RuleName| and |TermName| to |String| and |Arith|
+respectively.
 \begin{code}
 AddBase : Rule 1
 AddBase = record {
@@ -389,8 +396,9 @@ AddStep = record {
                  ∷ []
   }
 \end{code}
-Lastly, before we can implement some form of proof search, we are
-going to need to define a pair of auxiliary functions. During proof
+
+Lastly, before we can implement some form of proof search, we
+define a pair of auxiliary functions. During proof
 resolution, we will need to work with terms and rules containing a
 different number of variables. We will use the following pair of
 functions, |inject| and |raise|, to weaken bound variables, that is,
