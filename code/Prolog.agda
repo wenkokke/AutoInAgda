@@ -98,23 +98,23 @@ module Prolog
   -- some lemma's we'll need later on
 
   private
-    max-lem₁ : (n k : ℕ) → max n (suc (n + k)) ≡ suc (n + k)
-    max-lem₁ zero zero = refl
-    max-lem₁ zero (suc k) = refl
-    max-lem₁ (suc n) k = cong suc (max-lem₁ n k)
+    m⊔1+m+k=1+m+k : (n k : ℕ) → max n (suc (n + k)) ≡ suc (n + k)
+    m⊔1+m+k=1+m+k zero zero = refl
+    m⊔1+m+k=1+m+k zero (suc k) = refl
+    m⊔1+m+k=1+m+k (suc n) k = cong suc (m⊔1+m+k=1+m+k n k)
 
-    max-lem₂ : (n : ℕ) → max n n ≡ n
-    max-lem₂ zero = refl
-    max-lem₂ (suc n) = cong suc (max-lem₂ n)
+    m⊔m=m : (n : ℕ) → max n n ≡ n
+    m⊔m=m zero = refl
+    m⊔m=m (suc n) = cong suc (m⊔m=m n)
 
-    max-lem₃ : (n k : ℕ) → max (suc (n + k)) n ≡ suc (n + k)
-    max-lem₃ zero zero = refl
-    max-lem₃ zero (suc k) = refl
-    max-lem₃ (suc n) k = cong suc (max-lem₃ n k)
+    1+m+k⊔m=1+m+k : (n k : ℕ) → max (suc (n + k)) n ≡ suc (n + k)
+    1+m+k⊔m=1+m+k zero zero = refl
+    1+m+k⊔m=1+m+k zero (suc k) = refl
+    1+m+k⊔m=1+m+k (suc n) k = cong suc (1+m+k⊔m=1+m+k n k)
 
-    m+1+n≡1+m+n : ∀ m n → m + suc n ≡ suc (m + n)
-    m+1+n≡1+m+n zero    n = refl
-    m+1+n≡1+m+n (suc m) n = cong suc (m+1+n≡1+m+n m n)
+    1+m+n=m+1+n : ∀ m n → suc (m + n) ≡ m + suc n
+    1+m+n=m+1+n zero     n = refl
+    1+m+n=m+1+n (suc m)  n = cong suc (1+m+n=m+1+n m n)
 
   -- match takes two structures that are indexed internally by finite numbers
   -- and matches their domains (i.e. the new values will have their domains set
@@ -130,11 +130,11 @@ module Prolog
         → I₁ n₁ → I₂ n₂ → I₁ (max n₁ n₂) × I₂ (max n₁ n₂)
   match {n₁} {n₂} inj₁ inj₂ p₁ p₂ with compare n₁ n₂
   match {n₁} {.(suc (n₁ + k))} inj₁ inj₂ p₁ p₂ | less .n₁ k
-    rewrite max-lem₁ n₁ k | sym (m+1+n≡1+m+n n₁ k) = (inj₁ (suc k) p₁ , p₂)
+    rewrite m⊔1+m+k=1+m+k n₁ k | 1+m+n=m+1+n n₁ k = (inj₁ (suc k) p₁ , p₂)
   match {n₁} {.n₁} inj₁ inj₂ p₁ p₂             | equal .n₁
-    rewrite max-lem₂ n₁                            = (p₁ , p₂)
+    rewrite m⊔m=m n₁                            = (p₁ , p₂)
   match {.(suc (n₂ + k))} {n₂} inj₁ inj₂ p₁ p₂ | greater .n₂ k
-    rewrite max-lem₃ n₂ k | sym (m+1+n≡1+m+n n₂ k) = (p₁ , inj₂ (suc k) p₂)
+    rewrite 1+m+k⊔m=1+m+k n₂ k | 1+m+n=m+1+n n₂ k = (p₁ , inj₂ (suc k) p₂)
 
   matchTerms : ∀ {n₁ n₂} → Term n₁ → Term n₂ → Term (max n₁ n₂) × Term (max n₁ n₂)
   matchTerms {n₁} {n₂} = match {n₁} {n₂} {Term} {Term} injectTerm injectTerm
