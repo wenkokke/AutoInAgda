@@ -376,10 +376,11 @@ are shared between the premises and conclusion.
 Using our newly defined |Rule| we can give a simple encoding of, for
 instance, addition. In Prolog, this would be written as follows.
 
-\begin{lstlisting}[language=Prolog]
+% Misschien zo maar typesetten?
+\begin{verbatim}
   add(0, x, x).
   add(x, y, z) :- add(suc(x), y, suc(z)).
-\end{lstlisting}
+\end{verbatim}
 
 Unfortunately, the named equivalents in our Agda implementation are a
 bit more verbose. Note that we have, for the sake of this example,
