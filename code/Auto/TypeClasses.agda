@@ -25,7 +25,7 @@ ShowProd : {A B : Set} → Show A → Show B -> Show (A × B)
 ShowProd {A} {B} ShowA ShowB = record { show = showProd }
   where
     showProd : A × B -> String
-    showProd (x , y) = "(" ++ Show.show ShowA x ++ "," ++ Show.show ShowB y ++ ")"
+    showProd (x , y) = "(" ++ show x ++ "," ++ show y ++ ")"
 
 ShowBool : Show Bool
 ShowBool = record { show = showBool }
