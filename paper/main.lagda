@@ -961,7 +961,7 @@ Our approach constructs goal terms and premises as follows.
 \item %
   return the goal parameters (i.e.\ the |init|) as premises, and the
   result-type (i.e.\ the |last| element) as the actual goal.
-\end{code}
+\end{itemize}
 
 \begin{code}
 toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
