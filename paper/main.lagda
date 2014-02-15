@@ -1,4 +1,4 @@
-\documentclass[preprint,draft]{sigplanconf}
+\documentclass[preprint]{sigplanconf}
 
 %include agda.fmt
 %include main.fmt
@@ -85,7 +85,7 @@ this paper makes the following novel contributions:
   Agda's \emph{instance arguments}~\cite{instance-args} to implement
   lightweight type classes in Agda
   (Section~\ref{sec:type-classes}). This resolves one of the major
-  restrictions of instance arguments: the lack of recursively search
+  restrictions of instance arguments: the lack of a recursive search
   procedure for their construction.
 \end{itemize}
 
@@ -488,7 +488,6 @@ from regular Prolog terms:
   Goal : ℕ → Set
   Goal n = Term n
 \end{code}
-
 Next we define the data type that we will use to model the
 abstract search space.
 \begin{code}
@@ -797,15 +796,12 @@ encode either with at most $m ⊔ n$ variables.
 Below we present the reader with a sketch of the implementation of
 |match| for finite sets based on the implementation of |compare| as
 described in \citet{compare}.
-\todo{As to the |compare| function, the stdlib
-mentions it is taken from "View from the left" by McBride \&
-McKinna. Maybe we should turn this into an actual reference?}
 \begin{code}
 match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
 match i j with compare m n
-match i j | less     .m k  = (inject (suc k) i , j)  -- n ≡ suc (m + k)
-match i j | equal    .m    = (i , j)                 -- n ≡ m
-match i j | greater  .n k  = (i , inject (suc k) j)  -- m ≡ suc (n + k)
+match i j | less     .m k  = (inject (suc k) i , j)
+match i j | equal    .m    = (i , j)
+match i j | greater  .n k  = (i , inject (suc k) j)
 \end{code}
 Using this function we define the derived functions |matchTerms|,
 which matches two terms, and |matchTermAndList|, which matches a term
@@ -942,10 +938,10 @@ toRule name with fromName name
 
 The construction of goal terms differs slightly from the construction
 of Prolog terms. The reason for this is as follows: if we are given a
-goal-type |(n : ℕ) → Even n|, it is much easier to search for a proof
-of |Even n| given a premise |n : ℕ|, then to search for an inhabitant
-of the function-type. \pepijn{Why is this? Something with having to
-add function application and composition to the |HintDB|?}
+goal-type |∀ {n} → Even n → Even (n +2)|, it is much easier to search
+for a proof of |Even (n + 2)| given a premise |Even n|, then to search
+for an inhabitant of the function-type. \pepijn{Why is this? Something
+  with having to add function application and composition to the |HintDB|?}
 
 Because of this, we will split the goal-type into two parts. The first
 part is the result-type, which will be used as the goal for proof
@@ -969,16 +965,18 @@ Our approach constructs goal terms and premises as follows.
 \begin{code}
 toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
 toGoalAndPremises with fromTerm′ 0
-... | left msg = left msg
+... | left msg  = left msg
 ... | right (n , p) with reverse (splitTerm p)
-... | []       = left panic!
-... | (t ∷ ts) = right ((n , t) , toPremises 0 ts)
+... | []        = left panic!
+... | (t ∷ ts)  = right ((n , t) , toPremises 0 ts)
 \end{code}
-
+Where the list of parameters is converted into premises using the
+following auxiliary function.
 \begin{code}
 toPremises : ℕ → List (PrologTerm n) → Rules
 toPremises d [] = []
-toPremises d (t ∷ ts) = (n , rule (rvar d) t []) ∷ toPremises (suc d) ts
+toPremises d (t ∷ ts) =
+  (n , rule (rvar d) t []) ∷ toPremises (suc d) ts
 \end{code}
 
 \begin{code}
@@ -1048,10 +1046,51 @@ auto depth rules goalType
 ... | just p  = intros (fromProofTerm p)
 \end{code}
 
+
+
 \section{Type classes}
 \label{sec:type-classes}
-
 \todo{Give a bigger example of debugging/automated proving}
+
+\begin{code}
+record Show (A : Set) : Set where
+  field
+    show : A → String
+
+open Show {{...}}
+\end{code}
+
+\begin{code}
+ShowBool  : Show Bool
+Showℕ     : Show ℕ
+\end{code}
+
+\begin{code}
+data _×_ (A B : Set) : Set where
+  _,_ : A → B → A × B
+\end{code}
+
+\begin{code}
+ShowProd : {A B : Set} → Show A → Show B -> Show (A × B)
+ShowProd {A} {B} ShowA ShowB = record { show = showProd }
+  where
+    showProd : A × B -> String
+    showProd (x , y) = "(" ++ show x ++ "," ++ show y ++ ")"
+\end{code}
+
+\begin{code}
+ShowHints : HintDB
+ShowHints = hintdb (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
+\end{code}
+
+\begin{code}
+example : String
+example = show (true , 5)
+  where
+    ShowInst = quoteGoal g in unquote (auto 5 ShowHints g)
+\end{code}
+
+
 
 \section{Discussion}
 \label{sec:discussion}

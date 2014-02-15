@@ -213,15 +213,15 @@ module Auto where
   --   tactic). furthermore, for usage with higher-order function types we would
   --   still need to add an inference rule for function application in order to
   --   be able to apply them (as with name2rule″).
-  mkRule : Name → Error (∃ Rule)
-  mkRule name with fromName name
-  ... | left msg = left msg
-  ... | right (n , t) = mkRule′ (n , splitTerm t)
+  toRule : Name → Error (∃ Rule)
+  toRule name with fromName name
+  ... | left msg      = left msg
+  ... | right (n , t) = toRule′ (n , splitTerm t)
     where
-      mkRule′ : ∃ (List ∘ PrologTerm) → Error (∃ Rule)
-      mkRule′ (n , xs) with initLast xs
-      mkRule′ (n , ._) | [] = left panic!
-      mkRule′ (n , ._) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
+      toRule′ : ∃ (List ∘ PrologTerm) → Error (∃ Rule)
+      toRule′ (n , xs) with initLast xs
+      toRule′ (n , ._) | []       = left panic!
+      toRule′ (n , ._) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
 
   mutual
     reify : ProofTerm → Term
@@ -254,7 +254,7 @@ module Auto where
   HintDB = Rules
 
   hintdb : List Name → HintDB
-  hintdb l = concatMap (fromError ∘ mkRule) l
+  hintdb l = concatMap (fromError ∘ toRule) l
     where
       fromError : {A : Set} → Error A → List A
       fromError = fromEither (const []) [_]
