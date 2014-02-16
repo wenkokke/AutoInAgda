@@ -270,6 +270,8 @@ implemented.
 \section{Prolog in Agda}
 \label{sec:prolog}
 
+\todo{mention that we leave implicit parameters implicit}
+
 Let us set aside Agda's reflection mechanism for the moment. In this
 section, we will present a standalone Prolog
 interpreter. Subsequently, we will show how this can be combined with
@@ -480,6 +482,9 @@ implement various search strategies, such as breadth-first search,
 depth-first search or an heuristic-driven algorithm, by simply
 traversing the final search tree in a different order.
 
+\todo{mention that merging the two steps won't pass the termination
+  checker---trust me, I've tried.}
+
 \subsubsection*{Setting up the search space}
 
 We start by defining the following type synonym to distinguish goals
@@ -492,39 +497,42 @@ Next we define the data type that we will use to model the
 abstract search space.
 \begin{code}
   data SearchSpace (m : ℕ) : Set where
-    done  : Subst (m + δ) n → SearchSpace m
+    fail  : SearchSpace m
+    retn  : Subst (m + δ) n → SearchSpace m
     step  : (∃ Rule → ∞ (SearchSpace m))
           → SearchSpace m
 \end{code}
-Ignoring the indices for the moment, the |SearchSpace| type has two
-constructors: |done| and |step|. In the first case, we have found a
-substitution that resolves the goal we are trying to prove. In the
-|step| constructor, we have not yet resolved the goal, and instead
+Ignoring the indices for the moment, the |SearchSpace| type has three
+constructors: |fail|, |retn| and |step|. In the case of |retn|, we have
+found a substitution that resolves the goal we are trying to prove. In
+the |step| constructor, we have not yet resolved the goal, and instead
 have a choice of which |Rule| to apply. Note that we do not specify
 \emph{which} rules may be used; only how the choice of \emph{any} rule
 determines the remainder of the search. As a search need not
 terminate, the |SearchSpace| resulting from applying a rule are marked
 as coinductive.
+The |fail| constructor is used to mark branches of the search space
+that fail, i.e.\ where the selected rule is not unifiable with the
+current goal. Note that we could have defined failure as an infinite
+loop:
+\begin{code}
+  loop : ∀ {m} → SearchSpace m
+  loop = step (λ _ → ~ loop)
+\end{code}
+However, adding it as a constructor is much more efficient w.r.t.\ the
+eventual proof search.
+
+Note that we rename Agda's notation for coinduction to more closely
+resemble notation already familiar to Haskell programmers. Coinductive
+suspensions are created with the prefix operator |~| rather than |♯|;
+such suspensions can be forced using a bang, |!|, rather than the
+usual |♭|.
 
 Now let us turn our attention to the indices. The variable |m| denotes
 the number of variables in the goal; |δ| denotes the number of fresh
 variables necessary to apply a rule; and |n| will denote the number of
 variables remaining after we have resolved the goal. This naming will
 be used consistently in subsequent definitions.
-
-We can define a trivial |SearchSpace| that fails to return a
-substitution:
-\begin{code}
-  fail : SearchSpace m
-  fail = step (λ _ → ~ fail)
-\end{code}
-\wouter{Is dit niet een beetje lelijk? Kunnen we dan niet beter een
-  Fail toevoegen aan de search space?}
-Note that we rename Agda's notation for coinduction to more closely
-resemble notation already familiar to Haskell programmers. Coinductive
-suspensions are created with the prefix operator |~| rather than |♯|;
-such suspensions can be forced using a bang, |!|, rather than the
-usual |♭|.
 
 We can now define a function |resolve| that will be in charge of building
 up a value of type |SearchSpace| from an initial goal:
@@ -541,18 +549,18 @@ sub-goals, accumulating a substitution along the way:
   resolveAcc  : ∀ {m δ : ℕ}
     → Maybe (∃ (λ n → Subst (m + δ) n))
     → List (Goal (m + δ)) → SearchSpace m
-  resolveAcc (just (n , subst))  []              = done subst
+  resolveAcc (just (n , subst))  []              = retn subst
   resolveAcc nothing         _                   = fail
   resolveAcc (just (n , subst))  (goal ∷ goals)  = step next
 \end{code}
-If we have no remaining goals, we can use the |done| constructor to
+If we have no remaining goals, we can use the |retn| constructor to
 return the substitution we have accumulated so far. If at any point,
 however, the conclusion of the chosen rule was not unifiable with the
 next open subgoal---and thus the accumulating parameter has become
-|nothing|---the search will fail. The only interesting case is the
-third one. If there are remaining goals to resolve, we recursively
-construct a new |SearchSpace|. To do so, we use the |step| constructor
-and branch over the choice of rule. The |next| function defined below
+|nothing|---the search will fail. The interesting case is the third
+one. If there are remaining goals to resolve, we recursively construct
+a new |SearchSpace|. To do so, we use the |step| constructor and
+branch over the choice of rule. The |next| function defined below
 computes the remainder of the |SearchSpace| after trying to apply a
 given rule:
 \begin{code}
@@ -578,8 +586,9 @@ given rule:
       newGoals  : List (PrologTerm (m + (δ + δ')))
       newGoals  = raiseTermList (m + δ) (premises rule)
 \end{code}
+\pepijn{what was wrong with the |goals'| versus |prems'|?}
 For the moment, try to ignore the various calls to |raise| and
-|inject|.  Given the |rule| that we must be applied, the |next|
+|inject|.  Given the |rule| that must be applied, the |next|
 function computes most general unifier of the conclusion of |rule| and
 our current |goal|. The resulting substitution is passed to
 |resolveAcc|, which continues the construction of the
@@ -589,7 +598,7 @@ open goals that must be resolved. The apparent complexity of the
 
 First of all, note that we pass the substitution accumulated so far to
 |unifyAcc|. This ensures that this substitution is applied to the two
-terms being unified.
+terms being unified \emph{before} we start the unification.
 
 \wouter{Tot hier ben ik zo'n beetje.}
 
@@ -651,7 +660,7 @@ parameter, which keeps track of the applied rules.
 
 \begin{code}
 mkTreeAcc : Rules → SearchSpace m → Rules → SearchTree (Result m)
-mkTreeAcc rs₀ (done s)  ap  = retn (s , ap)
+mkTreeAcc rs₀ (retn s)  ap  = retn (s , ap)
 mkTreeAcc rs₀ (step f)  ap  =
   fork (~ map (λ r → mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) rs₀)
 \end{code}
@@ -754,6 +763,9 @@ toProofTerm rs with toProofTerms rs
 \section{Adding reflection}
 \label{sec:reflection}
 
+\todo{describe the fallibility of the algorithm, describe the possible
+error messages}
+
 What remains is to give a pair of functions which can convert from
 |Reflection|'s |Term| data type to our first-order |PrologTerm| data
 type and vice versa.
@@ -762,25 +774,27 @@ The first thing we will need if we are to provide such functions are
 two concrete definitions for the |TermName| and |RuleName| data types.
 It would be desirable to identify both types with Agda's |Name| type,
 but unfortunately the Agda does not assign a name to the function
-symbol $\_\!\!\to\!\!\_$, nor does it assign names to
-variables. Therefore we will define two name data types, which handle
-these cases.
+symbol |_→_|, nor does it assign names to variables. Therefore we will
+define two name data types, which handle these cases.
 
-Note that the |pvar| constructor has nothing to do with |PrologTerm|'s
-|var| constructor; it is not used to construct a variable, but to use
-an Agda variable as a Prolog constant. Its index $i$ is used in a
-similar manner to Prolog variables, where two variables with the same
-index are considered to have the same referent.
+First, the implementation of |TermName|:
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
   pvar   : (i : ℕ) → TermName
   pimpl  : TermName
 \end{code}
-Conversely, the |rvar| constructor is used to be able to use Agda
-variables as rules. Therefore, its index $i$ is used as a de Bruijn
-index---its value can be used directly as an argument to |var| in
-Agda's |Term| data type.
+Note that the |pvar| constructor has nothing to do with |PrologTerm|'s
+|var| constructor. It is not used to construct a Prolog variable, but
+rather to be able to refer to Agda variables as Prolog constants. Its
+index |i| is used in a similar manner to Prolog variables, where two
+variables with the same index are considered to have the same referent.
+
+Conversely, in the implementation of |RuleName|, the |rvar|
+constructor is used to be able to refer to Agda variables as
+rules. Therefore, its index |i| is used as a de Bruijn index---its
+value can be used directly as an argument to |var| in Agda's |Term|
+data type.
 \begin{code}
 data RuleName : Set where
   rname  : (n : Name) → RuleName
@@ -788,50 +802,69 @@ data RuleName : Set where
 \end{code}
 Last, we need one more auxiliary function, which we call |match|. This
 function implements the intuition that if we have two data structures
-limited to $m$ and $n$ variables, respectively, we should be able to
-encode either with at most $m ⊔ n$ variables.
+limited to |m| and |n| variables, respectively, we should be able to
+encode either with at most |m ⊔ n| variables.
 
 Below we present the reader with a sketch of the implementation of
 |match| for finite sets based on the implementation of |compare| as
-described in \citet{compare}.
+described in \citet{compare}, which returns a judgement |less|,
+|equal| or |greater|, together with the absolute difference |k|.
 \begin{code}
 match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
 match i j with compare m n
-match i j | less     .m k  = (inject (suc k) i , j)
-match i j | equal    .m    = (i , j)
-match i j | greater  .n k  = (i , inject (suc k) j)
+match i j | less     _ k  = (inject (suc k) i , j)
+match i j | equal    _    = (i , j)
+match i j | greater  _ k  = (i , inject (suc k) j)
 \end{code}
-Using this function we define the derived functions |matchTerms|,
-which matches two terms, and |matchTermAndList|, which matches a term
-to a list of terms.
+Using this function we define the derived functions |matchTerms|
+(which matches two terms) and |matchTermAndList| (which matches a term
+to a list of terms).
 
 
 
 \subsection*{Constructing terms}
 
-An overview of the term conversion algorithm is as follows:
+The conversion of an Agda |Term| to a |PrologTerm| faces several
+problems.
 \begin{itemize}
 \item %
-  the algorithm traverses the abstract syntax tree, keeping track of
-  how many function types have been passed, i.e.\ it keeps track of the
-  current depth w.r.t.\ used de Bruijn indices;
+  an Agda |Term| can encode the entire space of higher-order terms,
+  whereas a |PrologTerm| is always first-order.
+
+  In order to mitigate this problem, we will allow the conversion to
+  fail, throwing an exception with the message |unsupportedSyntax|;
+
 \item %
-  variables are converted using a customisable |fromVar| function,
-  which is allowed to use the current depth;
-\item %
-  applications of definitions and constructors are converted using a
-  customisable |fromDef| function;
-\item %
-  all function symbols $\_\!\!\to\!\!\_$ are converted to constant
-  applications of the |pimpl| symbol, and for visible arguments the
-  traversal of the right sub-tree continues with an increased depth;
-\item %
-  any other term (i.e.\ higher-order variables, lambda abstractions,
-  instances of |unknown|) trigger an |unsupportedSyntax| error.
+  the Agda |Term| data type uses de Bruijn indices to encode
+  variables. We need to convert this to a named notation, where the
+  same numbers index the same variable. However, the |Term| data type
+  gives no guarantee that its indices are well-bound (e.g.\ using
+  finite sets), which makes it impossible to define this conversion as
+  a total function.
+
+  In order to mitigate this problem, we will allow the conversion to
+  throw an exception with the message |indexOutOfBounds|, even though
+  this should never occur.
 \end{itemize}
-A sketch of the conversion function is presented below. Note that for
-the combination of two sub-terms, we first ensure that their domains
-match.
+The algorithm is as follows: we traverse the |Term| structure, and keep
+track of the depth, i.e.\ how many $\Pi$-types we have pass (we need
+this information to convert the de Bruijn indices to named variables).
+If we then reach:
+\begin{itemize}
+\item %
+  a |var| node, we pass its premises together with the depth to the
+  |fromVar| function;
+\item %
+  a |con| or a |def| node, we pass its premises to the |fromDef| function;
+\item %
+  a |pi| node, we convert its two sub-terms---where the conversion of
+  the right-hand term is performed at an increased depth---and then
+  combine the resulting |PrologTerm|s in an application of
+  |pimpl|. Note that for this combination to work, we must first
+  ensure that the sets of variables over which these terms are defined
+  |match|.
+\end{itemize}
+A sketch of the conversion function is presented below.
 \begin{code}
 fromTerm : ℕ → Term → Error (∃ PrologTerm)
 fromTerm d (var i [])    = fromVar d i
@@ -849,8 +882,8 @@ fromTerm _ _  = left unsupportedSyntax
 \end{code}
 The |fromArgs| function converts a list of |Term| arguments to a list
 of Prolog terms, by stripping the |arg| constructor and recursively
-applying the |fromTerm| function. Note that it filters non-visible
-arguments.
+applying the |fromTerm| function. In addition to this, it filters
+all implicit arguments.
 \begin{code}
 fromArgs : ℕ → List (Arg Term) → Error (∃ (List ∘ PrologTerm))
 fromArgs d [] = right (0 , [])
@@ -874,11 +907,11 @@ variable name.
 fromVar : ℕ → ℕ → Error (∃ PrologTerm)
 fromVar d i with compare d i
 ... | less     _ k  = left indexOutOfBounds
-... | equal    _    = right (1     , var zero
-... | greater  _ k  = right (suc k , var (fromℕ k))
+... | equal    _    = right (suc 0 , var (# 0))
+... | greater  _ k  = right (suc k , var (# k))
 \end{code}
 Putting it all together, we are left with simple function that sends
-Agda |Terms|s to |PrologTerm|s.
+Agda |Term|s to |PrologTerm|s.
 \begin{code}
 toPrologTerm : Term → PrologTerm
 toPrologTerm = fromTerm 0
