@@ -557,10 +557,10 @@ If we have no remaining goals, we can use the |retn| constructor to
 return the substitution we have accumulated so far. If at any point,
 however, the conclusion of the chosen rule was not unifiable with the
 next open subgoal---and thus the accumulating parameter has become
-|nothing|---the search will fail. The only interesting case is the
-third one. If there are remaining goals to resolve, we recursively
-construct a new |SearchSpace|. To do so, we use the |step| constructor
-and branch over the choice of rule. The |next| function defined below
+|nothing|---the search will fail. The interesting case is the third
+one. If there are remaining goals to resolve, we recursively construct
+a new |SearchSpace|. To do so, we use the |step| constructor and
+branch over the choice of rule. The |next| function defined below
 computes the remainder of the |SearchSpace| after trying to apply a
 given rule:
 \begin{code}
@@ -586,8 +586,9 @@ given rule:
       newGoals  : List (PrologTerm (m + (δ + δ')))
       newGoals  = raiseTermList (m + δ) (premises rule)
 \end{code}
+\pepijn{what was wrong with the |goals'| versus |prems'|?}
 For the moment, try to ignore the various calls to |raise| and
-|inject|.  Given the |rule| that we must be applied, the |next|
+|inject|.  Given the |rule| that must be applied, the |next|
 function computes most general unifier of the conclusion of |rule| and
 our current |goal|. The resulting substitution is passed to
 |resolveAcc|, which continues the construction of the
@@ -597,7 +598,7 @@ open goals that must be resolved. The apparent complexity of the
 
 First of all, note that we pass the substitution accumulated so far to
 |unifyAcc|. This ensures that this substitution is applied to the two
-terms being unified.
+terms being unified \emph{before} we start the unification.
 
 \wouter{Tot hier ben ik zo'n beetje.}
 
