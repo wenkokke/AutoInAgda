@@ -161,7 +161,8 @@ module Prolog
   --   is why we have the hack with the `filter noVars`
 
   data SearchSpace (m : ℕ) : Set where
-    done : forall {δ n} → Subst (m + δ) n → SearchSpace m
+    fail : SearchSpace m
+    retn : ∀ {δ n} → Subst (m + δ) n → SearchSpace m
     step : (∃ Rule → ∞ (SearchSpace m)) → SearchSpace m
 
   loop : ∀ {m} → SearchSpace m
@@ -179,12 +180,12 @@ module Prolog
     g₀ rewrite proj₂ +-identity m = g
 
     resolveAcc : ∀ {m δ} → Maybe (∃ (λ n → Subst (m + δ) n)) → List (Goal (m + δ)) → SearchSpace m
-    resolveAcc {m} {δ} nothing _ = loop
-    resolveAcc {m} {δ} (just (n , s)) [] = done s
+    resolveAcc {m} {δ} nothing _ = fail
+    resolveAcc {m} {δ} (just (n , s)) [] = retn s
     resolveAcc {m} {δ} (just (n , s)) (g ∷ gs) = step next
       where
         next : ∃ Rule → ∞ (SearchSpace m)
-        next (δ₂ , rule name cnc prm) = ~ resolveAcc mgu (prm' ++ gs')
+        next (δ₂ , r) = ~ resolveAcc mgu (prm' ++ gs')
           where
             lem : (m + (δ + δ₂)) ≡ ((m + δ) + δ₂)
             lem = sym (+-assoc m δ δ₂)
@@ -193,7 +194,6 @@ module Prolog
             mgu : Maybe (∃ (λ n → Subst (m + (δ + δ₂)) n))
             mgu = unifyAcc g' cnc' s'
               where
-
                 -- lift arguments for unify into the new finite domain, making room for
                 -- the variables used in the chosen rule.
                 g'   : Term (m + (δ + δ₂))
@@ -201,14 +201,14 @@ module Prolog
                 s'   : ∃ (Subst (m + (δ + δ₂)))
                 s'   rewrite lem = n + δ₂ , injectSubst δ₂ s
                 cnc' : Term (m + (δ + δ₂))
-                cnc' rewrite lem = raiseTerm (m + δ) cnc
+                cnc' rewrite lem = raiseTerm (m + δ) (conclusion r)
 
             -- lift arguments for the recursive call to resolve into the new finite domain,
             -- making room for the variables used in the chosen rule.
             gs'  : List (Term (m + (δ + δ₂)))
             gs'  rewrite lem = injectTermList δ₂ gs
             prm' : List (Term (m + (δ + δ₂)))
-            prm' rewrite lem = raiseTermList (m + δ) prm
+            prm' rewrite lem = raiseTermList (m + δ) (premises r)
 
   -- Concrete Search Tree
   --
@@ -230,7 +230,8 @@ module Prolog
     mkTree rs₀ s = mkTreeAcc rs₀ s []
 
     mkTreeAcc : ∀ {m} → Rules → SearchSpace m → Rules → SearchTree (Result m)
-    mkTreeAcc {_} rs₀ (done s) ap = retn ((_ , (_ , s)) , ap)
+    mkTreeAcc {_} rs₀ fail _ = fail
+    mkTreeAcc {_} rs₀ (retn s) ap = retn ((_ , (_ , s)) , ap)
     mkTreeAcc {m} rs₀ (step f) ap = fork (~ mkTreeAccChildren rs₀)
       where
         -- when written with a simple `map`, termination checker complains

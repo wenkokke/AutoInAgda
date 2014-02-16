@@ -270,6 +270,8 @@ implemented.
 \section{Prolog in Agda}
 \label{sec:prolog}
 
+\todo{mention that we leave implicit parameters implicit}
+
 Let us set aside Agda's reflection mechanism for the moment. In this
 section, we will present a standalone Prolog
 interpreter. Subsequently, we will show how this can be combined with
@@ -480,6 +482,9 @@ implement various search strategies, such as breadth-first search,
 depth-first search or an heuristic-driven algorithm, by simply
 traversing the final search tree in a different order.
 
+\todo{mention that merging the two steps won't pass the termination
+  checker---trust me, I've tried.}
+
 \subsubsection*{Setting up the search space}
 
 We start by defining the following type synonym to distinguish goals
@@ -492,39 +497,42 @@ Next we define the data type that we will use to model the
 abstract search space.
 \begin{code}
   data SearchSpace (m : ℕ) : Set where
-    done  : Subst (m + δ) n → SearchSpace m
+    fail  : SearchSpace m
+    retn  : Subst (m + δ) n → SearchSpace m
     step  : (∃ Rule → ∞ (SearchSpace m))
           → SearchSpace m
 \end{code}
-Ignoring the indices for the moment, the |SearchSpace| type has two
-constructors: |done| and |step|. In the first case, we have found a
-substitution that resolves the goal we are trying to prove. In the
-|step| constructor, we have not yet resolved the goal, and instead
+Ignoring the indices for the moment, the |SearchSpace| type has three
+constructors: |fail|, |retn| and |step|. In the case of |retn|, we have
+found a substitution that resolves the goal we are trying to prove. In
+the |step| constructor, we have not yet resolved the goal, and instead
 have a choice of which |Rule| to apply. Note that we do not specify
 \emph{which} rules may be used; only how the choice of \emph{any} rule
 determines the remainder of the search. As a search need not
 terminate, the |SearchSpace| resulting from applying a rule are marked
 as coinductive.
+The |fail| constructor is used to mark branches of the search space
+that fail, i.e.\ where the selected rule is not unifiable with the
+current goal. Note that we could have defined failure as an infinite
+loop:
+\begin{code}
+  loop : ∀ {m} → SearchSpace m
+  loop = step (λ _ → ~ loop)
+\end{code}
+However, adding it as a constructor is much more efficient w.r.t.\ the
+eventual proof search.
+
+Note that we rename Agda's notation for coinduction to more closely
+resemble notation already familiar to Haskell programmers. Coinductive
+suspensions are created with the prefix operator |~| rather than |♯|;
+such suspensions can be forced using a bang, |!|, rather than the
+usual |♭|.
 
 Now let us turn our attention to the indices. The variable |m| denotes
 the number of variables in the goal; |δ| denotes the number of fresh
 variables necessary to apply a rule; and |n| will denote the number of
 variables remaining after we have resolved the goal. This naming will
 be used consistently in subsequent definitions.
-
-We can define a trivial |SearchSpace| that fails to return a
-substitution:
-\begin{code}
-  fail : SearchSpace m
-  fail = step (λ _ → ~ fail)
-\end{code}
-\wouter{Is dit niet een beetje lelijk? Kunnen we dan niet beter een
-  Fail toevoegen aan de search space?}
-Note that we rename Agda's notation for coinduction to more closely
-resemble notation already familiar to Haskell programmers. Coinductive
-suspensions are created with the prefix operator |~| rather than |♯|;
-such suspensions can be forced using a bang, |!|, rather than the
-usual |♭|.
 
 We can now define a function |resolve| that will be in charge of building
 up a value of type |SearchSpace| from an initial goal:
@@ -541,11 +549,11 @@ sub-goals, accumulating a substitution along the way:
   resolveAcc  : ∀ {m δ : ℕ}
     → Maybe (∃ (λ n → Subst (m + δ) n))
     → List (Goal (m + δ)) → SearchSpace m
-  resolveAcc (just (n , subst))  []              = done subst
+  resolveAcc (just (n , subst))  []              = retn subst
   resolveAcc nothing         _                   = fail
   resolveAcc (just (n , subst))  (goal ∷ goals)  = step next
 \end{code}
-If we have no remaining goals, we can use the |done| constructor to
+If we have no remaining goals, we can use the |retn| constructor to
 return the substitution we have accumulated so far. If at any point,
 however, the conclusion of the chosen rule was not unifiable with the
 next open subgoal---and thus the accumulating parameter has become
@@ -642,8 +650,6 @@ trivial. For a given set of rules, we simply traverse the
 |SearchSpace| structure, where at every |step| we apply the
 continuation to every rule. However, since we also wish to maintain a
 rule trace, we shall define this transformation using an
-\pepijn{Did we mention that we'd use implicit universal quantification
-  yet? Because I am slowly moving towards this notation.}\wouter{No, we should do so much earlier - beginning of section 3 or so. We should also adapt all code to follow the same convention.}
 \begin{code}
 mkTree : Rules → SearchSpace m → SearchTree (Result m)
 mkTree rs₀ s = mkTreeAcc rs₀ s []
@@ -653,7 +659,7 @@ parameter, which keeps track of the applied rules.
 
 \begin{code}
 mkTreeAcc : Rules → SearchSpace m → Rules → SearchTree (Result m)
-mkTreeAcc rs₀ (done s)  ap  = retn (s , ap)
+mkTreeAcc rs₀ (retn s)  ap  = retn (s , ap)
 mkTreeAcc rs₀ (step f)  ap  =
   fork (~ map (λ r → mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) rs₀)
 \end{code}
