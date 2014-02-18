@@ -142,7 +142,7 @@ term. In the definition of |idTerm| below, we quote the identity
 function on Boolean values.
 \begin{code}
   idTerm : Term
-  idTerm = quoteTerm (\ (x : Bool) -> x)
+  idTerm = quoteTerm (λ (x : Bool) → x)
 \end{code}
 When evaluated, the |idTerm| yields the following value:
 \begin{code}
@@ -163,7 +163,7 @@ Dual to quotation, the |unquote| mechanism allows users to splice in a
 |Term|, replacing it with a its concrete syntax. For example, we could
 give a convoluted definition of the |K| combinator as follows:
 \begin{code}
-  const : ∀ {a b} -> a  -> b -> a
+  const : ∀ {a b} → a  → b → a
   const = unquote (lam visible (lam visible (var 1 [])))
 \end{code}
 The language construct |unquote| is followed by a value of type
@@ -355,7 +355,7 @@ This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
 follows, we will use the following, more general, function:
 \begin{code}
-  unifyAcc  : (t₁ t₂ : PrologTerm m) ->
+  unifyAcc  : (t₁ t₂ : PrologTerm m) →
             ∃ (Subst m) → Maybe (∃ (Subst m))
 \end{code}
 
@@ -537,7 +537,7 @@ be used consistently in subsequent definitions.
 We can now define a function |resolve| that will be in charge of building
 up a value of type |SearchSpace| from an initial goal:
 \begin{code}
-  resolve : ∀ {m} -> Goal m → SearchSpace m
+  resolve : Goal m → SearchSpace m
   resolve {m} g = resolveAcc (just (m , nil)) [ g ]
 \end{code}
 The |resolve| function is once again defined by calling an auxiliary
@@ -666,7 +666,7 @@ using an auxiliary function with an accumulating parameter:
     go fail      _    = fail
     go (retn s)  acc  = retn ((_ , (_ , s)) , acc)
     go (step f)  acc  =
-      fork (map (\r -> ~ go (! f r) (acc ∷ʳ r)) rs₀)
+      fork (map (λ r → ~ go (! f r) (acc ∷ʳ r)) rs₀)
 \end{code}
 Note that we accumulate the trace of rules applied in the order in
 which they are applied: new rules are added to the end of the list
@@ -686,7 +686,7 @@ we can define a simple bounded depth-first traversal as follows:
   dfs zero     _          = []
   dfs (suc k)  fail       = []
   dfs (suc k)  (retn x)   = return x
-  dfs (suc k)  (fork xs)  = concatMap (\x -> dfs k (! x)) xs
+  dfs (suc k)  (fork xs)  = concatMap (λ x → dfs k (! x)) xs
 \end{code}
 It is fairly straightforward to define other traversal strategies,
 such as a breadth-first search. Similarly, we can also vary the rules
@@ -1258,7 +1258,7 @@ data _×_ (A B : Set) : Set where
 \end{code}
 
 \begin{code}
-ShowProd : Show A → Show B -> Show (A × B)
+ShowProd : Show A → Show B → Show (A × B)
 ShowProd ShowA ShowB = record { show = showProd }
   where
     showProd : A × B -> String
