@@ -842,7 +842,7 @@ wrap our conversions in an |Error| monad.
   Error : ∀ {a} (A : Set a) → Set a
   Error A = Either Message A
 \end{code}
-Where the |Message| data type can be any of the following messages.
+Where |Message| can be any of the following messages.
 \begin{code}
   data Message : Set where
     searchSpaceExhausted  : Message
@@ -1069,7 +1069,7 @@ Our approach constructs goal terms and premises as follows.
   return the goal parameters (i.e.\ the |init|) as premises, and the
   result-type (i.e.\ the |last| element) as the actual goal.
 \end{itemize}
-
+An implementation of this can be found below.
 \begin{code}
 toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
 toGoalAndPremises t       with fromTerm′ 0 t
@@ -1078,7 +1078,7 @@ toGoalAndPremises t       with fromTerm′ 0 t
 ... | (k , ts)            with initLast ts
 ... | (prems , goal , _)  = right ((n , goal) , toPremises 0 prems)
 \end{code}
-Where the list of parameters is converted into premises using the
+The list of parameters is converted into premises using the
 following auxiliary function.
 \begin{code}
 toPremises : ∀ {k} → ℕ → Vec (PrologTerm n) k → Rules
@@ -1138,11 +1138,11 @@ simply a list of Prolog rules:
 HintDB : Set
 HintDB = List (∃ Rule)
 \end{code}
-We can ``compile'' them using the auxiliary function |hintdb|, which
-takes a list of names, and compiles them using |toRule| as defined
-above. Note that if a rule fails to compile, no error is raised, and
-the rule is simply ignored. This behaviour can easily be adjusted,
-though.
+We can ``compile'' hint databases from a list of rules using the
+auxiliary function |hintdb|, which takes a list of names, and compiles
+them using |toRule| as defined above. Note that if a rule fails to
+compile, no error is raised, and the rule is simply ignored. This
+behaviour can easily be adjusted, though.
 \begin{code}
 hintdb : List Name → HintDB
 hintdb = concatMap (fromError ∘ toRule)
@@ -1172,7 +1172,24 @@ intros = introsAcc (length args)
 the specific bit of syntax that is unsupported, but that since we
 cannot quote the |Term| type, we cannot just pass the terms around.}
 
-And finally, we are equipped to define |auto|.
+And finally, we are equipped to define |auto|. Just to recap:
+\begin{itemize}
+\item %
+  We convert the goal type to a goal term, using |toGoal|. If the
+  conversion fails, we return either |indexOutOfBounds| or
+  |unsupportedSyntax|.
+\item %
+  We search for a proof using |searchToDepth|. If none can be found,
+  we return the error message |searchSpaceExhausted|.
+\item %
+  We convert the trace for the proof search. This should always work,
+  due to invariants in the code. Therefore, we return the severe error
+  message |panic!| in the case that it does not.
+\item %
+  Last, we convert the proof term back to an Agda |Term|, and add the
+  needed lambda abstractions with |intros|.
+\end{itemize}
+The complete implementation can be seen below.
 \begin{code}
 auto : (depth : ℕ) → HintDB → Term → Term
 auto depth rules goalType
@@ -1186,7 +1203,7 @@ auto depth rules goalType
 ... | nothing   = quoteError panic!
 ... | just p    = intros (fromProofTerm p)
 \end{code}
-
+Hooray! \smiley{} \smiley{} \smiley{}
 
 
 \section{Type classes}
