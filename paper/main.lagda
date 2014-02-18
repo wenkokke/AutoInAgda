@@ -22,8 +22,20 @@
   Proof automation is important. Custom tactic languages are hacky. We
   show how proof automation can be programmed in a general purpose
   dependently typed programming language using reflection. This makes
-  it easier to automate, debug, and test proof automation.\todo{Write
-    good abstract}
+  it easier to automate, debug, and test proof automation.
+
+  \noindent
+  \wouter{Write good abstract! \frownie{}}
+
+  We present the reader with an implementation of Prolog-style proof
+  search in Agda. We then use this implementation, together with
+  Agda's Reflection mechanism, to implement an |auto| tactic for
+  first-order Agda terms. Last, we demonstrate one possible usage of
+  this tactic, by implementing modular instance search for Agda-style
+  type classes.
+
+  \noindent
+  \pepijn{Wrote a bit to potentially use in the final abstract. \smiley{}}
 \end{abstract}
 
 \section{Introduction}
@@ -1246,23 +1258,29 @@ data _×_ (A B : Set) : Set where
 \end{code}
 
 \begin{code}
-ShowProd : {A B : Set} → Show A → Show B -> Show (A × B)
-ShowProd {A} {B} ShowA ShowB = record { show = showProd }
+ShowProd : Show A → Show B -> Show (A × B)
+ShowProd ShowA ShowB = record { show = showProd }
   where
     showProd : A × B -> String
-    showProd (x , y) = "(" ++ show x ++ "," ++ show y ++ ")"
+    showProd (x , y) =
+      "(" ++ show x ++ "," ++ show y ++ ")"
 \end{code}
+
+\pepijn{We can present the example as belof if we define the |hintdb|
+  function as |hintdb_| with a right-fixity and a precedence below
+  that of the cons operator. Do we want that? Overly complicated?}
 
 \begin{code}
 ShowHints : HintDB
-ShowHints = hintdb (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
+ShowHints = hintdb
+  quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ []
 \end{code}
 
 \begin{code}
 example : String
 example = show (true , 5)
   where
-    ShowInst = quoteGoal g in unquote (auto 5 ShowHints g)
+    ShowI = quoteGoal g in unquote (auto 5 ShowHints g)
 \end{code}
 
 

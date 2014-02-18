@@ -34,7 +34,8 @@ Showℕ : Show ℕ
 Showℕ = record { show = showℕ }
 
 ShowHints : HintDB
-ShowHints = hintdb (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
+ShowHints = hintdb
+  quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ []
 
 example : String
 example = show (true , 5)
