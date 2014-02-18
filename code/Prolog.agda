@@ -2,6 +2,7 @@ open import Algebra as Alg using ()
 open import Function using (_∘_; _$_)
 open import Coinduction using (∞) renaming (♯_ to ~_; ♭ to !_)
 open import Category.Monad as Cat using ()
+open import Data.Bool using (Bool; true; false)
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
 open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _≤?_; compare; less; equal; greater) renaming (_⊔_ to max)
 open import Data.Nat.Properties as NatProps using ()
@@ -28,17 +29,14 @@ module Prolog
   open UI public using (var; con) renaming (Term to PrologTerm)
   open UI using (Term; Subst; snoc; nil; replace; apply; unifyAcc)
 
-  data Rule (n : ℕ) : Set where
-    rule : RuleName → Term n → List (Term n) → Rule n
+  record Rule (n : ℕ) : Set where
+    constructor rule
+    field
+      name        : RuleName
+      conclusion  : Term n
+      premises    : List (Term n)
 
-  name : ∀ {n} → Rule n → RuleName
-  name (rule nm _ _) = nm
-
-  conclusion : ∀ {n} → Rule n → Term n
-  conclusion (rule _ cnc _) = cnc
-
-  premises : ∀ {n} → Rule n → List (Term n)
-  premises (rule _ _ prm) = prm
+  open Rule using (name; conclusion; premises)
 
   -- compute the arity of a rule
   arity : ∀ {n} → Rule n → ℕ
@@ -234,7 +232,7 @@ module Prolog
   --   mkTreeAcc : ∀ {m} -> SearchSpace m → Rules → SearchTree (Result m)
   --   mkTreeAcc fail _ = fail
   --   mkTreeAcc (retn s) acc = retn ((_ , (_ , s)) , acc)
-  --   mkTreeAcc (step f) acc = 
+  --   mkTreeAcc (step f) acc =
   --     fork (map (\r -> ~ mkTreeAcc (! f r) (acc ∷ʳ r)) rs₀)
 
     mkTree : ∀ {m} → Rules → SearchSpace m → SearchTree (Result m)
@@ -248,8 +246,8 @@ module Prolog
         -- when written with a simple `map`, termination checker complains
         mkTreeAccChildren : Rules → List (∞ (SearchTree (Result m)))
         mkTreeAccChildren [] = []
-        mkTreeAccChildren (r ∷ rs) = 
-          ~ (mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) ∷ mkTreeAccChildren rs 
+        mkTreeAccChildren (r ∷ rs) =
+          ~ (mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) ∷ mkTreeAccChildren rs
 
   dfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
   dfs  zero    _        = []
@@ -293,11 +291,12 @@ module Prolog
                               noVarsChildren ts >>= λ ts' →
                               return (t' ∷ ts')
 
-  filterWithVars : List (∃ (λ n → List (Term n)) × Rules) → List (List (Term 0) × Rules)
-  filterWithVars rs = concatMap (fromMaybe ∘ noVars′) rs
+  toResult : ∀ {m} → Goal m → List (Result m) → List (Term 0 × Rules)
+  toResult goal = concatMap (fromMaybe ∘ applyToGoal goal)
     where
-      noVars′ : ∃ (λ n → List (Term n)) × Rules → Maybe (List (Term 0) × Rules)
-      noVars′ ((_ , x) , y) = noVarsChildren x >>= λ x → return (x , y)
+      applyToGoal : ∀ {m} → Goal m → Result m → Maybe (Term 0 × Rules)
+      applyToGoal goal ((δ , n , subst) , trace) =
+        (λ t → t , trace) <$> noVars (replace (apply subst) (injectTerm δ goal))
 
   -- Proof Terms
   --
