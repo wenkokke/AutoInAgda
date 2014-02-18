@@ -270,9 +270,6 @@ implemented.
 \section{Prolog in Agda}
 \label{sec:prolog}
 
-\todo{mention that we leave implicit parameters implicit}
-\wouter{we do this: see the text after |even+|}
-
 Let us set aside Agda's reflection mechanism for the moment. In this
 section, we will present a standalone Prolog
 interpreter. Subsequently, we will show how this can be combined with
