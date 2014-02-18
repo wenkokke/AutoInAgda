@@ -566,7 +566,7 @@ given rule:
 \begin{code}
   next : ∃ Rule → ∞ (SearchSpace m)
   next (δ' , rule) =
-    ~ resolveAcc mgu (newGoals ++ oldGoals)
+    ~ resolveAcc mgu (prems' ++ goals')
     where
       mgu   : Maybe (∃ (λ n → Subst (m + (δ + δ')) n))
       mgu   = unifyAcc goal' concl' subst'
@@ -580,13 +580,12 @@ given rule:
           concl'  : PrologTerm (m + (δ + δ'))
           concl'  = raiseTerm (m + δ) (conclusion rule)
 
-      oldGoals   : List (PrologTerm (m + (δ + δ')))
-      oldGoals   = injectTermList δ' goals
+      goals'   : List (PrologTerm (m + (δ + δ')))
+      goals'   = injectTermList δ' goals
 
-      newGoals  : List (PrologTerm (m + (δ + δ')))
-      newGoals  = raiseTermList (m + δ) (premises rule)
+      prems'   : List (PrologTerm (m + (δ + δ')))
+      prems'  = raiseTermList (m + δ) (premises rule)
 \end{code}
-\pepijn{what was wrong with the |goals'| versus |prems'|?}
 For the moment, try to ignore the various calls to |raise| and
 |inject|.  Given the |rule| that must be applied, the |next|
 function computes most general unifier of the conclusion of |rule| and
@@ -763,8 +762,21 @@ toProofTerm rs with toProofTerms rs
 \section{Adding reflection}
 \label{sec:reflection}
 
-\todo{describe the fallibility of the algorithm, describe the possible
-error messages}
+\todo{find a place to describe the fallibility of the algorithm, and
+  the possible error messages (see below)}
+
+\begin{code}
+  data Message : Set where
+    searchSpaceExhausted  : Message
+    indexOutOfBounds      : Message
+    unsupportedSyntax     : Message
+    panic!                : Message
+\end{code}
+
+\begin{code}
+  Error : ∀ {a} (A : Set a) → Set a
+  Error A = Either Message A
+\end{code}
 
 What remains is to give a pair of functions which can convert from
 |Reflection|'s |Term| data type to our first-order |PrologTerm| data
@@ -922,43 +934,68 @@ toPrologTerm = fromTerm 0
 \subsection*{Constructing rules}
 
 Our next goal is to construct rules; or, more specifically, to convert
-the quoted |Name|'s we would like to keep in our hint databases to
-useful Prolog rules.
-For this we will need to define two auxiliary functions. The first,
-|fromName|, converts an Agda |Name| to a |PrologTerm|. It does this by
-requesting the corresponding |Type|, stripping the outermost
-constructor |el|, and converting the resutling Agda |Term|.
+the quoted |Name|'s we would like to be able to insert into our hint
+databases to useful Prolog rules.
+For instance, given our definition for |even+|, which had the
+following type:
+\begin{code}
+  even+ : Even n → Even m → Even (n + m)
+\end{code}
+We would like to construct a rule that expresses how |even+| can be
+applied, i.e.\ we would like a rule equivalent to the following Prolog
+statement.
+\begin{verbatim}
+  Even(m + n) :- Even(m), Even(n).
+\end{verbatim}
+In our Agda implementation, this would look as follows.
+\begin{code}
+Even+ : Rule 2
+Even+ = record {
+  name        = rname even+
+  conclusion  = con (pname Even)
+                  (con (pname _+_)
+                    (var (# 0) ∷ var (# 1) ∷ [])
+                  ∷ [])
+  premises    =   con (pname Even) (var (# 0) ∷ [])
+               ∷  con (pname Even) (var (# 1) ∷ [])
+               ∷  []
+  }
+\end{code}
+In order to construct this representation from what we have now, we
+will need two auxiliary functions. The first will convert a |Name| to
+a |Term| representing the appropriate type using Agda's |Reflection|
+API, and convert this |Term| to |PrologTerm| using |toPrologTerm|.
 \begin{code}
 fromName : Name → Error (∃ PrologTerm)
 fromName = toPrologTerm ∘ unel ∘ type
 \end{code}
-The second takes a |PrologTerm| and splits it at every outermost
-occurrence of the function symbol |pimpl|. Note that it would be
-possible to define this function directly on Agda's |Term| data type,
-but defining it on the |PrologTerm| data type is much cleaner, as all
-unsupported syntax will already have been stripped.
+The second, |splitTerm|, takes a |PrologTerm| and splits it at every
+top-most occurrence of the function symbol |pimpl|. Note that it
+would be possible to define this function directly on Agda's |Term|
+data type, but defining it on the |PrologTerm| data type is much
+cleaner, as all unsupported syntax will already have been stripped.
 \begin{code}
-splitTerm : PrologTerm n → List (PrologTerm n)
-splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
-splitTerm t = t ∷ []
+splitTerm :
+  PrologTerm n → ∃ (λ k → Vec (PrologTerm n) (suc k))
+splitTerm (con pimpl (t₁ ∷ t₂ ∷ []))  =
+  map suc (_∷_ t₁) (splitTerm t₂)
+splitTerm t = 0 , t ∷ []
 \end{code}
-Using these auxiliary functions, we can now trivially construct rules
-from names. We convert the |Name| to a |PrologTerm|, split it, take
-the last element as the rule's conclusion, and the initial list as its
-premises.
+Using these auxiliary functions, together with Agda's |initLast|, we
+can now trivially implement the conversion by applying |splitTerm|,
+and taking the |last| element of the resulting list as a conclusion,
+and its |init| as the premises.\footnote{
+Note that we are using a custom constructor |rule| to avoid the hassle
+of Agda's |record| construct.}
 \begin{code}
 toRule : Name → Error (∃ Rule)
 toRule name with fromName name
-... | left msg       = left msg
-... | right (n , t)  = toRule′ (n , splitTerm t)
-  where
-    toRule′ : ∃ (List ∘ PrologTerm) → Error (∃ Rule)
-    toRule′ (n , xs) with initLast xs
-    toRule′ (n , ._)  | []        = left panic!
-    toRule′ (n , ._)  | xs ∷ʳ' x  = right (n , rule (rname name) x xs)
+... | left msg             = left msg
+... | right (n , t)        with splitTerm t
+... | (k , ts)             with initLast ts
+... | (prems , concl , _)  =
+  right (n , rule (rname name) concl (toList prems))
 \end{code}
-
-\todo{mention existence and usage of the |rule| constructor.}
 
 \pepijn{Should we mention alternatives for rule construction?
   Generating all possible partial applications; generating the rules
@@ -969,7 +1006,7 @@ toRule name with fromName name
 
 The construction of goal terms differs slightly from the construction
 of Prolog terms. The reason for this is as follows: if we are given a
-goal-type |∀ {n} → Even n → Even (n +2)|, it is much easier to search
+goal-type |Even n → Even (n +2)|, it is much easier to search
 for a proof of |Even (n + 2)| given a premise |Even n|, then to search
 for an inhabitant of the function-type. \pepijn{Why is this? Something
   with having to add function application and composition to the |HintDB|?}
@@ -995,33 +1032,46 @@ Our approach constructs goal terms and premises as follows.
 
 \begin{code}
 toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
-toGoalAndPremises with fromTerm′ 0
-... | left msg  = left msg
-... | right (n , p) with reverse (splitTerm p)
-... | []        = left panic!
-... | (t ∷ ts)  = right ((n , t) , toPremises 0 ts)
+toGoalAndPremises t       with fromTerm′ 0 t
+... | left msg            = left msg
+... | right (n , p)       with splitTerm p
+... | (k , ts)            with initLast ts
+... | (prems , goal , _)  = right ((n , goal) , toPremises 0 prems)
 \end{code}
 Where the list of parameters is converted into premises using the
 following auxiliary function.
 \begin{code}
-toPremises : ℕ → List (PrologTerm n) → Rules
-toPremises d [] = []
-toPremises d (t ∷ ts) =
-  (n , rule (rvar d) t []) ∷ toPremises (suc d) ts
+toPremises : ∀ {k} → ℕ → Vec (PrologTerm n) k → Rules
+toPremises i []        = []
+toPremises i (t ∷ ts)  =
+  (n , rule (rvar i) t []) ∷ toPremises (suc i) ts
 \end{code}
-
+Last, we use a different implementation of the |fromTerm|
+function, where the difference is in the handling of variables.
+Instead of converting Agda variables to Prolog variables---which would
+give us strange results, due to our handling of goals---we convert
+them to Prolog constants.
 \begin{code}
 fromVar′ : ℕ → ℕ → Error (∃ PrologTerm)
 fromVar′  d i with compare d i
-... | less    _ k = left indexOutOfBounds
-... | equal   _   = right (0 , con (pvar 0) [])
-... | greater _ k = right (0 , con (pvar k) [])
+... | less    _ k  = left indexOutOfBounds
+... | equal   _    = right (0 , con (pvar 0) [])
+... | greater _ k  = right (0 , con (pvar k) [])
 \end{code}
-
 
 
 \subsection*{Reification of proof terms}
 
+Now that we can construct Prolog terms, goals and rules, from Agda
+terms, we can use our implementation of proof search to search for
+inhabitants of our goal types. The remaining problem is to convert
+such a proof of an inhabitant back to an Agda |Term|.
+
+This is simpler than expected. We can simply convert premise rules
+back to variables. For constants, we do disambiguate whether the rule
+name refers to a function or a constructor, and it should be trivial
+to extend this disambiguation to cover applications of data types,
+postulates, etc.
 \begin{code}
 fromProofTerm : ProofTerm → Term
 fromProofTerm (con (rvar i) ps) = var i []
@@ -1037,6 +1087,36 @@ fromProofTerm (con (rname n) ps) with definition n
 
 \subsection*{Putting it all together}
 
+Finally, putting it all together. If you recall, the type for the
+|auto| function was:
+\begin{code}
+  auto : (depth : ℕ) → HintDB → Term → Term
+\end{code}
+So let us first define the concept of hint databases. A |HintDB| is
+simply a list of Prolog rules:
+\begin{code}
+HintDB : Set
+HintDB = List (∃ Rule)
+\end{code}
+We can ``compile'' them using the auxiliary function |hintdb|, which
+takes a list of names, and compiles them using |toRule| as defined
+above. Note that if a rule fails to compile, no error is raised, and
+the rule is simply ignored. This behaviour can easily be adjusted,
+though.
+\begin{code}
+hintdb : List Name → HintDB
+hintdb = concatMap (fromError ∘ toRule)
+  where
+    fromError : Error A → List A
+    fromError = fromEither (const []) [_]
+\end{code}
+\pepijn{Again, shall we use Either or Agda's function type $\_⊎\_$? If we
+  use Either, we'll have to make a note of this.}
+
+Next, since we will add all parameters in our goal type as premises to
+our proof search, the resulting term will assume they are in
+scope. Therefore, we shall introduce any unintroduced variable by
+lambda abstraction, as per the well-known |intros| tactic.
 \begin{code}
 intros : Term → Term
 intros = introsAcc (length args)
@@ -1046,35 +1126,25 @@ intros = introsAcc (length args)
     introsAcc (suc k) t = lam visible (introsAcc k t)
 \end{code}
 
-\begin{code}
-HintDB : Set
-HintDB = List (∃ Rule)
-
-hintdb : List Name → HintDB
-hintdb = concatMap (fromError ∘ toRule)
-  where
-    fromError : Error A → List A
-    fromError = fromEither (const []) [_]
-\end{code}
-
 \todo{mention utility function |quoteMsg| which returns the AST of a
   message}
 \todo{mention that we \emph{could} theoretically return, for instance,
 the specific bit of syntax that is unsupported, but that since we
 cannot quote the |Term| type, we cannot just pass the terms around.}
 
+And finally, we are equipped to define |auto|.
 \begin{code}
-auto : ℕ → HintDB → Term → Term
+auto : (depth : ℕ) → HintDB → Term → Term
 auto depth rules goalType
   with toGoal goalType
-... | left msg = quoteMsg msg
-... | right ((n , g) , args)
-  with searchToDepth depth (args ++ rules) g
-... | [] = quoteMsg searchSpaceExhausted
+... | left msg  = quoteError msg
+... | right ((n , goal) , args)
+  with searchToDepth depth (args ++ rules) goal
+... | []        = quoteError searchSpaceExhausted
 ... | (_ , trace) ∷ _
   with toProofTerm trace
-... | nothing = quoteMsg panic!
-... | just p  = intros (fromProofTerm p)
+... | nothing   = quoteError panic!
+... | just p    = intros (fromProofTerm p)
 \end{code}
 
 

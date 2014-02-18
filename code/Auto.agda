@@ -5,9 +5,9 @@ open import Data.Bool using (Bool; true; false)
 open import Data.Fin as Fin using (Fin; suc; zero; #_)
 open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _⊔_; compare; less; equal; greater)
 open import Data.Nat.Show renaming (show to showℕ)
-open import Data.List as List
-open import Data.Vec as Vec using (Vec; []; _∷_)
-open import Data.Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
+open import Data.List as List using (List; []; _∷_; [_]; concatMap; _++_; length)
+open import Data.Vec as Vec using (Vec; []; _∷_; _∷ʳ_; reverse; initLast; toList)
+open import Data.Product as Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; maybe)
 open import Data.String using (String)
 open import Data.Sum as Sum using () renaming (_⊎_ to Either; inj₁ to left; inj₂ to right; [_,_] to fromEither)
@@ -139,9 +139,12 @@ module Auto where
       fromVar′ .i i              | equal   .i   = right (0 , con (pvar 0) [])
       fromVar′ .(suc (i + k)) i  | greater .i k = right (0 , con (pvar k) [])
 
-  splitTerm : ∀ {n} → PrologTerm n → List (PrologTerm n)
-  splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = t₁ ∷ splitTerm t₂
-  splitTerm t = List.[ t ]
+  second : ∀ {A B C : Set} → (B → C) → A × B → A × C
+  second f (x , y) = (x , f y)
+
+  splitTerm : ∀ {n} → PrologTerm n → ∃ (λ k → Vec (PrologTerm n) (suc k))
+  splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = Product.map suc (λ ts → t₁ ∷ ts) (splitTerm t₂)
+  splitTerm t = zero , t ∷ []
 
   mutual
     fromTerm : Case → ℕ → Term → Error (∃ PrologTerm)
@@ -175,14 +178,15 @@ module Auto where
 
   toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
   toGoalAndPremises t with fromTerm CaseGoal 0 t
-  ... | left msg = left msg
-  ... | right (n , p) with reverse (splitTerm p)
-  ... | []       = left panic!
-  ... | (g ∷ rs) = right ((n , g) , toPremises 0 rs)
+  ... | left msg            = left msg
+  ... | right (n , p)       with splitTerm p
+  ... | (k , ts)            with initLast ts
+  ... | (prems , goal , _)  = right ((n , goal) , toPremises 0 prems)
     where
-      toPremises : ℕ → List (PrologTerm n) → Rules
+      toPremises : ∀ {k} → ℕ → Vec (PrologTerm n) k → Rules
       toPremises i [] = []
       toPremises i (t ∷ ts) = (n , rule (rvar i) t []) ∷ toPremises (suc i) ts
+
 
   -- converts an agda term into a list of terms by splitting at each function
   -- symbol; note the order: the last element of the list will always be the
@@ -215,13 +219,10 @@ module Auto where
   --   be able to apply them (as with name2rule″).
   toRule : Name → Error (∃ Rule)
   toRule name with fromName name
-  ... | left msg      = left msg
-  ... | right (n , t) = toRule′ (n , splitTerm t)
-    where
-      toRule′ : ∃ (List ∘ PrologTerm) → Error (∃ Rule)
-      toRule′ (n , xs) with initLast xs
-      toRule′ (n , ._) | []       = left panic!
-      toRule′ (n , ._) | xs ∷ʳ' x = right (n , rule (rname name) x xs)
+  ... | left msg             = left msg
+  ... | right (n , t)        with splitTerm t
+  ... | (k , ts)             with initLast ts
+  ... | (prems , concl , _)  = right (n , rule (rname name) concl (toList prems))
 
   mutual
     reify : ProofTerm → Term
@@ -244,11 +245,11 @@ module Auto where
   data Exception : Message → Set where
     throw : (msg : Message) → Exception msg
 
-  quoteMsg : Message → Term
-  quoteMsg (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
-  quoteMsg (indexOutOfBounds)     = quoteTerm (throw indexOutOfBounds)
-  quoteMsg (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
-  quoteMsg (panic!)               = quoteTerm (throw panic!)
+  quoteError : Message → Term
+  quoteError (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
+  quoteError (indexOutOfBounds)     = quoteTerm (throw indexOutOfBounds)
+  quoteError (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
+  quoteError (panic!)               = quoteTerm (throw panic!)
 
   HintDB : Set
   HintDB = Rules
@@ -262,13 +263,13 @@ module Auto where
   auto : ℕ → HintDB → Term → Term
   auto depth rules type
     with toGoalAndPremises type
-  ... | left msg = quoteMsg msg
+  ... | left msg = quoteError msg
   ... | right ((n , g) , args)
     with searchToDepth depth (args ++ rules) g
-  ... | [] = quoteMsg searchSpaceExhausted
+  ... | [] = quoteError searchSpaceExhausted
   ... | (_ , ap) ∷ _
     with toProofTerm ap
-  ... | nothing = quoteMsg panic!
+  ... | nothing = quoteError panic!
   ... | just p  = intros (reify p)
     where
       intros : Term → Term
