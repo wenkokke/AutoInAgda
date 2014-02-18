@@ -377,7 +377,7 @@ respectively.
 AddBase : Rule 1
 AddBase = record {
   name        = "AddBase"
-  conclusion  = con Add  (  Zero
+  conclusion  = con Add  (  con Zero []
                          ∷  var (# 0)
                          ∷  var (# 0)
                          ∷ [])
@@ -388,13 +388,13 @@ AddBase = record {
 AddStep : Rule 3
 AddStep = record {
   name        = "AddStep"
-  conclusion  =  con Add  (  var (# 0)
-                          ∷  var (# 1)
-                          ∷  var (# 2)
-                          ∷ [])
-  premises    =  con Add  (  con Suc (var (# 0) ∷ [])
+  conclusion  =  con Add  (  con Suc (var (# 0) ∷ [])
                           ∷  var (# 1)
                           ∷  con Suc (var (# 2) ∷ [])
+                          ∷ [])
+  premises    =  con Add  (  var (# 0)
+                          ∷  var (# 1)
+                          ∷  var (# 2)
                           ∷ [])
                  ∷ []
   }
@@ -468,7 +468,7 @@ We can use these |inject| and |raise| to define similar functions
 that work on our |Rule| and |Term| data types, by mapping them over
 all the variables that they contain.
 
-\subsection{Proof search}
+\subsection*{Proof search}
 
 Our implementation of proof search is split into two steps.  In the
 first step we set up an higher-order representation of the search
@@ -481,13 +481,7 @@ details involved with unification and weakening used in the first
 phase separate from the actual proof search. By doing so, we can
 implement various search strategies, such as breadth-first search,
 depth-first search or an heuristic-driven algorithm, by simply
-traversing the final search tree in a different order.  Furthermore,
-the definitions we present here are immediately accepted by the
-termination checker; the obvious definition arising from fusing both
-these steps is rejected by the termination checker.
-
-\todo{mention that merging the two steps won't pass the termination
-  checker---trust me, I've tried.}
+traversing the final search tree in a different order.
 
 \subsubsection*{Setting up the search space}
 
@@ -518,15 +512,6 @@ as coinductive.
 The |fail| constructor is used to mark branches of the search space
 that fail, i.e.,\ where the selected rule is not unifiable with the
 current goal. 
-% Note that we could have defined failure as an infinite
-% loop:
-% \begin{code}
-%   loop : ∀ {m} → SearchSpace m
-%   loop = step (λ _ → ~ loop)
-% \end{code}
-% However, adding it as a constructor is much more efficient w.r.t.\ the
-% eventual proof search.
-\wouter{I removed the 'wrong' definition of loop here.}
 
 Note that we rename Agda's notation for coinduction to more closely
 resemble notation already familiar to Haskell programmers. Coinductive
@@ -674,7 +659,11 @@ using an auxiliary function with an accumulating parameter:
     go (step f)  acc  = 
       fork (map (\r -> ~ go (! f r) (acc ∷ʳ r)) rs₀)
 \end{code}
-Note that in our implementation, Agda's guardedness checker cannot
+Note that we accumulate the trace of rules applied in the order in
+which they are applied: new rules are added to the end of the list
+with the snoc operator |∷ʳ|.
+
+In the implementation of |mkTree|, Agda's guardedness checker cannot
 tell that the call to |map| is size-preserving, and therefore safe. To
 show this definition is suitably guarded, we need to inline the
 definition of |map| and explicitly recurse over the list of rules
@@ -708,53 +697,31 @@ searchToDepth depth rules goal =
   dfs depth (mkTree rules (resolve goal))
 \end{code}
 
+\subsection*{Example}
 
+\todo{Add example of calling |searchToDepth| to add/substract two
+  numbers, and presenting the resulting substitution}
 
 \section{Constructing proof trees}
 \label{sec:proofs}
 
-In the previous section we have discussed the implementation of proof
-search, returning a substitution which, when applied to the goal, will
-provide the user with a variable-free term \pepijn{should probably
-change or remove this bit}.
+The Prolog interpreter described in the previous section returns a
+substitution. To use such an interpreter to produced proof terms,
+however, we need to do a bit more work.
 
-Another piece of information which was returned by the proof search
-was a trace of the applied rules. In the following section we will
-discuss using this information to reconstruct a proof term. That
-is, we will construct terms of the following type, the type of closed
-terms.
+Besides the resulting substitution, the |Result| type returned by the
+proof search process also contains a a trace of the applied rules. In
+the following section we will discuss how to use this information to
+reconstruct a proof term. That is, we will construct a closed term of
+the following type:
 \begin{code}
 data ProofTerm : Set where
   con : RuleName → List ProofTerm → ProofTerm
 \end{code}
-Since we know the arity of every rules (as we can simply count the
-number of premises), the algorithm for reconstructing these terms is
-simple.
 
-We start from the back of the trace. Our invariant is that the trace
-corresponds to a valid proof, and thus we know that the last rule
-\emph{must} have an arity of zero. And thus we can safely turn it into
-a proof term with an empty argument list.
-
-We continue with the next-to-last argument, knowing that it may be a
-rule with either an arity of zero (in which case we add it to the list
-of proof terms) or an arity of one (in which case we give it the
-proof term generated in the previous step as an argument).
-
-The algorithm continues in this fashion until all we reach the first
-rule in the trace, at which point our invariant states that our list
-should contain exactly one element.
-
-A downside of our current implementation is that we do not explicitly
-encode this invariant, and thus we cannot define the proof term
-construction as a total function. The case in the |toProofTerms|
-function that cannot occur is marked with a comment, and our top-level
-|toProofTerm| function is forced to return a |Maybe| value. This is
-not a great downside as, due to the undecidability of first-order
-proof search in general, we would have had to return a |Maybe| value
-in any case \pepijn{should get rid of the term maybe-value; write an
-incomplete/non-total function?}.
-
+It is easy to compute the arity of every rule: we simply take the
+length of the list of premises. After making this observation, we can
+define a function to construct such a |ProofTerm| as a simple fold:
 \begin{code}
 toProofTerms : Rules → List ProofTerm
 toProofTerms = foldr next []
@@ -765,18 +732,41 @@ toProofTerms = foldr next []
     ... | yes  r≤p =
       con (name r) (take (arity r) pfs) ∷ drop (arity r) pfs
 \end{code}
-
+The |next| function combines a list of proof terms, produced by
+recursive calls, and the single rule |r| that has just been
+applied. If the list contains enough elements, we construct a new
+|ProofTerm| node by applying the rule to the first |arity r| elements
+of the list. This new |ProofTerm| is the head of the list, replacing
+the children terms that previously formed the prefix of the
+list. Essentially, this is the `unflattening' of a rose tree using the
+the arities of the individual nodes. Upon completion, |toProofTerms|
+should return a list with a single element: the proof term that
+witnesses the validity of the our derivation. The function,
+|toProofTerm|, returns this witness if it exists:
 \begin{code}
 toProofTerm : Rules → Maybe ProofTerm
 toProofTerm rs with toProofTerms rs
-... | []     = nothing
-... | p ∷ _  = just p
+... | []         = nothing
+... | p ∷ []     = just p
+... | p ∷ _ ∷ _  = nothing
 \end{code}
 
+Of course, the |toProofTerms| function may fail if there are not
+enough elements in the list to fully apply a rule. When run on the
+result of our proof search functions, such as |searchToDepth|,
+however, we know that the list has the right length, even if this is
+not enforced by its type. While we could use a clever choice of
+indexed data type to show that the |toProofTerms| can be defined in a
+\emph{total} fashion, there is little benefit in doing so. The proof
+search functions such as |searchToDepth| are already \emph{partial} by
+their very nature. Adding further structure to the accumulated list of
+rules to guarantee totality will not change this.
 
 
 \section{Adding reflection}
 \label{sec:reflection}
+
+\wouter{Tot hier ben ik}
 
 \todo{find a place to describe the fallibility of the algorithm, and
   the possible error messages (see below)}
@@ -1246,6 +1236,8 @@ Cite Devriese paper.
 
 \todo{Make sure that we use implicit universal quantification all the
   way through.}
+
+Annoyed by guardedness conditions. Sized types?
 
 \bibliographystyle{plainnat}
 \bibliography{main}

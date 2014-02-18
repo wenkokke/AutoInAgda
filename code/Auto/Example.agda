@@ -53,3 +53,4 @@ module Auto.Example where
   goal₂ = quoteTerm (∃₂ λ m n → Even (m + n))
   fail₂ : unquote (auto 5 hints goal₂) ≡ throw unsupportedSyntax
   fail₂ = refl
+
