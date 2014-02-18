@@ -271,6 +271,7 @@ implemented.
 \label{sec:prolog}
 
 \todo{mention that we leave implicit parameters implicit}
+\wouter{we do this: see the text after |even+|}
 
 Let us set aside Agda's reflection mechanism for the moment. In this
 section, we will present a standalone Prolog
@@ -473,14 +474,17 @@ Our implementation of proof search is split into two steps.  In the
 first step we set up an higher-order representation of the search
 space, where we branch over some collection of undetermined rules at
 every step. In the second step we flatten this abstract representation
-to a concrete first-order search tree.
+to a first-order search tree.
 
-The distinction between these two phases keeps the nitty
-gritty details involved with unification and weakening used in the
-first phase separate from the actual proof search. By doing so, we can
+The distinction between these two phases keeps the nitty gritty
+details involved with unification and weakening used in the first
+phase separate from the actual proof search. By doing so, we can
 implement various search strategies, such as breadth-first search,
 depth-first search or an heuristic-driven algorithm, by simply
-traversing the final search tree in a different order.
+traversing the final search tree in a different order.  Furthermore,
+the definitions we present here are immediately accepted by the
+termination checker; the obvious definition arising from fusing both
+these steps is rejected by the termination checker.
 
 \todo{mention that merging the two steps won't pass the termination
   checker---trust me, I've tried.}
@@ -512,15 +516,17 @@ determines the remainder of the search. As a search need not
 terminate, the |SearchSpace| resulting from applying a rule are marked
 as coinductive.
 The |fail| constructor is used to mark branches of the search space
-that fail, i.e.\ where the selected rule is not unifiable with the
-current goal. Note that we could have defined failure as an infinite
-loop:
-\begin{code}
-  loop : ∀ {m} → SearchSpace m
-  loop = step (λ _ → ~ loop)
-\end{code}
-However, adding it as a constructor is much more efficient w.r.t.\ the
-eventual proof search.
+that fail, i.e.,\ where the selected rule is not unifiable with the
+current goal. 
+% Note that we could have defined failure as an infinite
+% loop:
+% \begin{code}
+%   loop : ∀ {m} → SearchSpace m
+%   loop = step (λ _ → ~ loop)
+% \end{code}
+% However, adding it as a constructor is much more efficient w.r.t.\ the
+% eventual proof search.
+\wouter{I removed the 'wrong' definition of loop here.}
 
 Note that we rename Agda's notation for coinduction to more closely
 resemble notation already familiar to Haskell programmers. Coinductive
@@ -596,98 +602,108 @@ open goals that must be resolved. The apparent complexity of the
 |next| function comes from the careful treatment of variables.
 
 First of all, note that we pass the substitution accumulated so far to
-|unifyAcc|. This ensures that this substitution is applied to the two
-terms being unified \emph{before} we start the unification.
-
-\wouter{Tot hier ben ik zo'n beetje.}
+|unifyAcc|. This ensures that the constraints on any variables
+occurring in the two terms being unified are taken into account.
 
 Next, there is the problem of avoiding variable capture. We can only
-unify two terms that are built up over the same set of
-variables. Therefore we must ensure that the goal, the rule's
-conclusion and its premises share a common set of variables.  However,
-if we want the resulting substitution to have any meaning, we would
-like the variables used in the initial goal term to remain the
-same. This is where |inject| and |raise| come in.
+unify two terms that have the same type. Therefore we must ensure that
+the goal, the rule's conclusion and its premises have the same number
+of variables. At the same time, the substitution we are accumulating
+should be kept in synch with the variables used in the initial
+goal. Furthermore, the variables mentioned in the rule are implicitly
+universally quantified. We need to instantiate them with fresh
+variables to avoid introducing unintended constraints. This is where
+|inject| and |raise| come in.
 
 Recall that injecting a variable into a larger set would keep its
-value the same, whereas raising would raise the variable into the
-portion of the set that was previously inaccessible. Therefore we will
-always take care to |inject| our goal terms, and our accumulating
-substitution, whereas we will |raise| the terms in the applied
-rule.
+value the same, whereas |raise| maps the variable into a 'fresh'
+portion of the set that was previously unused. Therefore we will
+always take care to |inject| our goal terms and our accumulating
+substitution, whereas we |raise| the terms in the applied rule. This
+ensures that the substitution and goals are kept in synch, whereas any
+variables mentioned in the rule are fresh.
 
-Note that $\delta_2$ (the number of free variables in the chosen rule)
-is added to $\delta_1$ (the amount of space that had to be made for
-previous rule applications). This means that the amount of space to be
-made will grow throughout the proof search.
+Note the number of free variables in the chosen rule, |δ₂|, is added
+to the amount of space that had to be made for previous rule
+applications, |δ₁|. As a result, we need to |raise| by more and more as
+the proof search proceeds.
 
 \subsubsection*{Constructing search trees}
 
 The second step in our proof search implementation is to transform the
-|SearchSpace| we have just constructed into an N-ary tree. We do this
-by branching once for every rule, at every |step| constructor.
+|SearchSpace| we have just constructed into a first-order rose tree. We do this
+by branching once for every rule at every |step| constructor.
 The result of this transformation shall be expressed in terms of the
 following data type.
 \begin{code}
 data SearchTree (A : Set) : Set where
   fail  : SearchTree A
   retn  : A → SearchTree A
-  fork  : ∞ (List (SearchTree A)) → SearchTree A
+  fork  : List (∞ (SearchTree A)) → SearchTree A
 \end{code}
-In our case, the type |A| becomes a tuple containing the substitution
-that was our previous result, together with a trace that keeps track
-of all the applied tules. In order to keep the code readable, let us
-introduce the following alias.\footnote{
-  |Rules| is an alias for a list of existentially quantified rules
-  |List (∃ Rule)|.
-}
+Note that this |SearchTree| is finitely branching, but potentially
+infinitely deep. At every |fork| we may branch over some finite set of
+rules, but there is no guarantee that we can construct the entire
+|SearchTree| in finite time.
+
+In our case, we will instantiate the type variable |A| with a tuple
+containing a substitution together with a trace that keeps track of
+all the applied rules. In order to keep the code readable, let us
+introduce the following alias.\footnote{ |Rules| is an alias for a
+  list of existentially quantified rules |List (∃ Rule)|.  }
 \begin{code}
   Result m  = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
 \end{code}
+The existential quantifier |∃₂| hides both the number of fresh
+variables that we need to introduce, |δ|, and the number of variables
+in the terms produced by the final substitution, |n|.
 
 The function that takes care of the transformation is almost
 trivial. For a given set of rules, we simply traverse the
 |SearchSpace| structure, where at every |step| we apply the
-continuation to every rule. However, since we also wish to maintain a
-rule trace, we shall define this transformation using an
+continuation to every rule. Since we also wish to maintain a trace of
+the rules that have been applied, we shall define this transformation
+using an auxiliary function with an accumulating parameter:
 \begin{code}
-mkTree : Rules → SearchSpace m → SearchTree (Result m)
-mkTree rs₀ s = mkTreeAcc rs₀ s []
+  mkTree : Rules → SearchSpace m → SearchTree (Result m)
+  mkTree rs₀ s = go s []
+    where
+    go : SearchSpace m → Rules → SearchTree (Result m)
+    go fail      _    = fail
+    go (retn s)  acc  = retn ((_ , (_ , s)) , acc)
+    go (step f)  acc  = 
+      fork (map (\r -> ~ go (! f r) (acc ∷ʳ r)) rs₀)
 \end{code}
-The |mkTree| function is defined using an helper with an accumulating
-parameter, which keeps track of the applied rules.
+Note that in our implementation, Agda's guardedness checker cannot
+tell that the call to |map| is size-preserving, and therefore safe. To
+show this definition is suitably guarded, we need to inline the
+definition of |map| and explicitly recurse over the list of rules
+|rs₀|.
 
-\begin{code}
-mkTreeAcc : Rules → SearchSpace m → Rules → SearchTree (Result m)
-mkTreeAcc rs₀ (retn s)  ap  = retn (s , ap)
-mkTreeAcc rs₀ (step f)  ap  =
-  fork (~ map (λ r → mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) rs₀)
-\end{code}
-
-\wouter{Hier een voorbeeld waar je speelt met het wel/niet mogen
-  toepassen van bepaalde regels}
-
-After the transformation, we are left with a simple tree structure,
-for which we can define simple traversal strategies, such as
-depth-first search (shown below) or breadth-first search (not shown,
-but implemented).
-
+After the transformation, we are left with a first-order tree
+structure, that we can traverse in search of solutions. For example,
+we can define a simple bounded depth-first traversal as follows:
 \begin{code}
   dfs : (depth : ℕ) → SearchTree A → List A
-  dfs  zero    _          = []
+  dfs zero     _          = []
   dfs (suc k)  fail       = []
   dfs (suc k)  (retn x)   = return x
-  dfs (suc k)  (fork xs)  = concatMap (dfs k) (! xs)
+  dfs (suc k)  (fork xs)  = concatMap (\x -> dfs k (! x)) xs
 \end{code}
+It is fairly straightforward to define other traversal strategies,
+such as a breadth-first search. Similarly, we can also vary the rules
+used to construct the |SearchTree|. For example, you may want to
+define a function that constructs a `linear' proof, where every rule
+is applied at most once. All these search strategies are simple
+variations of the solution presented here.
 
-Putting it all together, we can define a function |searchToDepth|,
+Putting all these pieces together, we can define a function |searchToDepth|,
 which implements proof search up to a given depth |d|, i.e.\ it
-constructs the |SearchSpace|, converts it to a |SearchTree|, and
-searches this tree (in this case using |dfs|) up to depth |d|.
-
+constructs the |SearchSpace|, flattens this to a |SearchTree|, and
+finally traverses the resulting tree in depth-first order up to depth
+|d|.
 \begin{code}
-searchToDepth :
-  ∀ {m} → ℕ → Rules → Goal m → List (Result m)
+searchToDepth :ℕ → Rules → Goal m → List (Result m)
 searchToDepth depth rules goal =
   dfs depth (mkTree rules (resolve goal))
 \end{code}
