@@ -1163,8 +1163,28 @@ intros = introsAcc (length args)
     introsAcc (suc k) t = lam visible (introsAcc k t)
 \end{code}
 
-\todo{mention utility function |quoteMsg| which returns the AST of a
-  message}
+Last, we need to figure out what to do with error messages. Since we
+are going to return an Agda |Term|, we need to transform these
+messages into the |Term| representation of an Agda term that will,
+when type checked, display our message. We can do this using the
+following data type:
+\begin{code}
+data Exception : Message → Set where
+    throw : (msg : Message) → Exception msg
+\end{code}
+Note that the message given on the value level will be displayed on a
+type level, as intended.
+
+In addition, we will need a function that produces the intended |Term|
+representation. We could construct this ourselves, but it is easier to
+just use Agda's |quoteTerm| construct.
+\begin{code}
+quoteError : Message → Term
+quoteError (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
+quoteError (indexOutOfBounds)     = quoteTerm (throw indexOutOfBounds)
+quoteError (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
+quoteError (panic!)               = quoteTerm (throw panic!)
+\end{code}
 \todo{mention that we \emph{could} theoretically return, for instance,
 the specific bit of syntax that is unsupported, but that since we
 cannot quote the |Term| type, we cannot just pass the terms around.}
