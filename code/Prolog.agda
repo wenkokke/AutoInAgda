@@ -219,31 +219,43 @@ module Prolog
   data SearchTree (A : Set) : Set where
     fail : SearchTree A
     retn : A → SearchTree A
-    fork : ∞ (List (SearchTree A)) → SearchTree A
+    fork : List (∞ (SearchTree A)) → SearchTree A
 
   -- lets try and keep the types readable, shall we?
   Result : ℕ → Set
   Result m = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
 
   mutual
+
+  -- Here's the version used in the paper
+  -- mkTree : ∀ {m} -> Rules → SearchSpace m → SearchTree (Result m)
+  -- mkTree rs₀ s = mkTreeAcc s []
+  --   where
+  --   mkTreeAcc : ∀ {m} -> SearchSpace m → Rules → SearchTree (Result m)
+  --   mkTreeAcc fail _ = fail
+  --   mkTreeAcc (retn s) acc = retn ((_ , (_ , s)) , acc)
+  --   mkTreeAcc (step f) acc = 
+  --     fork (map (\r -> ~ mkTreeAcc (! f r) (acc ∷ʳ r)) rs₀)
+
     mkTree : ∀ {m} → Rules → SearchSpace m → SearchTree (Result m)
     mkTree rs₀ s = mkTreeAcc rs₀ s []
 
     mkTreeAcc : ∀ {m} → Rules → SearchSpace m → Rules → SearchTree (Result m)
     mkTreeAcc {_} rs₀ fail _ = fail
     mkTreeAcc {_} rs₀ (retn s) ap = retn ((_ , (_ , s)) , ap)
-    mkTreeAcc {m} rs₀ (step f) ap = fork (~ mkTreeAccChildren rs₀)
+    mkTreeAcc {m} rs₀ (step f) ap = fork (mkTreeAccChildren rs₀)
       where
         -- when written with a simple `map`, termination checker complains
-        mkTreeAccChildren : Rules → List (SearchTree (Result m))
+        mkTreeAccChildren : Rules → List (∞ (SearchTree (Result m)))
         mkTreeAccChildren [] = []
-        mkTreeAccChildren (r ∷ rs) = mkTreeAcc rs₀ (! f r) (ap ∷ʳ r) ∷ mkTreeAccChildren rs
+        mkTreeAccChildren (r ∷ rs) = 
+          ~ (mkTreeAcc rs₀ (! f r) (ap ∷ʳ r)) ∷ mkTreeAccChildren rs 
 
   dfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
   dfs  zero    _        = []
   dfs (suc k)  fail     = []
   dfs (suc k) (retn x)  = return x
-  dfs (suc k) (fork xs) = concatMap (dfs k) (! xs)
+  dfs (suc k) (fork xs) = concatMap (\x -> dfs k (! x)) xs
 
   bfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
   bfs depth t = concat (toList (bfsAcc depth t))
@@ -260,7 +272,7 @@ module Prolog
       bfsAcc  zero   _         = []
       bfsAcc (suc k)  fail     = empty
       bfsAcc (suc k) (retn x)  = (x ∷ []) ∷ empty
-      bfsAcc (suc k) (fork xs) = [] ∷ foldr merge empty (map (bfsAcc k) (! xs))
+      bfsAcc (suc k) (fork xs) = [] ∷ foldr merge empty (map (\x -> bfsAcc k (! x)) xs)
 
   searchToDepth : ∀ {m} (depth : ℕ) → Rules → Goal m → List (Result m)
   searchToDepth {m} depth rules goal = dfs depth (mkTree rules (resolve goal))
