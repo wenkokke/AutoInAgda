@@ -18,51 +18,57 @@ module Prolog.Example where
   open RawMonad {{...}} renaming (return to mreturn)
   private maybeMonad = Maybe.monad
 
-  data Sym : ℕ → Set where
-    ADD  : Sym 3
-    SUC  : Sym 1
-    ZERO : Sym 0
+  data Arith : Set where
+    Add  : Arith
+    Suc  : Arith
+    Zero : Arith
 
-  decEqSym : ∀ {k} (f g : Sym k) → Dec (f ≡ g)
-  decEqSym ADD  ADD  = yes refl
-  decEqSym SUC  SUC  = yes refl
-  decEqSym ZERO ZERO = yes refl
+  decEqArith : (x y : Arith) → Dec (x ≡ y)
+  decEqArith Add  Add  = yes refl
+  decEqArith Add  Suc  = no (λ ())
+  decEqArith Add  Zero = no (λ ())
+  decEqArith Suc  Add  = no (λ ())
+  decEqArith Suc  Suc  = yes refl
+  decEqArith Suc  Zero = no (λ ())
+  decEqArith Zero Add  = no (λ ())
+  decEqArith Zero Suc  = no (λ ())
+  decEqArith Zero Zero = yes refl
 
-  showSym : ∀ {k} (s : Sym k) → String
-  showSym ADD  = "Add"
-  showSym SUC  = "Suc"
-  showSym ZERO = "Zero"
+  open import Prolog String Arith decEqArith renaming (PrologTerm to Term)
 
-  open import Prolog String Sym decEqSym
-  open import Prolog.Show String id Sym showSym decEqSym
+  One   : Term 0
+  One   = con Suc (con Zero [] ∷ [])
+  Two   : Term 0
+  Two   = con Suc (One ∷ [])
+  Three : Term 0
+  Three = con Suc (Two ∷ [])
+  Four  : Term 0
+  Four  = con Suc (Three ∷ [])
 
-  Zero : ∀ {n} → Term n
-  Zero = con ZERO []
+  X : Term 1
+  X = var (# 0)
 
-  Suc : ∀ {n} (x : Term n) → Term n
-  Suc x = con SUC (x ∷ [])
+  Three+One? : Term 1
+  Three+One? = con Add (injectTerm 1 Three ∷ injectTerm 1 One ∷ X ∷ [])
 
-  fromℕ : ∀ {n} → ℕ → Term n
-  fromℕ zero = Zero
-  fromℕ (suc k) = Suc (fromℕ k)
+  AddBase : Rule 1
+  AddBase = record
+    { name        = "AddBase"
+    ; conclusion  = con Add  (con Zero [] ∷ var (# 0) ∷ var (# 0)  ∷ [])
+    ; premises    = []
+    }
 
-  Add : ∀ {n} (x y z : Term n) → Term n
-  Add x y z = con ADD (x ∷ y ∷ z ∷ [])
+  AddStep : Rule 3
+  AddStep = record
+    { name        = "AddStep"
+    ; conclusion  = con Add (con Suc (var (# 0) ∷ []) ∷ var (# 1) ∷ con Suc (var (# 2) ∷ []) ∷ [])
+    ; premises    = con Add (var (# 0) ∷ var (# 1) ∷ var (# 2) ∷ []) ∷ []
+    }
 
-  rules : Rules
-  rules = Add₁ ∷ Add₀ ∷ []
+  Expected : List (Term 0)
+  Expected = Four ∷ []
+  Actual   : List (Term 0)
+  Actual   = map proj₁ (toResult X substs)
     where
-      Add₀ = 1 , rule "Add₀" (Add Zero x₀ x₀) []
-        where x₀ = var zero
-      Add₁ = 3 , rule "Add₁" (Add (Suc x₀) x₁ (Suc x₂)) (Add x₀ x₁ x₂ ∷ [])
-        where x₀ = var zero
-              x₁ = var (suc zero)
-              x₂ = var (suc (suc zero))
-
-  goal : Goal 2
-  goal = Add x₀ x₁ (fromℕ 4)
-    where x₀ = var zero
-          x₁ = var (suc zero)
-
-  main : String
-  main = showList showAns (filterWithVars (solveToDepth 10 rules goal))
+      substs : List (Result 1)
+      substs = searchToDepth 5 ((_ , AddBase) ∷ (_ , AddStep) ∷ []) Three+One?

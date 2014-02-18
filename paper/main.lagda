@@ -511,7 +511,7 @@ terminate, the |SearchSpace| resulting from applying a rule are marked
 as coinductive.
 The |fail| constructor is used to mark branches of the search space
 that fail, i.e.,\ where the selected rule is not unifiable with the
-current goal. 
+current goal.
 
 Note that we rename Agda's notation for coinduction to more closely
 resemble notation already familiar to Haskell programmers. Coinductive
@@ -656,7 +656,7 @@ using an auxiliary function with an accumulating parameter:
     go : SearchSpace m → Rules → SearchTree (Result m)
     go fail      _    = fail
     go (retn s)  acc  = retn ((_ , (_ , s)) , acc)
-    go (step f)  acc  = 
+    go (step f)  acc  =
       fork (map (\r -> ~ go (! f r) (acc ∷ʳ r)) rs₀)
 \end{code}
 Note that we accumulate the trace of rules applied in the order in
@@ -701,6 +701,20 @@ searchToDepth depth rules goal =
 
 \todo{Add example of calling |searchToDepth| to add/substract two
   numbers, and presenting the resulting substitution}
+
+\begin{code}
+  query : Term 1
+  query =
+    con Add (inject 1 Three ∷ inject 1 One ∷ var (# 0) ∷ [])
+\end{code}
+
+\begin{code}
+  result : List (Term 0)
+  result = apply substs (var (# 0))
+    where
+      rules   = (1 , AddBase) ∷ (3 , AddStep) ∷ []
+      substs  = searchToDepth 5 rules query
+\end{code}
 
 \section{Constructing proof trees}
 \label{sec:proofs}
