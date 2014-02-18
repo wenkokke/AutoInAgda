@@ -699,21 +699,38 @@ searchToDepth depth rules goal =
 
 \subsection*{Example}
 
-\todo{Add example of calling |searchToDepth| to add/substract two
-  numbers, and presenting the resulting substitution}
-
+Using this implementation of proof search, together with the terms and
+rules defined above, we can compute, for instance, the sum |3 + 1|.
+First we define a query, corresponding to the Prolog query \verb|add(3,1,x).|:
 \begin{code}
   query : Term 1
   query =
     con Add (inject 1 Three ∷ inject 1 One ∷ var (# 0) ∷ [])
 \end{code}
+Note that we must |inject| the terms |Three| and |One|, which are
+closed terms, in order to make it match the variable domain of our
+variable |var (# 0)|.
 
+Second, we use |searchToDepth| to search for a substitution. We use a
+function |apply| which applies a list of solutions to a goal term:
+\begin{code}
+  apply : List (Result m) → Goal m → List (Term 0)
+\end{code}
+Since we do not wish to go into the details of unification and
+substitution, we shall leave this function undefined. Instead we will
+present a complete usage of |searchToDepth|, resolving the previously
+defined |query|:
 \begin{code}
   result : List (Term 0)
   result = apply substs (var (# 0))
     where
       rules   = (1 , AddBase) ∷ (3 , AddStep) ∷ []
       substs  = searchToDepth 5 rules query
+\end{code}
+Once we have this, we can show that the result of |3 + 1| is indeed |4|.
+\begin{code}
+  test : result ≡ (Four ∷ [])
+  test = refl
 \end{code}
 
 \section{Constructing proof trees}
@@ -782,22 +799,6 @@ rules to guarantee totality will not change this.
 
 \wouter{Tot hier ben ik}
 
-\todo{find a place to describe the fallibility of the algorithm, and
-  the possible error messages (see below)}
-
-\begin{code}
-  data Message : Set where
-    searchSpaceExhausted  : Message
-    indexOutOfBounds      : Message
-    unsupportedSyntax     : Message
-    panic!                : Message
-\end{code}
-
-\begin{code}
-  Error : ∀ {a} (A : Set a) → Set a
-  Error A = Either Message A
-\end{code}
-
 What remains is to give a pair of functions which can convert from
 |Reflection|'s |Term| data type to our first-order |PrologTerm| data
 type and vice versa.
@@ -832,6 +833,26 @@ data RuleName : Set where
   rname  : (n : Name) → RuleName
   rvar   : (i : ℕ) → RuleName
 \end{code}
+
+Secondly, it is important to realise that proof search can fail. In
+addition---since we will attempt to convert higher-order Agda terms to
+first-order Prolog terms---the conversion can also fail. Therefore we
+wrap our conversions in an |Error| monad.
+\begin{code}
+  Error : ∀ {a} (A : Set a) → Set a
+  Error A = Either Message A
+\end{code}
+Where the |Message| data type can be any of the following messages.
+\begin{code}
+  data Message : Set where
+    searchSpaceExhausted  : Message
+    indexOutOfBounds      : Message
+    unsupportedSyntax     : Message
+    panic!                : Message
+\end{code}
+The meanings of these messages will be discussed where they are
+relevant.
+
 Last, we need one more auxiliary function, which we call |match|. This
 function implements the intuition that if we have two data structures
 limited to |m| and |n| variables, respectively, we should be able to
