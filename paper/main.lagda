@@ -1,4 +1,4 @@
-\documentclass[preprint]{sigplanconf}
+\documentclass[preprint,draft]{sigplanconf}
 
 %include agda.fmt
 %include main.fmt
@@ -806,52 +806,59 @@ rules to guarantee totality will not change this.
 \section{Adding reflection}
 \label{sec:reflection}
 
-\wouter{Tot hier ben ik}
+To complete the definition of our |auto| function, we still need to
+convert between Agda's built-in |Term| data type and the |PrologTerm|
+data type required by our unification and resolution algorithms. This
+is an essential piece of plumbing, necessary to provide the desired proof
+automation.  While not difficult in principle, this
+does expose some of the limitations and design choices of the |auto| function.
 
-What remains is to give a pair of functions which can convert from
-|Reflection|'s |Term| data type to our first-order |PrologTerm| data
-type and vice versa.
-
-The first thing we will need if we are to provide such functions are
-two concrete definitions for the |TermName| and |RuleName| data types.
+The first thing we will need are
+concrete definitions for the |TermName| and |RuleName| data types,
+two were parameters to the development presented in the previous sections.
 It would be desirable to identify both types with Agda's |Name| type,
 but unfortunately the Agda does not assign a name to the function
-symbol |_→_|, nor does it assign names to variables. Therefore we will
-define two name data types, which handle these cases.
+space type operator, |_→_|; nor does Agda assign names to locally bound variables. 
+To address this, we define two new data types |TermName| and |RuleName|.
 
-First, the implementation of |TermName|:
+First, we define the |TermName| data type as follows:
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
   pvar   : (i : ℕ) → TermName
   pimpl  : TermName
 \end{code}
-Note that the |pvar| constructor has nothing to do with |PrologTerm|'s
-|var| constructor. It is not used to construct a Prolog variable, but
-rather to be able to refer to Agda variables as Prolog constants. Its
-index |i| is used in a similar manner to Prolog variables, where two
-variables with the same index are considered to have the same referent.
+The |TermName| data type has three constructors. The |pname|
+constructor embeds Agda's built-in |Name| in the a |TermName| type.
+The |pvar| constructor describes locally bound variables, represent by
+their De Bruijn index. Note that the |pvar| constructor has nothing to
+do with |PrologTerm|'s |var| constructor: it is not used to construct
+a Prolog variable, but rather to be able to refer to a local variable
+as a Prolog constant. Finally, |pimpl| explicitly represents the Agda
+function space.
 
-Conversely, in the implementation of |RuleName|, the |rvar|
-constructor is used to be able to refer to Agda variables as
-rules. Therefore, its index |i| is used as a de Bruijn index---its
-value can be used directly as an argument to |var| in Agda's |Term|
-data type.
+We define the |RuleName| type in a similar fashion:
 \begin{code}
 data RuleName : Set where
   rname  : (n : Name) → RuleName
   rvar   : (i : ℕ) → RuleName
 \end{code}
+The |rvar| constructor is used to refer to Agda variables as
+rules. Its argument |i| is corresponds to a De Bruijn index---the
+value of |i| can be used directly as an argument to the |var|
+constructor of Agda's |Term| data type.
 
-Secondly, it is important to realise that proof search can fail. In
-addition---since we will attempt to convert higher-order Agda terms to
-first-order Prolog terms---the conversion can also fail. Therefore we
-wrap our conversions in an |Error| monad.
+As we have seen in Section~\ref{sec:motivation}, the |auto| function
+may fail to find the desired proof. Furthermore, the conversion from
+Agda |Term| to |PrologTerm| may also fail for various reasons. To
+handle such errors, we will work in the |Error| monad defined below:
 \begin{code}
-  Error : ∀ {a} (A : Set a) → Set a
+  Error : (A : Set) → Set a
   Error A = Either Message A
 \end{code}
-Where |Message| can be any of the following messages.
+Upon failure, the |auto| function will produce an error message. The
+corresponding |Message| type simply enumerates the possible sources of
+failure:
 \begin{code}
   data Message : Set where
     searchSpaceExhausted  : Message
@@ -859,129 +866,113 @@ Where |Message| can be any of the following messages.
     unsupportedSyntax     : Message
     panic!                : Message
 \end{code}
-The meanings of these messages will be discussed where they are
-relevant.
+The meaning of each of these error messages will be explained as we
+encounter them in our implementation below.
 
-Last, we need one more auxiliary function, which we call |match|. This
-function implements the intuition that if we have two data structures
-limited to |m| and |n| variables, respectively, we should be able to
-encode either with at most |m ⊔ n| variables.
-
-Below we present the reader with a sketch of the implementation of
-|match| for finite sets based on the implementation of |compare| as
-described in \citet{compare}, which returns a judgement |less|,
-|equal| or |greater|, together with the absolute difference |k|.
+Finally, we wil need one more auxiliary function to manipulate bound
+variables. The |match| function takes two bound variables of types
+|Fin m| and |Fin n| and computes the corresponding variables in |Fin
+(m ⊔ n)| variables---where |m ⊔ n| denotes the maximum of |m| and |n|:
 \begin{code}
-match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
-match i j with compare m n
-match i j | less     _ k  = (inject (suc k) i , j)
-match i j | equal    _    = (i , j)
-match i j | greater  _ k  = (i , inject (suc k) j)
+match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)  
 \end{code}
-Using this function we define the derived functions |matchTerms|
-(which matches two terms) and |matchTermAndList| (which matches a term
-to a list of terms).
-
-
+The implementation is reasonably straightforward. We compare the
+numbers |n| and |m|, and use the |inject| function to weaken the
+appropriate bound variable. It is straightforward to use this |match|
+function to define similar operations on two terms, |matchTerms|, or a
+term and a lists of terms, |matchTermAndList|.
 
 \subsection*{Constructing terms}
 
-The conversion of an Agda |Term| to a |PrologTerm| faces several
-problems.
-\begin{itemize}
-\item %
-  an Agda |Term| can encode the entire space of higher-order terms,
-  whereas a |PrologTerm| is always first-order.
+We now turn our attention to the conversion of an Agda |Term| to a
+|PrologTerm|. There are two problems that we must address.
 
-  In order to mitigate this problem, we will allow the conversion to
-  fail, throwing an exception with the message |unsupportedSyntax|;
+First of all, the Agda |Term| type represents all (possibly
+higher-order) terms, whereas the |PrologTerm| type is necessarily
+first-order.  We mitigate this problem, by allowing the conversion to
+fail, throwing an `exception' with the message |unsupportedSyntax|;
 
-\item %
-  the Agda |Term| data type uses de Bruijn indices to encode
-  variables. We need to convert this to a named notation, where the
-  same numbers index the same variable. However, the |Term| data type
-  gives no guarantee that its indices are well-bound (e.g.\ using
-  finite sets), which makes it impossible to define this conversion as
-  a total function.
+Secondly, the Agda |Term| data type uses natural numbers to represent
+variables. The |PrologTerm| data type, on the other hand, represents
+variables using a finite type |Fin n|, for some |n|. To convert
+between these representations, we could compute the number of free
+variables in a |Term|, and use this information to map between the two
+different representations of bound variables. To keep matters simple,
+however, we allow the conversion to fail with an |indexOutOfBounds|
+message, even though this should never occur. While we could do more
+work to prove totality of the variable conversion, we are already
+defining a function that could fail. Totality of the variable
+conversion will still not make our conversion total.
 
-  In order to mitigate this problem, we will allow the conversion to
-  throw an exception with the message |indexOutOfBounds|, even though
-  this should never occur.
-\end{itemize}
-The algorithm is as follows: we traverse the |Term| structure, and keep
-track of the depth, i.e.\ how many $\Pi$-types we have pass (we need
-this information to convert the de Bruijn indices to named variables).
-If we then reach:
-\begin{itemize}
-\item %
-  a |var| node, we pass its premises together with the depth to the
-  |fromVar| function;
-\item %
-  a |con| or a |def| node, we pass its premises to the |fromDef| function;
-\item %
-  a |pi| node, we convert its two sub-terms---where the conversion of
-  the right-hand term is performed at an increased depth---and then
-  combine the resulting |PrologTerm|s in an application of
-  |pimpl|. Note that for this combination to work, we must first
-  ensure that the sets of variables over which these terms are defined
-  |match|.
-\end{itemize}
-A sketch of the conversion function is presented below.
+The conversion function, |fromTerm|, traverses the argument term,
+keeping track of the number of |Π|-types it has encountered. We sketch
+its definition below:
 \begin{code}
 fromTerm : ℕ → Term → Error (∃ PrologTerm)
 fromTerm d (var i [])    = fromVar d i
 fromTerm d (con c args)  = fromDef c ⟨$⟩ fromArgs d args
 fromTerm d (def f args)  = fromDef f ⟨$⟩ fromArgs d args
 fromTerm d (pi (arg visible _ (el _ t₁)) (el _ t₂))
-  with fromTerm d t₁ | fromTerm (suc d) t₂
-... | left msg         | _         = left msg
-... | _                | left msg  = left msg
+  with fromTerm d t₁  | fromTerm (suc d) t₂
+... | left msg        | _         = left msg
+... | _               | left msg  = left msg
 ... | right (n₁ , p₁)  | right (n₂ , p₂)
   with matchTerms p₁ p₂
-... | (p₁′ , p₂′) = right (n₁ ⊔ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
-fromTerm d (pi (arg _ _ _) (el _ t₂)) = fromTerm (suc d) t₂
+... | (p₁' , p₂') =  let term = con pimpl (p₁' ∷ p₂' ∷ []) 
+                     in right (n₁ ⊔ n₂ , term)
+fromTerm d (pi (arg _ _ _) (el _ t₂)) 
+  = fromTerm (suc d) t₂
 fromTerm _ _  = left unsupportedSyntax
 \end{code}
+We define special functions, |fromVar| and |fromDef|, to convert
+variables and constructors or defined terms respectively. The
+arguments to constructors or defined terms are processed using the
+|fromArgs| function defined below. The conversion of a |pi| node
+binding an explicit argument proceeds by converting the domain and
+codomain. If both conversions succeed, the resulting terms are
+|match|ed and a |PrologTerm| is constructed using |pimpl|. Implicit
+arguments and instance arguments are ignored by this conversion
+function. Sorts, levels, or any other Agda feature mapped to the
+constructor |unknown| of type |Term| triggers a failure with the
+message |unsupportedSyntax|.
+
 The |fromArgs| function converts a list of |Term| arguments to a list
 of Prolog terms, by stripping the |arg| constructor and recursively
-applying the |fromTerm| function. In addition to this, it filters
-all implicit arguments.
+applying the |fromTerm| function. We only give its type signature
+here, as the definition is straightforward:
 \begin{code}
-fromArgs : ℕ → List (Arg Term) → Error (∃ (List ∘ PrologTerm))
-fromArgs d [] = right (0 , [])
-fromArgs d (arg visible _ t ∷ ts) with fromTerm d t | fromArgs d ts
-... | left msg       | _              = left msg
-... | _              | left msg       = left msg
-... | right (m , p)  | right (n , ps) with matchTermAndList p ps
-... | (p′ , ps′)                      = right (m ⊔ n , p′ ∷ ps′)
-fromArgs d (arg _ _ _ ∷ ts)           = fromArgs d ts
+fromArgs  : ℕ → List (Arg Term) 
+          → Error (∃ (List ∘ PrologTerm))
 \end{code}
-Next, the |fromDef| function simply constructs a first-order constant.
+Next, the |fromDef| function constructs a first-order constant from an
+Agda |Name| and list of terms:
 \begin{code}
-fromDef : Name → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
+fromDef  : Name → ∃ (λ n → List (PrologTerm n)) 
+         → ∃ PrologTerm
 fromDef f (n , ts) = n , con (pname f) ts
 \end{code}
-Last, the |fromVar| function converts de Bruijn variables from the
-abstract syntax tree to Prolog style named variables. It does this by
-taking the difference between the current depth and the index as the
-variable name.
+Lastly, the |fromVar| function converts a natural number,
+corresponding to a variable name in the Agda |Term| type, to the
+corresponding |PrologTerm| by taking the difference between the number
+of binders traversed and the De Bruijn index:
 \begin{code}
 fromVar : ℕ → ℕ → Error (∃ PrologTerm)
-fromVar d i with compare d i
+fromVar n i with compare n i
 ... | less     _ k  = left indexOutOfBounds
 ... | equal    _    = right (suc 0 , var (# 0))
 ... | greater  _ k  = right (suc k , var (# k))
 \end{code}
-Putting it all together, we are left with simple function that sends
-Agda |Term|s to |PrologTerm|s.
+To convert between an Agda |Term| and |PrologTerm| we simply call the
+|fromTerm| function, initializing the number of binders encountered to
+|0|:
 \begin{code}
-toPrologTerm : Term → PrologTerm
+toPrologTerm : Term → Error (∃ PrologTerm)
 toPrologTerm = fromTerm 0
 \end{code}
 
-
-
 \subsection*{Constructing rules}
+
+\wouter{Tot hier ben ik}
 
 Our next goal is to construct rules; or, more specifically, to convert
 the quoted |Name|'s we would like to be able to insert into our hint
