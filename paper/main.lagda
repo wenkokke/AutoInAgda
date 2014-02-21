@@ -1,4 +1,4 @@
-\documentclass[preprint]{sigplanconf}
+\documentclass[preprint,draft]{sigplanconf}
 
 %include agda.fmt
 %include main.fmt
@@ -659,7 +659,8 @@ continuation to every rule. Since we also wish to maintain a trace of
 the rules that have been applied, we shall define this transformation
 using an auxiliary function with an accumulating parameter:
 \begin{code}
-  mkTree : Rules → SearchSpace m → SearchTree (Result m)
+  mkTree  : Rules → SearchSpace m 
+          → SearchTree (Result m)
   mkTree rs₀ s = go s []
     where
     go : SearchSpace m → Rules → SearchTree (Result m)
@@ -710,7 +711,7 @@ searchToDepth depth rules goal =
 
 Using this implementation of proof search, together with the terms and
 rules defined above, we can compute, for instance, the sum |3 + 1|.
-First we define a query, corresponding to the Prolog query \verb|add(3,1,x).|:
+First we define a query, corresponding to the Prolog query \verb|add(3,1,x)|:
 \begin{code}
   query : Term 1
   query =
@@ -736,7 +737,8 @@ defined |query|:
       rules   = (1 , AddBase) ∷ (3 , AddStep) ∷ []
       substs  = searchToDepth 5 rules query
 \end{code}
-Once we have this, we can show that the result of |3 + 1| is indeed |4|.
+Once we have this, we can show that the result of adding |1| and |3|
+is indeed |4|.
 \begin{code}
   test : result ≡ (Four ∷ [])
   test = refl
@@ -1072,8 +1074,8 @@ corresponding |PrologTerm|. Using the |splitTerm| and |initLast|
 function, we can get our hands on the list of arguments |args| and the
 desired return type |goal|. 
 \begin{code}
-toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
-toGoalAndPremises t       with fromTerm′ 0 t
+toGoalRules :  Term → Error (∃ PrologTerm × Rules)
+toGoalRules t       with fromTerm′ 0 t
 ... | left msg            = left msg
 ... | right (n , p)       with splitTerm p
 ... | (k , ts)            with initLast ts
@@ -1084,9 +1086,9 @@ The only missing piece of the puzzle is a function, |toRules|, that
 converts a list of |PrologTerm|s to a |Rules| list.
 \begin{code}
 toRules : ℕ → Vec (PrologTerm n) k → Rules
-toRules i []        = []
-toRules i (t ∷ ts)  =
-  (n , rule (rvar i) t []) ∷ toRules (suc i) ts
+toRules i []        =  []
+toRules i (t ∷ ts)  =  (n , rule (rvar i) t []) 
+                       ∷ toRules (suc i) ts
 \end{code}
 The |toRules| converts every |PrologTerm| in its argument list to a
 rule, generating a fresh variable for each parameter.
@@ -1101,38 +1103,50 @@ described previously.
 
 \subsection*{Reification of proof terms}
 
-\wouter{Tot hier ben ik}
-
-Now that we can construct Prolog terms, goals and rules, from Agda
-terms, we can use our implementation of proof search to search for
-inhabitants of our goal types. The remaining problem is to convert
-such a proof of an inhabitant back to an Agda |Term|.
-
-This is simpler than expected. We can simply convert premise rules
-back to variables. For constants, we do disambiguate whether the rule
-name refers to a function or a constructor, and it should be trivial
-to extend this disambiguation to cover applications of data types,
-postulates, etc.
+Now that we can compute Prolog terms, goals and rules from an Agda
+|Term|, we are ready to call the resolution mechanism described in
+Section~\ref{sec:prolog}. The only remaining problem is to convert the
+witness computed by our proof search back to an Agda |Term|. The
+|fromProof| function does exactly that:
 \begin{code}
-fromProofTerm : ProofTerm → Term
-fromProofTerm (con (rvar i) ps) = var i []
-fromProofTerm (con (rname n) ps) with definition n
-... | function x    = def n ∘ toArg ∘ fromProofTerm ⟨$⟩ ps
-... | constructor′  = con n ∘ toArg ∘ fromProofTerm ⟨$⟩ ps
+fromProof : ProofTerm → Term
+fromProof (con (rvar i) ps) = var i []
+fromProof (con (rname n) ps) with definition n
+... | function _    = def n ∘ toArg ∘ fromProof ⟨$⟩ ps
+... | constructor′  = con n ∘ toArg ∘ fromProof ⟨$⟩ ps
 ... | _             = unknown
   where
    toArg = arg visible relevant
 \end{code}
+\wouter{Waarom doe je niets met ps in de rvar i branch?}  Any bound
+variables, corresponding to usage of the local premises, can be mapped
+to the |var| constructor the Agda |Term| data type. As we know by
+construction that these correspond to rules without premises, these
+variables do not need any further arguments.  
 
+If the rule being applied is constructed using an |rname|, we do
+disambiguate whether the rule name refers to a function or a
+constructor. The |definition| function, defined in Agda's reflection
+library, returns information about how the piece of abstract syntax to
+which its argument |Name| corresponds. For the moment, we restrict
+this definition to only handle defined functions and data
+constructors. It is easy enough to extend with further branches for
+postulates, primitives, and so forth.
 
-
-\subsection*{Putting it all together}
-
-Finally, putting it all together. If you recall, the type for the
-|auto| function was:
+We will also need to wrap an additional lambda around all the
+premises that were introduced by the |toGoalRules| function. To
+do so, we define the |intros| function that repeatedly wraps its
+argument term in a lambda:
 \begin{code}
-  auto : (depth : ℕ) → HintDB → Term → Term
+  intros : ℕ → Term → Term
+  intros zero    t = t
+  intros (suc k) t = lam visible (intros k t)
 \end{code}
+
+\subsection*{Hint databases}
+
+\wouter{Tot hier ben ik ongeveer}
+
 So let us first define the concept of hint databases. A |HintDB| is
 simply a list of Prolog rules:
 \begin{code}
@@ -1154,34 +1168,22 @@ hintdb = concatMap (fromError ∘ toRule)
 \pepijn{Again, shall we use Either or Agda's function type $\_⊎\_$? If we
   use Either, we'll have to make a note of this.}
 
-Next, since we will add all parameters in our goal type as premises to
-our proof search, the resulting term will assume they are in
-scope. Therefore, we shall introduce any unintroduced variable by
-lambda abstraction, as per the well-known |intros| tactic.
-\begin{code}
-intros : Term → Term
-intros = introsAcc (length args)
-  where
-    introsAcc : ℕ → Term → Term
-    introsAcc  zero   t = t
-    introsAcc (suc k) t = lam visible (introsAcc k t)
-\end{code}
-
-Last, we need to figure out what to do with error messages. Since we
-are going to return an Agda |Term|, we need to transform these
-messages into the |Term| representation of an Agda term that will,
-when type checked, display our message. We can do this using the
-following data type:
+\subsection*{Error messages}
+Lastly, we need to decide how to report error messages. Since we are
+going to return an Agda |Term|, we need to transform the |Message|
+type we saw previously into an Agda |Term|. When unquoted, this term
+will cause an type error, reporting the reason for failure. To
+accomplish this, we introduce a dependent type, indexed by a |Message|:
 \begin{code}
 data Exception : Message → Set where
     throw : (msg : Message) → Exception msg
 \end{code}
-Note that the message given on the value level will be displayed on a
-type level, as intended.
+The message passed as an argument to the |throw| constructor, will be
+recorded in the |Exception|'s type, as we intended.
 
-In addition, we will need a function that produces the intended |Term|
-representation. We could construct this ourselves, but it is easier to
-just use Agda's |quoteTerm| construct.
+Next, we define a function to produce an Agda |Term| from a
+|Message|. We could construct such terms by hand, but it is easier to
+just use Agda's |quoteTerm| construct:
 \begin{code}
 quoteError : Message → Term
 quoteError (searchSpaceExhausted) 
@@ -1193,11 +1195,25 @@ quoteError (unsupportedSyntax)
 quoteError (panic!)               
   = quoteTerm (throw panic!)
 \end{code}
-\todo{mention that we \emph{could} theoretically return, for instance,
-the specific bit of syntax that is unsupported, but that since we
-cannot quote the |Term| type, we cannot just pass the terms around.}
 
-And finally, we are equipped to define |auto|. Just to recap:
+\subsection*{Putting it all together}
+
+Finally, we have all the pieces in place for the definition of our
+|auto| function.
+\begin{code}
+auto : (depth : ℕ) → HintDB → Term → Term
+auto depth rules goalType
+  with toGoal goalType
+... | left msg  = quoteError msg
+... | right ((n , goal) , args)
+  with searchToDepth depth (args ++ rules) goal
+... | []        = quoteError searchSpaceExhausted
+... | (_ , trace) ∷ _
+  with toProofTerm trace
+... | nothing   = quoteError panic!
+... | just p    = intros (fromProof p)
+\end{code}
+
 \begin{itemize}
 \item %
   We convert the goal type to a goal term, using |toGoal|. If the
@@ -1214,22 +1230,6 @@ And finally, we are equipped to define |auto|. Just to recap:
   Last, we convert the proof term back to an Agda |Term|, and add the
   needed lambda abstractions with |intros|.
 \end{itemize}
-The complete implementation can be seen below.
-\begin{code}
-auto : (depth : ℕ) → HintDB → Term → Term
-auto depth rules goalType
-  with toGoal goalType
-... | left msg  = quoteError msg
-... | right ((n , goal) , args)
-  with searchToDepth depth (args ++ rules) goal
-... | []        = quoteError searchSpaceExhausted
-... | (_ , trace) ∷ _
-  with toProofTerm trace
-... | nothing   = quoteError panic!
-... | just p    = intros (fromProofTerm p)
-\end{code}
-Hooray! \smiley{} \smiley{} \smiley{}
-
 
 \section{Type classes}
 \label{sec:type-classes}
@@ -1284,6 +1284,15 @@ example = show (true , 5)
 
 \section{Discussion}
 \label{sec:discussion}
+
+\subsection*{Related work}
+
+\subsection*{Further work}
+\todo{mention that we \emph{could} theoretically return, for instance,
+the specific bit of syntax that is unsupported, but that since we
+cannot quote the |Term| type, we cannot just pass the terms around.}
+
+\todo{Debugging proof search failures, better error reporting}
 
 \todo{Mention the first-orderness of our implementation of |auto|.}
 
