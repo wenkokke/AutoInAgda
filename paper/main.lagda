@@ -1050,11 +1050,6 @@ into a vector of terms using |splitTerm|.  The last element of this
 vector is the conclusion of the rule; the initial prefix constitutes
 the premises.
 
-\pepijn{Should we mention alternatives for rule construction?
-  Generating all possible partial applications; generating the rules
-  only as an atomic rule |(fromName n) :- .| and adding function application
-  and composition?}
-
 \subsection*{Constructing goals}
 
 Next, we turn our attention to converting a goal |Term| to a
@@ -1118,11 +1113,10 @@ fromProof (con (rname n) ps) with definition n
   where
    toArg = arg visible relevant
 \end{code}
-\wouter{Waarom doe je niets met ps in de rvar i branch?}  Any bound
-variables, corresponding to usage of the local premises, can be mapped
-to the |var| constructor the Agda |Term| data type. As we know by
-construction that these correspond to rules without premises, these
-variables do not need any further arguments.  
+Any bound variables, corresponding to usage of the local premises, can
+be mapped to the |var| constructor the Agda |Term| data type. As we
+know by construction that these correspond to rules without premises,
+these variables do not need any further arguments.
 
 If the rule being applied is constructed using an |rname|, we do
 disambiguate whether the rule name refers to a function or a
@@ -1145,19 +1139,16 @@ argument term in a lambda:
 
 \subsection*{Hint databases}
 
-\wouter{Tot hier ben ik ongeveer}
 
-So let us first define the concept of hint databases. A |HintDB| is
-simply a list of Prolog rules:
+We allow users to provide hints, rules that may be used during
+resolution, in the form of a \emph{hint database}. Such a hint
+database is simply a list of Prolog rules:
 \begin{code}
 HintDB : Set
 HintDB = List (∃ Rule)
 \end{code}
-We can ``compile'' hint databases from a list of rules using the
-auxiliary function |hintdb|, which takes a list of names, and compiles
-them using |toRule| as defined above. Note that if a rule fails to
-compile, no error is raised, and the rule is simply ignored. This
-behaviour can easily be adjusted, though.
+We can `assemble' hint databases from a list of names using the
+function |hintdb|:
 \begin{code}
 hintdb : List Name → HintDB
 hintdb = concatMap (fromError ∘ toRule)
@@ -1165,8 +1156,15 @@ hintdb = concatMap (fromError ∘ toRule)
     fromError : Error A → List A
     fromError = fromEither (const []) [_]
 \end{code}
-\pepijn{Again, shall we use Either or Agda's function type $\_⊎\_$? If we
-  use Either, we'll have to make a note of this.}
+Note that if a rule fails to compile, no error is raised, and the rule
+is simply ignored. This behaviour is easily adapted.
+
+This is the simplest possible form of hint database. In principle,
+there is no reason not to define alternative versions that assign
+priorities to certain rules or limit the number of times a rule may be
+applied. The only function that would need to be adapted to handle
+such requirements is the |mkTree| function in
+Section~\ref{sec:prolog}.
 
 \subsection*{Error messages}
 Lastly, we need to decide how to report error messages. Since we are
@@ -1197,6 +1195,12 @@ quoteError (panic!)
 \end{code}
 
 \subsection*{Putting it all together}
+
+\wouter{Modulo formatting en ongelukkige breaks in code environments,
+  ben ik nu hier. Mocht je dus de voorgaande secties willen aanpassen,
+  zoals de slimmere toRules functie -- ga je gang. Ik zal dit laatste
+  stukje nog even bewerken. Daarna ga ik door met de Discussion
+  section.}
 
 Finally, we have all the pieces in place for the definition of our
 |auto| function.
@@ -1310,6 +1314,8 @@ cannot quote the |Term| type, we cannot just pass the terms around.}
 Future work: auto rewrite; setoid rewrite; proof combinators.
 
 limitations of using recursion in hint data base
+
+universe polymophism
 
 Cf Agsy
 Combining hint data bases (use $\_\plus\_$ :)
