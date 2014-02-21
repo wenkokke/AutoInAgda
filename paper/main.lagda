@@ -1,4 +1,4 @@
-\documentclass[preprint,draft]{sigplanconf}
+\documentclass[preprint]{sigplanconf}
 
 %include agda.fmt
 %include main.fmt
@@ -1055,64 +1055,53 @@ the premises.
 
 \subsection*{Constructing goals}
 
-\wouter{Tot hier ben ik}
+Next, we turn our attention to converting a goal |Term| to a
+|PrologTerm|. While we could use the |toPrologTerm| function to do so,
+there are good reasons to explore other alternatives.
 
-The construction of goal terms differs slightly from the construction
-of Prolog terms. The reason for this is as follows: if we are given a
-goal-type |Even n → Even (n +2)|, it is much easier to search
-for a proof of |Even (n + 2)| given a premise |Even n|, then to search
-for an inhabitant of the function-type. \pepijn{Why is this? Something
-  with having to add function application and composition to the |HintDB|?}
+Consider the example given in Section~\ref{sec:motivation}. The goal
+|Term| we wish to prove is |Even n → Even (n + 2)|. Calling
+|toPrologTerm| would convert this to a |PrologTerm|, where the
+function space has been replaced by the |pimpl|. What we would like to
+do, however, is to introduce as any available assumptions, such as
+|Even n|, and try to resolve the remaining goal |Even (n + 2)|.
 
-Because of this, we will split the goal-type into two parts. The first
-part is the result-type, which will be used as the goal for proof
-search. The second part is a list of parameters, which will be
-used as premises in the proof search.
-
-Our approach constructs goal terms and premises as follows.
-\begin{itemize}
-\item %
-  convert the goal-type to a |PrologTerm| using (a modifier version
-  of) the |fromTerm| function;
-\item %
-  split the resulting |PrologTerm| at every top-level occurrence of
-  the function symbol |pimpl|;
-\item %
-  return the goal parameters (i.e.\ the |init|) as premises, and the
-  result-type (i.e.\ the |last| element) as the actual goal.
-\end{itemize}
-An implementation of this can be found below.
+Fortunately, we can reuse many of the auxiliary functions we have
+defined already to achieve this. We convert a |Term| to the
+corresponding |PrologTerm|. Using the |splitTerm| and |initLast|
+function, we can get our hands on the list of arguments |args| and the
+desired return type |goal|. 
 \begin{code}
 toGoalAndPremises : Term → Error (∃ PrologTerm × Rules)
 toGoalAndPremises t       with fromTerm′ 0 t
 ... | left msg            = left msg
 ... | right (n , p)       with splitTerm p
 ... | (k , ts)            with initLast ts
-... | (prems , goal , _)  = right ((n , goal) , toPremises 0 prems)
+... | (args , goal , _)   =  let rs = toRules 0 args
+                             in right ((n , goal) , rs)
 \end{code}
-The list of parameters is converted into premises using the
-following auxiliary function.
+The only missing piece of the puzzle is a function, |toRules|, that
+converts a list of |PrologTerm|s to a |Rules| list.
 \begin{code}
-toPremises : ∀ {k} → ℕ → Vec (PrologTerm n) k → Rules
-toPremises i []        = []
-toPremises i (t ∷ ts)  =
-  (n , rule (rvar i) t []) ∷ toPremises (suc i) ts
+toRules : ℕ → Vec (PrologTerm n) k → Rules
+toRules i []        = []
+toRules i (t ∷ ts)  =
+  (n , rule (rvar i) t []) ∷ toRules (suc i) ts
 \end{code}
-Last, we use a different implementation of the |fromTerm|
-function, where the difference is in the handling of variables.
-Instead of converting Agda variables to Prolog variables---which would
-give us strange results, due to our handling of goals---we convert
-them to Prolog constants.
-\begin{code}
-fromVar′ : ℕ → ℕ → Error (∃ PrologTerm)
-fromVar′  d i with compare d i
-... | less    _ k  = left indexOutOfBounds
-... | equal   _    = right (0 , con (pvar 0) [])
-... | greater _ k  = right (0 , con (pvar k) [])
-\end{code}
+The |toRules| converts every |PrologTerm| in its argument list to a
+rule, generating a fresh variable for each parameter.
 
+There is one last technical point. In the previous version of
+|fromTerm|, an Agda |Term| variable was mapped to a Prolog
+variable. When considering the goal type, however, we want to generate
+skolem constants for our variables, rather than Prolog variables which
+may still be unified. To account for this difference, we use the
+|fromTerm'| function, a slight variation of the |fromTerm| function
+described previously.
 
 \subsection*{Reification of proof terms}
+
+\wouter{Tot hier ben ik}
 
 Now that we can construct Prolog terms, goals and rules, from Agda
 terms, we can use our implementation of proof search to search for
