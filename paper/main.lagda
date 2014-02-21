@@ -19,13 +19,13 @@
 \maketitle
 
 \begin{abstract}
-  Proof automation is important. Custom tactic languages are hacky. We
-  show how proof automation can be programmed in a general purpose
-  dependently typed programming language using reflection. This makes
-  it easier to automate, debug, and test proof automation.
+  % Proof automation is important. Custom tactic languages are hacky. We
+  % show how proof automation can be programmed in a general purpose
+  % dependently typed programming language using reflection. This makes
+  % it easier to automate, debug, and test proof automation.
 
-  \noindent
-  \wouter{Write good abstract! \frownie{}}
+  % \noindent
+  % \wouter{Write good abstract! \frownie{}}
 
   We present the reader with an implementation of Prolog-style proof
   search in Agda. We then use this implementation, together with
@@ -807,8 +807,8 @@ rules to guarantee totality will not change this.
 \label{sec:reflection}
 
 To complete the definition of our |auto| function, we still need to
-convert between Agda's built-in |Term| data type and the |PrologTerm|
-data type required by our unification and resolution algorithms. This
+convert between Agda's built-in |Term| data type and the
+data type required by our unification and resolution algorithms, |PrologTerm|. This
 is an essential piece of plumbing, necessary to provide the desired proof
 automation.  While not difficult in principle, this
 does expose some of the limitations and design choices of the |auto| function.
@@ -955,13 +955,19 @@ Lastly, the |fromVar| function converts a natural number,
 corresponding to a variable name in the Agda |Term| type, to the
 corresponding |PrologTerm| by taking the difference between the number
 of binders traversed and the De Bruijn index:
+%{
+%format (dot (a)) = "\lfloor " a "\rfloor"
 \begin{code}
 fromVar : ℕ → ℕ → Error (∃ PrologTerm)
 fromVar n i with compare n i
-... | less     _ k  = left indexOutOfBounds
-... | equal    _    = right (suc 0 , var (# 0))
-... | greater  _ k  = right (suc k , var (# k))
+fromVar n (dot(suc (n + k)))  | less     (dot(_)) k  
+  = left indexOutOfBounds
+fromVar n (dot(n))            | equal    (dot(_))    
+  = right (suc 0 , var (# 0))
+fromVar (dot(suc (i + k))) i  | greater  (dot(_)) k  
+  = right (suc k , var (# k))
 \end{code}
+%}
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
 |0|:
@@ -972,23 +978,20 @@ toPrologTerm = fromTerm 0
 
 \subsection*{Constructing rules}
 
-\wouter{Tot hier ben ik}
-
-Our next goal is to construct rules; or, more specifically, to convert
-the quoted |Name|'s we would like to be able to insert into our hint
-databases to useful Prolog rules.
-For instance, given our definition for |even+|, which had the
-following type:
+Our next goal is to construct rules. More specifically, we need to
+convert a list of quoted |Name|s to a hint databases of Prolog rules.
+To return to our example in Section~\ref{sec:motivation}, the
+definition of |even+| had the following type:
 \begin{code}
   even+ : Even n → Even m → Even (n + m)
 \end{code}
-We would like to construct a rule that expresses how |even+| can be
-applied, i.e.\ we would like a rule equivalent to the following Prolog
-statement.
+We would like to construct a value of type |Rule| that expresses how
+|even+| can be used. In Prolog, we might formulate the lemma above as
+the rule:
 \begin{verbatim}
-  Even(m + n) :- Even(m), Even(n).
+  Even(Plus(m,n)) :- Even(m), Even(n).
 \end{verbatim}
-In our Agda implementation, this would look as follows.
+In our Agda implementation, we can define such a rule manually:
 \begin{code}
 Even+ : Rule 2
 Even+ = record {
@@ -1002,32 +1005,35 @@ Even+ = record {
                ∷  []
   }
 \end{code}
-In order to construct this representation from what we have now, we
-will need two auxiliary functions. The first will convert a |Name| to
-a |Term| representing the appropriate type using Agda's |Reflection|
-API, and convert this |Term| to |PrologTerm| using |toPrologTerm|.
+In the coming subsection, we will show how to generate the above
+definition from the |Name| representing |even+|.
+
+This generation of rules is done in two steps. First, we will convert a
+|Name| to its corresponding |PrologTerm|:
 \begin{code}
 fromName : Name → Error (∃ PrologTerm)
 fromName = toPrologTerm ∘ unel ∘ type
 \end{code}
-The second, |splitTerm|, takes a |PrologTerm| and splits it at every
-top-most occurrence of the function symbol |pimpl|. Note that it
-would be possible to define this function directly on Agda's |Term|
-data type, but defining it on the |PrologTerm| data type is much
-cleaner, as all unsupported syntax will already have been stripped.
+The |type| construct converts a |Name| to the Agda |Term| representing
+its type; the |unel| function discards any information about sorts; the
+|toPrologTerm| was defined previously.
+
+In the next step, we process this |PrologTerm|. The |splitTerm|
+function splits a |PrologTerm| at every top-most occurrence of the
+function symbol |pimpl|. Note that it would be
+possible to define this function directly on Agda's |Term| data type,
+but defining it on the |PrologTerm| data type is much cleaner as all
+unsupported syntax has been removed.
 \begin{code}
-splitTerm :
-  PrologTerm n → ∃ (λ k → Vec (PrologTerm n) (suc k))
+splitTerm  : PrologTerm n 
+           → ∃ (λ k → Vec (PrologTerm n) (suc k))
 splitTerm (con pimpl (t₁ ∷ t₂ ∷ []))  =
-  map suc (_∷_ t₁) (splitTerm t₂)
+  Product.map suc (_∷_ t₁) (splitTerm t₂)
 splitTerm t = 0 , t ∷ []
 \end{code}
-Using these auxiliary functions, together with Agda's |initLast|, we
-can now trivially implement the conversion by applying |splitTerm|,
-and taking the |last| element of the resulting list as a conclusion,
-and its |init| as the premises.\footnote{
-Note that we are using a custom constructor |rule| to avoid the hassle
-of Agda's |record| construct.}
+
+Using all these auxiliary functions, it is straightforward to
+construct the desired rule. 
 \begin{code}
 toRule : Name → Error (∃ Rule)
 toRule name with fromName name
@@ -1037,6 +1043,10 @@ toRule name with fromName name
 ... | (prems , concl , _)  =
   right (n , rule (rname name) concl (toList prems))
 \end{code}
+We convert a name to its corresponding |PrologTerm|, which is split
+into a vector of terms using |splitTerm|.  The last element of this
+vector is the conclusion of the rule; the initial prefix constitutes
+the premises.
 
 \pepijn{Should we mention alternatives for rule construction?
   Generating all possible partial applications; generating the rules
@@ -1044,6 +1054,8 @@ toRule name with fromName name
   and composition?}
 
 \subsection*{Constructing goals}
+
+\wouter{Tot hier ben ik}
 
 The construction of goal terms differs slightly from the construction
 of Prolog terms. The reason for this is as follows: if we are given a
@@ -1183,10 +1195,14 @@ representation. We could construct this ourselves, but it is easier to
 just use Agda's |quoteTerm| construct.
 \begin{code}
 quoteError : Message → Term
-quoteError (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
-quoteError (indexOutOfBounds)     = quoteTerm (throw indexOutOfBounds)
-quoteError (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
-quoteError (panic!)               = quoteTerm (throw panic!)
+quoteError (searchSpaceExhausted) 
+  = quoteTerm (throw searchSpaceExhausted)
+quoteError (indexOutOfBounds)     
+  = quoteTerm (throw indexOutOfBounds)
+quoteError (unsupportedSyntax)    
+  = quoteTerm (throw unsupportedSyntax)
+quoteError (panic!)               
+  = quoteTerm (throw panic!)
 \end{code}
 \todo{mention that we \emph{could} theoretically return, for instance,
 the specific bit of syntax that is unsupported, but that since we
@@ -1271,7 +1287,8 @@ ShowHints = hintdb
 example : String
 example = show (true , 5)
   where
-    ShowI = quoteGoal g in unquote (auto 5 ShowHints g)
+    ShowI =  quoteGoal g 
+             in unquote (auto 5 ShowHints g)
 \end{code}
 
 
