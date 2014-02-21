@@ -1156,8 +1156,9 @@ hintdb = concatMap (fromError ∘ toRule)
     fromError : Error A → List A
     fromError = fromEither (const []) [_]
 \end{code}
-Note that if a rule fails to compile, no error is raised, and the rule
-is simply ignored. This behaviour is easily adapted.
+Note that if the generation of a rule fails for whatever reason, no
+error is raised, and the rule is simply ignored. This behaviour is
+easily adapted.
 
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
