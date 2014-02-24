@@ -659,7 +659,7 @@ continuation to every rule. Since we also wish to maintain a trace of
 the rules that have been applied, we shall define this transformation
 using an auxiliary function with an accumulating parameter:
 \begin{code}
-  mkTree  : Rules → SearchSpace m 
+  mkTree  : Rules → SearchSpace m
           → SearchTree (Result m)
   mkTree rs₀ s = go s []
     where
@@ -820,7 +820,7 @@ concrete definitions for the |TermName| and |RuleName| data types,
 two were parameters to the development presented in the previous sections.
 It would be desirable to identify both types with Agda's |Name| type,
 but unfortunately the Agda does not assign a name to the function
-space type operator, |_→_|; nor does Agda assign names to locally bound variables. 
+space type operator, |_→_|; nor does Agda assign names to locally bound variables.
 To address this, we define two new data types |TermName| and |RuleName|.
 
 First, we define the |TermName| data type as follows:
@@ -876,7 +876,7 @@ variables. The |match| function takes two bound variables of types
 |Fin m| and |Fin n| and computes the corresponding variables in |Fin
 (m ⊔ n)| variables---where |m ⊔ n| denotes the maximum of |m| and |n|:
 \begin{code}
-match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)  
+match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
 \end{code}
 The implementation is reasonably straightforward. We compare the
 numbers |n| and |m|, and use the |inject| function to weaken the
@@ -920,9 +920,9 @@ fromTerm d (pi (arg visible _ (el _ t₁)) (el _ t₂))
 ... | _               | left msg  = left msg
 ... | right (n₁ , p₁)  | right (n₂ , p₂)
   with matchTerms p₁ p₂
-... | (p₁' , p₂') =  let term = con pimpl (p₁' ∷ p₂' ∷ []) 
+... | (p₁' , p₂') =  let term = con pimpl (p₁' ∷ p₂' ∷ [])
                      in right (n₁ ⊔ n₂ , term)
-fromTerm d (pi (arg _ _ _) (el _ t₂)) 
+fromTerm d (pi (arg _ _ _) (el _ t₂))
   = fromTerm (suc d) t₂
 fromTerm _ _  = left unsupportedSyntax
 \end{code}
@@ -943,13 +943,13 @@ of Prolog terms, by stripping the |arg| constructor and recursively
 applying the |fromTerm| function. We only give its type signature
 here, as the definition is straightforward:
 \begin{code}
-fromArgs  : ℕ → List (Arg Term) 
+fromArgs  : ℕ → List (Arg Term)
           → Error (∃ (List ∘ PrologTerm))
 \end{code}
 Next, the |fromDef| function constructs a first-order constant from an
 Agda |Name| and list of terms:
 \begin{code}
-fromDef  : Name → ∃ (λ n → List (PrologTerm n)) 
+fromDef  : Name → ∃ (λ n → List (PrologTerm n))
          → ∃ PrologTerm
 fromDef f (n , ts) = n , con (pname f) ts
 \end{code}
@@ -962,11 +962,11 @@ of binders traversed and the De Bruijn index:
 \begin{code}
 fromVar : ℕ → ℕ → Error (∃ PrologTerm)
 fromVar n i with compare n i
-fromVar n (dot(suc (n + k)))  | less     (dot(_)) k  
+fromVar n (dot(suc (n + k)))  | less     (dot(_)) k
   = left indexOutOfBounds
-fromVar n (dot(n))            | equal    (dot(_))    
+fromVar n (dot(n))            | equal    (dot(_))
   = right (suc 0 , var (# 0))
-fromVar (dot(suc (i + k))) i  | greater  (dot(_)) k  
+fromVar (dot(suc (i + k))) i  | greater  (dot(_)) k
   = right (suc k , var (# k))
 \end{code}
 %}
@@ -1027,7 +1027,7 @@ possible to define this function directly on Agda's |Term| data type,
 but defining it on the |PrologTerm| data type is much cleaner as all
 unsupported syntax has been removed.
 \begin{code}
-splitTerm  : PrologTerm n 
+splitTerm  : PrologTerm n
            → ∃ (λ k → Vec (PrologTerm n) (suc k))
 splitTerm (con pimpl (t₁ ∷ t₂ ∷ []))  =
   Product.map suc (_∷_ t₁) (splitTerm t₂)
@@ -1035,7 +1035,7 @@ splitTerm t = 0 , t ∷ []
 \end{code}
 
 Using all these auxiliary functions, it is straightforward to
-construct the desired rule. 
+construct the desired rule.
 \begin{code}
 toRule : Name → Error (∃ Rule)
 toRule name with fromName name
@@ -1067,7 +1067,7 @@ Fortunately, we can reuse many of the auxiliary functions we have
 defined already to achieve this. We convert a |Term| to the
 corresponding |PrologTerm|. Using the |splitTerm| and |initLast|
 function, we can get our hands on the list of arguments |args| and the
-desired return type |goal|. 
+desired return type |goal|.
 \begin{code}
 toGoalRules :  Term → Error (∃ PrologTerm × Rules)
 toGoalRules t       with fromTerm′ 0 t
@@ -1082,7 +1082,7 @@ converts a list of |PrologTerm|s to a |Rules| list.
 \begin{code}
 toRules : ℕ → Vec (PrologTerm n) k → Rules
 toRules i []        =  []
-toRules i (t ∷ ts)  =  (n , rule (rvar i) t []) 
+toRules i (t ∷ ts)  =  (n , rule (rvar i) t [])
                        ∷ toRules (suc i) ts
 \end{code}
 The |toRules| converts every |PrologTerm| in its argument list to a
@@ -1185,13 +1185,13 @@ Next, we define a function to produce an Agda |Term| from a
 just use Agda's |quoteTerm| construct:
 \begin{code}
 quoteError : Message → Term
-quoteError (searchSpaceExhausted) 
+quoteError (searchSpaceExhausted)
   = quoteTerm (throw searchSpaceExhausted)
-quoteError (indexOutOfBounds)     
+quoteError (indexOutOfBounds)
   = quoteTerm (throw indexOutOfBounds)
-quoteError (unsupportedSyntax)    
+quoteError (unsupportedSyntax)
   = quoteTerm (throw unsupportedSyntax)
-quoteError (panic!)               
+quoteError (panic!)
   = quoteTerm (throw panic!)
 \end{code}
 
@@ -1238,8 +1238,19 @@ auto depth rules goalType
 
 \section{Type classes}
 \label{sec:type-classes}
-\todo{Give a bigger example of debugging/automated proving}
 
+\todo{Something about why type classes are an interesting example, why
+  it is relevant to solve this particular problem.}
+
+\todo{Something about instance arguments, and how instance arguments
+  provide part of the solution, but do not give you instance search.}
+\todo{Mention Devriese & Piessens, On the Bright Side of Type Classes}
+
+\todo{Something about related work in Coq}
+\todo{Mention Sozeau & Oury, First-Class Type Classes}
+
+We can define type classes in Agda as records, and open these records
+to use instance arguments.
 \begin{code}
 record Show (A : Set) : Set where
   field
@@ -1247,17 +1258,22 @@ record Show (A : Set) : Set where
 
 open Show {{...}}
 \end{code}
-
+Let us assume we have some primitive instances of |Show| for booleans
+and natural numbers.
 \begin{code}
-ShowBool  : Show Bool
-Showℕ     : Show ℕ
+postulate
+  ShowBool  : Show Bool
+  Showℕ     : Show ℕ
 \end{code}
-
+And let us assume we have some first-order data type for which we
+would like to define an abstract instance of |Show|. For instance,
+pairs:
 \begin{code}
 data _×_ (A B : Set) : Set where
   _,_ : A → B → A × B
 \end{code}
-
+Since we have opened the |Show| class using instance arguments, we can
+simply define an abstract |Show| instance for pairs as follows:
 \begin{code}
 ShowProd : Show A → Show B → Show (A × B)
 ShowProd ShowA ShowB = record { show = showProd }
@@ -1266,25 +1282,23 @@ ShowProd ShowA ShowB = record { show = showProd }
     showProd (x , y) =
       "(" ++ show x ++ "," ++ show y ++ ")"
 \end{code}
-
-\pepijn{We can present the example as belof if we define the |hintdb|
-  function as |hintdb_| with a right-fixity and a precedence below
-  that of the cons operator. Do we want that? Overly complicated?}
-
+Next, we collect all these instances in a hint database:
 \begin{code}
 ShowHints : HintDB
 ShowHints = hintdb
-  quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ []
+  (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
 \end{code}
-
+And using this hint database, we can use |auto| to search for
+an instance of |Show|.
 \begin{code}
 example : String
 example = show (true , 5)
   where
-    ShowI =  quoteGoal g 
-             in unquote (auto 5 ShowHints g)
+    ShowInst =  quoteGoal g
+                in unquote (auto 5 ShowHints g)
 \end{code}
-
+Note that as long as we \emph{use} our instance, we do not have to
+provide an explicit type for it.
 
 
 \section{Discussion}

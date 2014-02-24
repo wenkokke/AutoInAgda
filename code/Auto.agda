@@ -254,10 +254,8 @@ module Auto where
   HintDB : Set
   HintDB = Rules
 
-  infixr 1 hintdb_
-
-  hintdb_ : List Name → HintDB
-  hintdb_ l = concatMap (fromError ∘ toRule) l
+  hintdb : List Name → HintDB
+  hintdb l = concatMap (fromError ∘ toRule) l
     where
       fromError : {A : Set} → Error A → List A
       fromError = fromEither (const []) [_]

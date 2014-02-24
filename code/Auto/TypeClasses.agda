@@ -35,9 +35,16 @@ Showℕ = record { show = showℕ }
 
 ShowHints : HintDB
 ShowHints = hintdb
-  quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ []
+  (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
 
-example : String
-example = show (true , 5)
+example₁ : String
+example₁ = show (true , 5)
   where
     ShowInst = quoteGoal g in unquote (auto 5 ShowHints g)
+
+example₂ : String
+example₂ = show (true , 5) ++ show (5 , true)
+  where
+    Show₁ : Show (ℕ × _)
+    Show₁ = quoteGoal g in unquote (auto 5 ShowHints g)
+    Show₂ = quoteGoal g in unquote (auto 5 ShowHints g)
