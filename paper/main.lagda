@@ -892,7 +892,7 @@ We now turn our attention to the conversion of an Agda |Term| to a
 First of all, the Agda |Term| type represents all (possibly
 higher-order) terms, whereas the |PrologTerm| type is necessarily
 first-order.  We mitigate this problem, by allowing the conversion to
-fail, throwing an `exception' with the message |unsupportedSyntax|;
+fail, throwing an `exception' with the message |unsupportedSyntax|.
 
 Secondly, the Agda |Term| data type uses natural numbers to represent
 variables. The |PrologTerm| data type, on the other hand, represents
@@ -1197,161 +1197,244 @@ quoteError (panic!)
 
 \subsection*{Putting it all together}
 
-\wouter{Modulo formatting en ongelukkige breaks in code environments,
-  ben ik nu hier. Mocht je dus de voorgaande secties willen aanpassen,
-  zoals de slimmere toRules functie -- ga je gang. Ik zal dit laatste
-  stukje nog even bewerken. Daarna ga ik door met de Discussion
-  section.}
-
-Finally, we have all the pieces in place for the definition of our
-|auto| function.
+Finally, we can present the definition of the |auto| function used in
+the examples in Section~\ref{sec:motivation}:
 \begin{code}
 auto : (depth : ℕ) → HintDB → Term → Term
-auto depth rules goalType
+auto depth hints goalType
   with toGoal goalType
 ... | left msg  = quoteError msg
 ... | right ((n , goal) , args)
-  with searchToDepth depth (args ++ rules) goal
+  with searchToDepth depth (args ++ hints) goal
 ... | []        = quoteError searchSpaceExhausted
 ... | (_ , trace) ∷ _
   with toProofTerm trace
 ... | nothing   = quoteError panic!
 ... | just p    = intros (fromProof p)
 \end{code}
+The |auto| function converts the |Term| to a |PrologTerm|, the return
+type of the goal, and a list of arguments that may be used to
+construct this term. It then proceeds by calling the |searchToDepth|
+function with the argument hint database. If this proof search
+succceeds, the |Result| is converted to an Agda |Term|, a witness that
+the original goal is inhabited. There are three places that this
+function may fail: the conversion to a |PrologTerm| may fail, for
+instance because of unsupported syntax; the proof search may not find
+any result; or the final conversion to an Agda |Term| may fail
+unexpectedly. This last case should never be triggered, provided the
+|toProofTerm| function is only called on the result of our proof
+search.
 
-\begin{itemize}
-\item %
-  We convert the goal type to a goal term, using |toGoal|. If the
-  conversion fails, we return either |indexOutOfBounds| or
-  |unsupportedSyntax|.
-\item %
-  We search for a proof using |searchToDepth|. If none can be found,
-  we return the error message |searchSpaceExhausted|.
-\item %
-  We convert the trace for the proof search. This should always work,
-  due to invariants in the code. Therefore, we return the severe error
-  message |panic!| in the case that it does not.
-\item %
-  Last, we convert the proof term back to an Agda |Term|, and add the
-  needed lambda abstractions with |intros|.
-\end{itemize}
 
 \section{Type classes}
 \label{sec:type-classes}
 
-\todo{Something about why type classes are an interesting example, why
-  it is relevant to solve this particular problem.}
+As a final application of our proof search algorithm, we show how it
+can be used to implement a \emph{type classes} in the style of
+Haskell. Souzeau and Oury~\cite{coq-type-classes} have already shown
+how to use Coq's proof search mechanism to construct
+dictionaries. Using Agda's \emph{instance
+  arguments}~\cite{instance-args} and the proof search presented in
+this paper, we mimic their results.
 
-\todo{Something about instance arguments, and how instance arguments
-  provide part of the solution, but do not give you instance search.}
-\todo{Mention Devriese & Piessens, On the Bright Side of Type Classes}
-
-\todo{Something about related work in Coq}
-\todo{Mention Sozeau & Oury, First-Class Type Classes}
-
-We can define type classes in Agda as records, and open these records
-to use instance arguments.
+We begin by declaring our `type class' as a record containing the
+desired function:
 \begin{code}
 record Show (A : Set) : Set where
   field
     show : A → String
+\end{code}
+We can write instances for the |Show| `class' by constructing records:
+\begin{code}
+ShowBool  : Show Bool
+ShowBool = record { show = ... }
 
+Showℕ : Show ℕ
+Showℕ = record { show = ... }
+\end{code}
+Using instance arguments, we can now call our |show| function without
+having to pass the required dictionary explicitly:
+\begin{code}
 open Show {{...}}
+
+example : String
+example = show 3
 \end{code}
-Let us assume we have some primitive instances of |Show| for booleans
-and natural numbers.
+The instance argument mechanism infers that the |show| function is
+being called on a natural number, hence a dictionary of type |Show ℕ|
+is required. As there is only a single value of type |Show ℕ|, the
+required dictionary is inserted automatically. If we have multiple
+instance definitions for the same type or omit the required instance
+altogether, the Agda type checker would have given an error.
+
+It is more interesting to consider parameterised instances, such as
+the |Either| instance given below.
 \begin{code}
-postulate
-  ShowBool  : Show Bool
-  Showℕ     : Show ℕ
-\end{code}
-And let us assume we have some first-order data type for which we
-would like to define an abstract instance of |Show|. For instance,
-pairs:
-\begin{code}
-data _×_ (A B : Set) : Set where
-  _,_ : A → B → A × B
-\end{code}
-Since we have opened the |Show| class using instance arguments, we can
-simply define an abstract |Show| instance for pairs as follows:
-\begin{code}
-ShowProd : Show A → Show B → Show (A × B)
-ShowProd ShowA ShowB = record { show = showProd }
+ShowEither : Show A → Show B → Show (Either A B)
+ShowEither ShowA ShowB = record { show = showE }
   where
-    showProd : A × B -> String
-    showProd (x , y) =
-      "(" ++ show x ++ "," ++ show y ++ ")"
+    showE : Either A B -> String
+    showE (left x)   = "left " ++ show x
+    showE (right y)  = "right " ++ show y
 \end{code}
-Next, we collect all these instances in a hint database:
+Unfortunately, instance arguments do not do any recursive search for
+suitable instances. Trying to call |show| on a value of type |Either ℕ
+Bool|, for example, will not succeed: the Agda type checker will
+complain that it cannot find a suitable instance argument.
+
+At the moment, the only way to resolve this is to construct the
+required instances manually:
+\begin{code}
+  ShowEitherBoolℕ : Show (Either Bool ℕ)
+  ShowEitherBoolℕ = ShowEither ShowBool Showℕ
+\end{code}
+Writing out such dictionaries is rather tedious.
+
+We can however, use the |auto| function to construct the desired
+instance argument automatically. We start by putting the desired
+instances in a hint database:
 \begin{code}
 ShowHints : HintDB
-ShowHints = hintdb
-  (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
+ShowHints = hintdb  (quote ShowEither
+                    ∷ quote ShowBool
+                    ∷ quote Showℕ ∷ [])
 \end{code}
-And using this hint database, we can use |auto| to search for
-an instance of |Show|.
+
+Now we can call our proof search to assemble the instances for us:
 \begin{code}
 example : String
-example = show (true , 5)
+example = show (left 4) ++ show (right true)
   where
-    ShowInst =  quoteGoal g
+    instance =  quoteGoal g
                 in unquote (auto 5 ShowHints g)
 \end{code}
-Note that as long as we \emph{use} our instance, we do not have to
-provide an explicit type for it.
-
+The type of the locally bound |instance| record is inferred; the proof
+search manages to assemble the desired dictionary.
 
 \section{Discussion}
 \label{sec:discussion}
 
+The |auto| function presented here is far from perfect. This section
+not only discusses its limitations, but compares it to existing proof
+automation techniques in interactive proof assistants.
+
+\paragraph{Performance}
+First of all, the performance of the |auto| function is terrible. Any
+proofs that require a depth greater than ten are intractable in
+practice. This is an immediate consequence of Agda's poor compile-time
+evaluation. The current implementation is call-by-name and does no
+optimization or sharing whatsoever. While a mature evaluator is beyond
+the scope of this project, we believe that it is essential for Agda
+proofs to scale beyond toy examples. Simple optimizations,
+such as the erasure of the natural number indexes used in
+unification~\cite{brady-opt}, would help speed up the proof search
+substantially.
+
+\paragraph{Language}
+The |auto| function can only handle first-order terms. Even if
+higher-order unification is undecidable in general, we believe we
+should be able to adapt our algorithm to work on second-order
+functions. Furthermore, there are plenty of Agda features that are not
+supported by our quotation or Agda's reflection mechanism, such as
+universe polymorphism, instance arguments, and primitive
+functions. Even in the presence of simple dependent types, our
+resolution function can produce surprising results. Consider the
+following example, defining a show function on dependent pairs:
+\begin{code}
+data _×_ (A : Set) (B : A -> Set) : Set where
+  _,_ : (x : A) -> B x -> A × B
+
+Show× : Show A -> Show B -> Show (A × B)
+\end{code}
+Here we define a type for \emph{dependent} pairs, but only use the
+degenerate, simply typed case. Although our proof search can construct
+the required dictionary, using the |show| function results in various
+unresolved metavariables. We suspect that this is because Agda cannot
+figure out how to instantiate the second argument of the dependent
+pair. We suspect this is a limitation of the reflection
+mechanism. \wouter{Pepijn: is dit opgelost in de HEAD?}
+
+\paragraph{Refinement and Recursion}
+The |auto| function returns a complete proof term or fails
+entirely. This is not always desirable. We may want to return an
+incomplete proof, that still has open holes that the user must
+complete. This difficult with the current implementation of Agda's
+reflection mechanism: it cannot generate an incomplete |Term|.
+
+In the future, it may be interesting to explore how to integrate proof
+automation, as described in this paper, better with Agda's IDE. If the
+call to |auto| were to generate the concrete syntax for a (possibly
+incomplete) proof term, this could be replaced with the current goal
+quite easily. An additional advantage of this approach would be that
+reloading the file does no longer needs to recompute the proof terms.
+
+Another consequence of this restriction is that we cannot use
+induction hypotheses as hints.\wouter{Why is this exactly? Do we have
+  a good story here?}
+
+\paragraph{Metatheory}
+
+The |auto| function is necessarily untyped because the interface of
+Agda's reflection mechanism is untyped. Defining a well-typed
+representation of dependent types in a dependently typed language
+remains an open problem, despite various efforts in this
+direction~\cite{james-phd,nisse,devriese,kipling}. If we had such a
+representation, however, we might be able to use the type information
+to prove that when the |auto| function succeeds, the resulting term
+has the correct type. As it stands, to do prove soundness of the
+|auto| function is non-trivial: we would need to define the typing
+rules of Agda's |Term| data type and prove that the |Term| we produce
+witnesses the validity of our goal |Term|. It may be slightly easier
+to ignore Agda's reflection mechanism and instead verify the
+metatheory of the Prolog interpreter: if a proof exists at some given
+depth, |searchToDepth| should find it; any |Result| returned by
+|searchToDepth| should represent a valid derivation.
+
+
 \subsection*{Related work}
 
-\subsection*{Further work}
-\todo{mention that we \emph{could} theoretically return, for instance,
-the specific bit of syntax that is unsupported, but that since we
-cannot quote the |Term| type, we cannot just pass the terms around.}
+There are several existing alternatives
 
-\todo{Debugging proof search failures, better error reporting}
+\begin{description}
+\item[Coq and Ltac]
+\item[Mtac]
+\item[Idris]
+\item[Agsy]
+\end{description}
 
-\todo{Mention the first-orderness of our implementation of |auto|.}
+\subsection*{Closure}
+Having said all of this, we have good reasons to believe the approach
+to proof automation described in this paper is interesting and worth
+exploring further. Unlike Coq, we do not need a custom language of
+proof tactics. We can debug and test our proof search mechanism just
+as easily as we debug any other Agda function. It is straightforward
+to record a log of all the rules that have been attempted, for
+example, which is invaluable information when trying to debug proof
+automation. It is easy to write variations of the proof search
+resolution mechanism. We have first-class hint databases that can be
+assembled modularly, inspected by other functions, or even modified
+during proof search. This is super useful: consider the problem of
+having |trans| in a hint database.
 
-\pepijn{One ``problem'' with our current implementation of proof
-  search is that, while we encode the maximum number of variables used
-  in a term, we do not enforce that all variables are used. As a
-  consequence of this, we cannot guarantee that the substitution
-  obtained from a successful proof search will substitute \emph{all}
-  variables. Since we don't actually \emph{use} the substitution
-  though, this does not really bother use in using our Prolog library
-  to define an |auto| tactic.}
+Using the techniques described in this paper, it is possible to write
+many other pieces of proof automation. Automated rewriting, for
+example. Or a high-level, first-class tactic language: try this piece
+of automation, and if that fails try something else.
 
-\todo{Mention Idris}
+This is the way forward for proof automation.
 
-Future work: auto rewrite; setoid rewrite; proof combinators.
+% \todo{mention that we \emph{could} theoretically return, for instance,
+% the specific bit of syntax that is unsupported, but that since we
+% cannot quote the |Term| type, we cannot just pass the terms around.}
 
-limitations of using recursion in hint data base
-
-universe polymophism
-
-Cf Agsy
-Combining hint data bases (use $\_\plus\_$ :)
-Debugging failed auto attempts, or other examples from
-\url{http://adam.chlipala.net/cpdt/html/LogicProg.html}
-
-We cannot `insert goals' in the term produced by a call to auto. This
-could be useful if you want to allow a tactic to return an unfinished
-proof. Or can we? \pepijn{Nope? I'm afraid I still don't understand
-the concept of |auto| generating existentials (or |iauto|).}
-
-Work with \emph{typed} term language. This is a hard problem.
-
-Compare with Mtac.
-
-Cite Devriese paper.
-
-\todo{Make sure that we use implicit universal quantification all the
-  way through.}
-
-Annoyed by guardedness conditions. Sized types?
+% \pepijn{One ``problem'' with our current implementation of proof
+%   search is that, while we encode the maximum number of variables used
+%   in a term, we do not enforce that all variables are used. As a
+%   consequence of this, we cannot guarantee that the substitution
+%   obtained from a successful proof search will substitute \emph{all}
+%   variables. Since we don't actually \emph{use} the substitution
+%   though, this does not really bother use in using our Prolog library
+%   to define an |auto| tactic.}
 
 \bibliographystyle{plainnat}
 \bibliography{main}
