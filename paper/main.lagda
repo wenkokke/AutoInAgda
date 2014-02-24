@@ -1352,7 +1352,9 @@ the required dictionary, using the |show| function results in various
 unresolved metavariables. We suspect that this is because Agda cannot
 figure out how to instantiate the second argument of the dependent
 pair. We suspect this is a limitation of the reflection
-mechanism. \wouter{Pepijn: is dit opgelost in de HEAD?}
+mechanism.
+\pepijn{Most of this is incorrect---we should discuss what to say
+  here. See the email I sent you.}
 
 \paragraph{Refinement and Recursion}
 The |auto| function returns a complete proof term or fails
@@ -1369,11 +1371,10 @@ quite easily. An additional advantage of this approach would be that
 reloading the file does no longer needs to recompute the proof terms.
 
 Another consequence of this restriction is that we cannot use
-induction hypotheses as hints.\wouter{Why is this exactly? Do we have
-  a good story here?}
+induction hypotheses as hints.
+\wouter{Why is this exactly? Do we have a good story here?}
 
 \paragraph{Metatheory}
-
 The |auto| function is necessarily untyped because the interface of
 Agda's reflection mechanism is untyped. Defining a well-typed
 representation of dependent types in a dependently typed language
@@ -1422,19 +1423,6 @@ example. Or a high-level, first-class tactic language: try this piece
 of automation, and if that fails try something else.
 
 This is the way forward for proof automation.
-
-% \todo{mention that we \emph{could} theoretically return, for instance,
-% the specific bit of syntax that is unsupported, but that since we
-% cannot quote the |Term| type, we cannot just pass the terms around.}
-
-% \pepijn{One ``problem'' with our current implementation of proof
-%   search is that, while we encode the maximum number of variables used
-%   in a term, we do not enforce that all variables are used. As a
-%   consequence of this, we cannot guarantee that the substitution
-%   obtained from a successful proof search will substitute \emph{all}
-%   variables. Since we don't actually \emph{use} the substitution
-%   though, this does not really bother use in using our Prolog library
-%   to define an |auto| tactic.}
 
 \bibliographystyle{plainnat}
 \bibliography{main}
