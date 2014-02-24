@@ -1197,49 +1197,47 @@ quoteError (panic!)
 
 \subsection*{Putting it all together}
 
-\wouter{Modulo formatting en ongelukkige breaks in code environments,
-  ben ik nu hier. Mocht je dus de voorgaande secties willen aanpassen,
-  zoals de slimmere toRules functie -- ga je gang. Ik zal dit laatste
-  stukje nog even bewerken. Daarna ga ik door met de Discussion
-  section.}
-
-Finally, we have all the pieces in place for the definition of our
-|auto| function.
+Finally, we can present the definition of the |auto| function used in
+the examples in Section~\ref{sec:motivation}:
 \begin{code}
 auto : (depth : ℕ) → HintDB → Term → Term
-auto depth rules goalType
+auto depth hints goalType
   with toGoal goalType
 ... | left msg  = quoteError msg
 ... | right ((n , goal) , args)
-  with searchToDepth depth (args ++ rules) goal
+  with searchToDepth depth (args ++ hints) goal
 ... | []        = quoteError searchSpaceExhausted
 ... | (_ , trace) ∷ _
   with toProofTerm trace
 ... | nothing   = quoteError panic!
 ... | just p    = intros (fromProof p)
 \end{code}
+The |auto| function converts the |Term| to a |PrologTerm|, the return
+type of the goal, and a list of arguments that may be used to
+construct this term. It then proceeds by calling the |searchToDepth|
+function with the argument hint database. If this proof search
+succceeds, the |Result| is converted to an Agda |Term|, a witness that
+the original goal is inhabited. There are three places that this
+function may fail: the conversion to a |PrologTerm| may fail, for
+instance because of unsupported syntax; the proof search may not find
+any result; or the final conversion to an Agda |Term| may fail
+unexpectedly. This last case should never be triggered, provided the
+|toProofTerm| function is only called on the result of our proof
+search.
 
-\begin{itemize}
-\item %
-  We convert the goal type to a goal term, using |toGoal|. If the
-  conversion fails, we return either |indexOutOfBounds| or
-  |unsupportedSyntax|.
-\item %
-  We search for a proof using |searchToDepth|. If none can be found,
-  we return the error message |searchSpaceExhausted|.
-\item %
-  We convert the trace for the proof search. This should always work,
-  due to invariants in the code. Therefore, we return the severe error
-  message |panic!| in the case that it does not.
-\item %
-  Last, we convert the proof term back to an Agda |Term|, and add the
-  needed lambda abstractions with |intros|.
-\end{itemize}
 
 \section{Type classes}
 \label{sec:type-classes}
-\todo{Give a bigger example of debugging/automated proving}
 
+As a final application of our proof search algorithm, we show how it
+can be used to implement a \emph{type classes} in the style of
+Haskell. Souzeau and Oury~\cite{coq-type-classes} have already shown
+how to use Coq's proof search mechanism to construct
+dictionaries. Using Agda's \emph{instance
+  arguments}~\cite{instance-args}, we can do the same.
+
+We begin by declaring our `type class' as a record containing the
+desired function:
 \begin{code}
 record Show (A : Set) : Set where
   field
@@ -1248,58 +1246,63 @@ record Show (A : Set) : Set where
 open Show {{...}}
 \end{code}
 
+
+We can write instances for the |Show| `class' by constructing records:
 \begin{code}
 ShowBool  : Show Bool
-Showℕ     : Show ℕ
+ShowBool = record { show = showBool }
+
+Showℕ : Show ℕ
+Showℕ = record { show = showℕ }
 \end{code}
 
+It is more interesting to consider parameterised instances, such as
+the |Either| instance given below.
 \begin{code}
-data _×_ (A B : Set) : Set where
-  _,_ : A → B → A × B
-\end{code}
-
-\begin{code}
-ShowProd : Show A → Show B → Show (A × B)
-ShowProd ShowA ShowB = record { show = showProd }
+ShowEither : Show A → Show B → Show (Either A B)
+ShowEither ShowA ShowB = record { show = showEither }
   where
-    showProd : A × B -> String
-    showProd (x , y) =
-      "(" ++ show x ++ "," ++ show y ++ ")"
+    showEither : Either A B -> String
+    showEither (Inl x) = "Inl " ++ show x
+    showEither (Inr y) = "Inr " ++ show y
 \end{code}
 
-\pepijn{We can present the example as belof if we define the |hintdb|
-  function as |hintdb_| with a right-fixity and a precedence below
-  that of the cons operator. Do we want that? Overly complicated?}
-
+Next we can put any instances we wish to use in a hint database:
 \begin{code}
 ShowHints : HintDB
 ShowHints = hintdb
-  quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ []
+  (quote ShowEither ∷ quote ShowBool ∷ quote Showℕ ∷ [])
 \end{code}
 
+Now we can call our proof search to assemble the instances for us:
 \begin{code}
 example : String
-example = show (true , 5)
+example = show (Inl 4) ++ show (Inr true)
   where
-    ShowI =  quoteGoal g 
-             in unquote (auto 5 ShowHints g)
+    instance =  quoteGoal g 
+                in unquote (auto 5 ShowHints g)
 \end{code}
-
-
+The type of the locally bound |instance| record is inferred; the proof
+search manages to assemble the desired dictionary.
 
 \section{Discussion}
 \label{sec:discussion}
 
 \subsection*{Related work}
 
+Idris: built-in tactics; Coq: Ltac language + hint databases; Agsy:
+can use some (global) hints.
+
+This approach does not perform well; cannot handle recursion. Proof
+term must be complete: would like to leave certain open
+goals. First-order only. In principle, we can debug proofs `easily' or
+improve error reporting/generate a log of proof search. Do have
+first-class hint databases.
+
 \subsection*{Further work}
 \todo{mention that we \emph{could} theoretically return, for instance,
 the specific bit of syntax that is unsupported, but that since we
 cannot quote the |Term| type, we cannot just pass the terms around.}
-
-\todo{Debugging proof search failures, better error reporting}
-
-\todo{Mention the first-orderness of our implementation of |auto|.}
 
 \pepijn{One ``problem'' with our current implementation of proof
   search is that, while we encode the maximum number of variables used
@@ -1314,28 +1317,13 @@ cannot quote the |Term| type, we cannot just pass the terms around.}
 
 Future work: auto rewrite; setoid rewrite; proof combinators.
 
-limitations of using recursion in hint data base
-
 universe polymophism
-
-Cf Agsy
-Combining hint data bases (use $\_\plus\_$ :)
-Debugging failed auto attempts, or other examples from
-\url{http://adam.chlipala.net/cpdt/html/LogicProg.html}
-
-We cannot `insert goals' in the term produced by a call to auto. This
-could be useful if you want to allow a tactic to return an unfinished
-proof. Or can we? \pepijn{Nope? I'm afraid I still don't understand
-the concept of |auto| generating existentials (or |iauto|).}
 
 Work with \emph{typed} term language. This is a hard problem.
 
 Compare with Mtac.
 
 Cite Devriese paper.
-
-\todo{Make sure that we use implicit universal quantification all the
-  way through.}
 
 Annoyed by guardedness conditions. Sized types?
 
