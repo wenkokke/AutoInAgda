@@ -1242,10 +1242,7 @@ desired function:
 record Show (A : Set) : Set where
   field
     show : A → String
-
-open Show {{...}}
 \end{code}
-
 
 We can write instances for the |Show| `class' by constructing records:
 \begin{code}
@@ -1256,22 +1253,31 @@ Showℕ : Show ℕ
 Showℕ = record { show = showℕ }
 \end{code}
 
+\begin{code}
+open Show {{...}}
+
+example : String
+example = show 3  
+\end{code}
+
 It is more interesting to consider parameterised instances, such as
 the |Either| instance given below.
 \begin{code}
 ShowEither : Show A → Show B → Show (Either A B)
-ShowEither ShowA ShowB = record { show = showEither }
+ShowEither ShowA ShowB = record { show = showE }
   where
-    showEither : Either A B -> String
-    showEither (Inl x) = "Inl " ++ show x
-    showEither (Inr y) = "Inr " ++ show y
+    showE : Either A B -> String
+    showE (Inl x)  = "Inl " ++ show x
+    showE (Inr y)  = "Inr " ++ show y
 \end{code}
+Unfortunately, instance arguments do not do any recursive search for
+suitable instances.
 
 Next we can put any instances we wish to use in a hint database:
 \begin{code}
 ShowHints : HintDB
-ShowHints = hintdb
-  (quote ShowEither ∷ quote ShowBool ∷ quote Showℕ ∷ [])
+ShowHints = hintdb (quote ShowEither ∷ quote ShowBool 
+                   ∷ quote Showℕ ∷ [])
 \end{code}
 
 Now we can call our proof search to assemble the instances for us:
