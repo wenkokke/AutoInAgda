@@ -1361,7 +1361,14 @@ The |auto| function returns a complete proof term or fails
 entirely. This is not always desirable. We may want to return an
 incomplete proof, that still has open holes that the user must
 complete. This difficult with the current implementation of Agda's
-reflection mechanism: it cannot generate an incomplete |Term|.
+reflection mechanism: it cannot generate an incomplete |Term|. 
+
+In the future, it may be interesting to explore how to integrate proof
+automation, as described in this paper, better with Agda's IDE. If the
+call to |auto| were to generate the concrete syntax for a (possibly
+incomplete) proof term, this could be replaced with the current goal
+quite easily. An additional advantage of this approach would be that
+reloading the file does no longer needs to recompute the proof terms.
 
 Another consequence of this restriction is that we cannot use
 induction hypotheses as hints.\wouter{Why is this exactly? Do we have
@@ -1369,11 +1376,11 @@ induction hypotheses as hints.\wouter{Why is this exactly? Do we have
 
 \paragraph{Metatheory}
 
-The |auto| function is necessarily untyped. The interface of Agda's
-reflection mechanism is untyped. Defining a well-typed representation
-of dependent types in a dependently typed language remains an open
-problem, despite various efforts in this
-direction~\cite{james-phd,nisse,kipling}. If we had such a
+The |auto| function is necessarily untyped because the interface of
+Agda's reflection mechanism is untyped. Defining a well-typed
+representation of dependent types in a dependently typed language
+remains an open problem, despite various efforts in this
+direction~\cite{james-phd,nisse,devriese,kipling}. If we had such a
 representation, however, we might be able to use the type information
 to prove that when the |auto| function succeeds, the resulting term
 has the correct type. As it stands, to do prove soundness of the
@@ -1386,54 +1393,50 @@ depth, |searchToDepth| should find it; any |Result| returned by
 |searchToDepth| should represent a valid derivation.
 
 
-\paragraph{Advantages}
-Having said all of this, we have good reasons to believe this is an
-interesting approach worth exploring further. Unlike Coq, we do not
-need a custom language of proof tactics. We can debug and test our
-proof search mechanism just as easily as we debug any other Agda
-function. It is straightforward to record a log of all the rules that
-have been attempted, for example, which is invaluable information when
-trying to debug proof automation. It is easy to write variations of
-the proof search resolution mechanism. We have first-class hint
-databases that can be assembled modularly, inspected by other
-functions, or even modified during proof search. This is super useful:
-consider the problem of having |trans| in a hint database.
+\subsection*{Related work}
+
+There are several existing alternatives 
+
+\begin{description}
+\item[Coq and Ltac]
+\item[Mtac]
+\item[Idris]
+\item[Agsy] 
+\end{description}
+
+\subsection*{Closure}
+Having said all of this, we have good reasons to believe the approach
+to proof automation described in this paper is interesting and worth
+exploring further. Unlike Coq, we do not need a custom language of
+proof tactics. We can debug and test our proof search mechanism just
+as easily as we debug any other Agda function. It is straightforward
+to record a log of all the rules that have been attempted, for
+example, which is invaluable information when trying to debug proof
+automation. It is easy to write variations of the proof search
+resolution mechanism. We have first-class hint databases that can be
+assembled modularly, inspected by other functions, or even modified
+during proof search. This is super useful: consider the problem of
+having |trans| in a hint database.
 
 Using the techniques described in this paper, it is possible to write
 many other pieces of proof automation. Automated rewriting, for
-example. Or a high-level, first-class tactic language.
-
-\subsection*{Related work}
-
-Idris: built-in tactics; Coq: Ltac language + hint databases; Agsy:
-can use some (global) hints.
-
-\subsection*{Closure}
+example. Or a high-level, first-class tactic language: try this piece
+of automation, and if that fails try something else.
 
 This is the way forward for proof automation.
 
-\todo{mention that we \emph{could} theoretically return, for instance,
-the specific bit of syntax that is unsupported, but that since we
-cannot quote the |Term| type, we cannot just pass the terms around.}
+% \todo{mention that we \emph{could} theoretically return, for instance,
+% the specific bit of syntax that is unsupported, but that since we
+% cannot quote the |Term| type, we cannot just pass the terms around.}
 
-\pepijn{One ``problem'' with our current implementation of proof
-  search is that, while we encode the maximum number of variables used
-  in a term, we do not enforce that all variables are used. As a
-  consequence of this, we cannot guarantee that the substitution
-  obtained from a successful proof search will substitute \emph{all}
-  variables. Since we don't actually \emph{use} the substitution
-  though, this does not really bother use in using our Prolog library
-  to define an |auto| tactic.}
-
-\todo{Mention Idris}
-
-universe polymophism
-
-Compare with Mtac.
-
-Cite Devriese paper.
-
-Annoyed by guardedness conditions. Sized types?
+% \pepijn{One ``problem'' with our current implementation of proof
+%   search is that, while we encode the maximum number of variables used
+%   in a term, we do not enforce that all variables are used. As a
+%   consequence of this, we cannot guarantee that the substitution
+%   obtained from a successful proof search will substitute \emph{all}
+%   variables. Since we don't actually \emph{use} the substitution
+%   though, this does not really bother use in using our Prolog library
+%   to define an |auto| tactic.}
 
 \bibliographystyle{plainnat}
 \bibliography{main}
