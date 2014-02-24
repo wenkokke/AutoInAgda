@@ -892,7 +892,7 @@ We now turn our attention to the conversion of an Agda |Term| to a
 First of all, the Agda |Term| type represents all (possibly
 higher-order) terms, whereas the |PrologTerm| type is necessarily
 first-order.  We mitigate this problem, by allowing the conversion to
-fail, throwing an `exception' with the message |unsupportedSyntax|;
+fail, throwing an `exception' with the message |unsupportedSyntax|.
 
 Secondly, the Agda |Term| data type uses natural numbers to represent
 variables. The |PrologTerm| data type, on the other hand, represents
@@ -1234,7 +1234,8 @@ can be used to implement a \emph{type classes} in the style of
 Haskell. Souzeau and Oury~\cite{coq-type-classes} have already shown
 how to use Coq's proof search mechanism to construct
 dictionaries. Using Agda's \emph{instance
-  arguments}~\cite{instance-args}, we can do the same.
+  arguments}~\cite{instance-args} and the proof search presented in
+this paper, we mimic their results.
 
 We begin by declaring our `type class' as a record containing the
 desired function:
@@ -1253,12 +1254,20 @@ Showℕ : Show ℕ
 Showℕ = record { show = showℕ }
 \end{code}
 
+Using instance arguments, we can now call our |show| function without
+having to pass the required dictionary explicitly:
 \begin{code}
 open Show {{...}}
 
 example : String
 example = show 3  
 \end{code}
+The instance argument mechanism infers that the |show| function is
+being called on a natural number, hence a dictionary of type |Show ℕ|
+is required. As there is only a single value of type |Show ℕ|, the
+required dictionary is inserted automatically. If we have multiple
+instance definitions for the same type or omit the required instance
+altogether, the Agda type checker would have given an error.
 
 It is more interesting to consider parameterised instances, such as
 the |Either| instance given below.
@@ -1271,13 +1280,26 @@ ShowEither ShowA ShowB = record { show = showE }
     showE (Inr y)  = "Inr " ++ show y
 \end{code}
 Unfortunately, instance arguments do not do any recursive search for
-suitable instances.
+suitable instances. Trying to call |show| on a value of type |Either ℕ
+Bool|, for example, will not succeed: the Agda type checker will
+complain that it cannot find a suitable instance argument.
 
-Next we can put any instances we wish to use in a hint database:
+At the moment, the only way to resolve this is to construct the
+required instances manually:
+\begin{code}
+  ShowEitherBoolℕ : Show (Either Bool ℕ)
+  ShowEitherBoolℕ = ShowEither ShowBool Showℕ
+\end{code}
+Writing out such dictionaries is rather tedious.
+
+We can however, use the |auto| function to construct the desired
+instance argument automatically. We start by putting the desired
+instances in a hint database:
 \begin{code}
 ShowHints : HintDB
-ShowHints = hintdb (quote ShowEither ∷ quote ShowBool 
-                   ∷ quote Showℕ ∷ [])
+ShowHints = hintdb  (quote ShowEither 
+                    ∷ quote ShowBool 
+                    ∷ quote Showℕ ∷ [])
 \end{code}
 
 Now we can call our proof search to assemble the instances for us:
@@ -1294,18 +1316,102 @@ search manages to assemble the desired dictionary.
 \section{Discussion}
 \label{sec:discussion}
 
+The |auto| function presented here is far from perfect. This section
+not only discusses its limitations, but compares it to existing proof
+automation techniques in interactive proof assistants.
+
+\paragraph{Performance}
+First of all, the performance of the |auto| function is terrible. Any
+proofs that require a depth greater than ten are intractable in
+practice. This is an immediate consequence of Agda's poor compile-time
+evaluation. The current implementation is call-by-name and does no
+optimization or sharing whatsoever. While a mature evaluator is beyond
+the scope of this project, we believe that it is essential for Agda
+proofs to scale beyond toy examples. Simple optimizations,
+such as the erasure of the natural number indexes used in
+unification~\cite{brady-opt}, would help speed up the proof search
+substantially.
+
+\paragraph{Language}
+The |auto| function can only handle first-order terms. Even if
+higher-order unification is undecidable in general, we believe we
+should be able to adapt our algorithm to work on second-order
+functions. Furthermore, there are plenty of Agda features that are not
+supported by our quotation or Agda's reflection mechanism, such as
+universe polymorphism, instance arguments, and primitive
+functions. Even in the presence of simple dependent types, our
+resolution function can produce surprising results. Consider the
+following example, defining a show function on dependent pairs:
+\begin{code}
+data _×_ (A : Set) (B : A -> Set) : Set where
+  _,_ : (x : A) -> B x -> A × B
+
+Show× : Show A -> Show B -> Show (A × B)
+\end{code}
+Here we define a type for \emph{dependent} pairs, but only use the
+degenerate, simply typed case. Although our proof search can construct
+the required dictionary, using the |show| function results in various
+unresolved metavariables. We suspect that this is because Agda cannot
+figure out how to instantiate the second argument of the dependent
+pair. We suspect this is a limitation of the reflection
+mechanism. \wouter{Pepijn: is dit opgelost in de HEAD?}
+
+\paragraph{Refinement and Recursion}
+The |auto| function returns a complete proof term or fails
+entirely. This is not always desirable. We may want to return an
+incomplete proof, that still has open holes that the user must
+complete. This difficult with the current implementation of Agda's
+reflection mechanism: it cannot generate an incomplete |Term|.
+
+Another consequence of this restriction is that we cannot use
+induction hypotheses as hints.\wouter{Why is this exactly? Do we have
+  a good story here?}
+
+\paragraph{Metatheory}
+
+The |auto| function is necessarily untyped. The interface of Agda's
+reflection mechanism is untyped. Defining a well-typed representation
+of dependent types in a dependently typed language remains an open
+problem, despite various efforts in this
+direction~\cite{james-phd,nisse,kipling}. If we had such a
+representation, however, we might be able to use the type information
+to prove that when the |auto| function succeeds, the resulting term
+has the correct type. As it stands, to do prove soundness of the
+|auto| function is non-trivial: we would need to define the typing
+rules of Agda's |Term| data type and prove that the |Term| we produce
+witnesses the validity of our goal |Term|. It may be slightly easier
+to ignore Agda's reflection mechanism and instead verify the
+metatheory of the Prolog interpreter: if a proof exists at some given
+depth, |searchToDepth| should find it; any |Result| returned by
+|searchToDepth| should represent a valid derivation.
+
+
+\paragraph{Advantages}
+Having said all of this, we have good reasons to believe this is an
+interesting approach worth exploring further. Unlike Coq, we do not
+need a custom language of proof tactics. We can debug and test our
+proof search mechanism just as easily as we debug any other Agda
+function. It is straightforward to record a log of all the rules that
+have been attempted, for example, which is invaluable information when
+trying to debug proof automation. It is easy to write variations of
+the proof search resolution mechanism. We have first-class hint
+databases that can be assembled modularly, inspected by other
+functions, or even modified during proof search. This is super useful:
+consider the problem of having |trans| in a hint database.
+
+Using the techniques described in this paper, it is possible to write
+many other pieces of proof automation. Automated rewriting, for
+example. Or a high-level, first-class tactic language.
+
 \subsection*{Related work}
 
 Idris: built-in tactics; Coq: Ltac language + hint databases; Agsy:
 can use some (global) hints.
 
-This approach does not perform well; cannot handle recursion. Proof
-term must be complete: would like to leave certain open
-goals. First-order only. In principle, we can debug proofs `easily' or
-improve error reporting/generate a log of proof search. Do have
-first-class hint databases.
+\subsection*{Closure}
 
-\subsection*{Further work}
+This is the way forward for proof automation.
+
 \todo{mention that we \emph{could} theoretically return, for instance,
 the specific bit of syntax that is unsupported, but that since we
 cannot quote the |Term| type, we cannot just pass the terms around.}
@@ -1321,11 +1427,7 @@ cannot quote the |Term| type, we cannot just pass the terms around.}
 
 \todo{Mention Idris}
 
-Future work: auto rewrite; setoid rewrite; proof combinators.
-
 universe polymophism
-
-Work with \emph{typed} term language. This is a hard problem.
 
 Compare with Mtac.
 
