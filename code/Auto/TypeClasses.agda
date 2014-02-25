@@ -4,11 +4,11 @@ open import Reflection
 open import Data.Maybe
 open import Data.List using (_∷_; [])
 open import Data.String using (String; _++_)
-open import Data.Product using (_×_; _,_)
 open import Data.Bool using (Bool; true; false)
-open import Data.Bool.Show using () renaming (show to showBool)
 open import Data.Nat using (ℕ; suc; zero)
-open import Data.Nat.Show using () renaming (show to showℕ)
+
+import Data.Nat.Show as Nat
+import Data.Bool.Show as Bool
 
 module Auto.TypeClasses where
 
@@ -19,51 +19,62 @@ record Show (A : Set) : Set where
 open Show {{...}}
 
 data Either (A B : Set) : Set where
-  Inl : A -> Either A B
-  Inr : B -> Either A B
+  left : A -> Either A B
+  right : B -> Either A B
 
 ShowEither : {A B : Set} -> Show A → Show B → Show (Either A B)
 ShowEither {A} {B} ShowA ShowB = record { show = showEither }
   where
     showEither : Either A B -> String
-    showEither (Inl x) = "Inl " ++ show x
-    showEither (Inr y) = "Inr " ++ show y
-
-ShowPair : {A B : Set} -> Show A → Show B → Show (A × B)
-ShowPair {A} {B} showA showB = record { show = showPair }
-  where
-  showPair : A × B -> String
-  showPair (proj₁ , proj₂) = show proj₁ ++ "," ++ show proj₂
+    showEither (left x) = "left " ++ show x
+    showEither (right y) = "right " ++ show y
 
 ShowBool : Show Bool
-ShowBool = record { show = showBool }
+ShowBool = record { show = Bool.show }
 
 Showℕ : Show ℕ
-Showℕ = record { show = showℕ }
+Showℕ = record { show = Nat.show }
 
 ShowHints : HintDB
 ShowHints = hintdb
-  (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
+  (quote ShowEither ∷ quote ShowBool ∷ quote Showℕ ∷ [])
 
 example₁ : String
-example₁ = show (true , 5)
+example₁ = show (left true) ++ show (right 4)
   where
     ShowInst = quoteGoal g in unquote (auto 5 ShowHints g)
 
-example₂ : String
-example₂ = show (true , 5) ++ show (5 , true)
-  where
-    Show₁ : Show (ℕ × _)
-    Show₁ = quoteGoal g in unquote (auto 5 ShowHints g)
-    Show₂ = quoteGoal g in unquote (auto 5 ShowHints g)
 
-data _×′_ (A : Set) (B : A → Set) : Set where
-  _,′_ : (x : A) → B x → A ×′ B
+module Pair1 where
 
-example₃ : String
-example₃ = show (true ,′ 5)
-  where
-    ShowInst : Show (Bool × Bool)
-    ShowInst = quoteGoal g in unquote (auto 7 ShowHints g)
+  data _×_ (A B : Set) : Set where
+    _,_ : A → B → A × B
 
+  ShowPair : ∀ {A B} → Show A → Show B → Show (A × B)
+  ShowPair {A} {B} showA showB = record { show = showPair }
+    where
+      showPair : A × B -> String
+      showPair (proj₁ , proj₂) = show proj₁ ++ "," ++ show proj₂
 
+  example₂ : String
+  example₂ = show (true , 1)
+    where
+      ShowInst = quoteGoal g in unquote (auto 5 (ShowHints << quote ShowPair) g)
+
+module Pair2 where
+
+  open import Data.Product using (Σ; _,_)
+
+  _×_ : (A B : Set) → Set
+  A × B = Σ A (λ _ → B)
+
+  ShowPair : {A B : Set} -> Show A → Show B → Show (A × B)
+  ShowPair {A} {B} showA showB = record { show = showPair }
+    where
+      showPair : A × B -> String
+      showPair (proj₁ , proj₂) = show proj₁ ++ "," ++ show proj₂
+
+  example₂ : String
+  example₂ = show (true , 5)
+    where
+      ShowInst = quoteGoal g in unquote (auto 5 (ShowHints << ShowPair) g)
