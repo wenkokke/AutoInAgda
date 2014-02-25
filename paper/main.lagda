@@ -1423,16 +1423,12 @@ the correct definition:
 However, it is rejected by Agda's type-checker.
 \todo{Clarify which type checker we mean: batch, non-interactive?}
 
-\paragraph{Refinement and Recursion}
+\paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
 entirely. This is not always desirable. We may want to return an
 incomplete proof, that still has open holes that the user must
 complete. This difficult with the current implementation of Agda's
 reflection mechanism: it cannot generate an incomplete |Term|.
-
-Another consequence of this restriction is that we cannot use
-induction hypotheses as hints.\wouter{Why is this exactly? Do we have
-  a good story here?}
 
 In the future, it may be interesting to explore how to integrate proof
 automation, as described in this paper, better with Agda's IDE. If the
@@ -1440,13 +1436,6 @@ call to |auto| were to generate the concrete syntax for a (possibly
 incomplete) proof term, this could be replaced with the current goal
 quite easily. An additional advantage of this approach would be that
 reloading the file does no longer needs to recompute the proof terms.
-
-Another consequence of this restriction is that we cannot use
-induction hypotheses as hints.
-\wouter{Why is this exactly? Do we have a good story here?}
-\pepijn{We cannot add terms (i.e.\ variables we've already
-  pattern-matched on) to the hint database, due to limitations in the
-  refection mechanism. I'll write about this shortly.}
 
 \paragraph{Metatheory}
 The |auto| function is necessarily untyped because the interface of
