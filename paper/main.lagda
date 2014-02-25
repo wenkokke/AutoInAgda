@@ -1499,13 +1499,13 @@ first-class values. There is never any built-in magic; there are no
 primitives beyond Agda's reflection mechanism.
 
 The central philosophy of Martin-L\"of type theory is that the
-construction of programs and proofs are the same activity. Any
+construction of programs and proofs is the same activity. Any
 external language for proof automation renounces this philosophy. This
 paper demonstrates that proof automation is not inherently at odds
 with the philosophy of type theory. Paraphrasing
-Martin-L\"of~\cite{martin-lof}, we might say: it no longer seems
-possible to distinguish the discipline of programming from the
-construction of mathematics.
+Martin-L\"of~\cite{martin-lof}, it no longer seems possible to
+distinguish the discipline of \emph{programming} from the
+\emph{construction} of mathematics.
 
 % This is super useful: consider the problem of having |trans| in a hint
 % database.
@@ -1517,7 +1517,7 @@ construction of mathematics.
 % of automation, and if that fails try something else.
 
 % This is the way forward for proof automation.
-\
+
 \bibliographystyle{plainnat}
 \bibliography{main}
 
