@@ -123,7 +123,7 @@ module Auto where
     where
       fromVar : ℕ → ℕ → Error (∃ PrologTerm)
       fromVar  d i with compare d i
-      fromVar  d .(suc (d + k)) | less    .d k = left indexOutOfBounds
+      fromVar  d .(suc (d + k)) | less    .d k = right (0     , con (pvar (-[1+ k ])) [])
       fromVar .i i              | equal   .i   = right (1     , var zero)
       fromVar .(suc (i + k)) i  | greater .i k = right (suc k , var (Fin.fromℕ k))
 
@@ -236,12 +236,6 @@ module Auto where
   db << n with toRule n
   db << n | left msg = db
   db << n | right r  = db ++ [ r ]
-
-  -- _<<!_ : HintDB → Term → HintDB
-  -- db <<! t = ...
-
-  -- inst : ∀ {m} → Goal m → List (∃ Goal → ∃ Rule) → List (∃ Rule)
-  -- inst {m} g = map (λ f → f (m , g))
 
   auto : ℕ → HintDB → Term → Term
   auto depth rules type
