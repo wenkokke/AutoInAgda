@@ -29,7 +29,6 @@ module Auto where
 
   data Message : Set where
     searchSpaceExhausted : Message
-    indexOutOfBounds     : Message
     unsupportedSyntax    : Message
     panic!               : Message
 
@@ -217,7 +216,6 @@ module Auto where
 
   quoteError : Message → Term
   quoteError (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
-  quoteError (indexOutOfBounds)     = quoteTerm (throw indexOutOfBounds)
   quoteError (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
   quoteError (panic!)               = quoteTerm (throw panic!)
 
