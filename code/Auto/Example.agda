@@ -1,4 +1,4 @@
-open import Auto
+open import Auto hiding (hintdb)
 open import Algebra
 open import Data.List using (_∷_; [];_++_)
 open import Data.Nat using (ℕ; suc; zero; _+_)
@@ -28,7 +28,7 @@ module Auto.Example where
   simple e =  even+ e (isEven+2 isEven0)
 
   hints : HintDB
-  hints = hintdb (quote isEven0 ∷ quote isEven+2 ∷ quote even+ ∷ [])
+  hints = [] << quote isEven0 << quote isEven+2 << quote even+
 
   test₁ : Even 4
   test₁ = quoteGoal g in unquote (auto 5 hints g)
@@ -55,10 +55,15 @@ module Auto.Example where
   fail₂ = refl
 
   evenConstructors : HintDB
-  evenConstructors = hintdb (quote isEven0 ∷ quote isEven+2 ∷ [])
+  evenConstructors = [] << quote isEven0 << quote isEven+2
 
-
-
-  -- even+ind : ∀ {n m} -> Even n -> Even m -> Even (n + m)
-  -- even+ind (isEven0)    = quoteGoal g in unquote (auto 5 evenConstructors g)
-  -- even+ind (isEven+2 e) = quoteGoal g in unquote (auto 5 (evenConstructors << quote even+ind <<! quoteTerm e) g)
+  even+ind : ∀ {n m} -> Even n -> Even m -> Even (n + m)
+  even+ind {0} (isEven0) = quoteGoal g in unquote (auto 5 hintdb g)
+    where
+      hintdb = [] << quote isEven0 << quote isEven+2
+  even+ind {suc (suc n)} {m} (isEven+2 e) = quoteGoal g in {!auto 5 hintdb g!}
+    where
+      even-n : Even n
+      even-n = e
+      hintdb : HintDB
+      hintdb = [] << quote isEven+2 << quote even+ind << quote even-n

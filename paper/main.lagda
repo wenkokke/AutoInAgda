@@ -1387,8 +1387,10 @@ lambda which we cannot handle, even if the lambda is (as in this case)
 redundant and could be avoided. This behaviour is a consequence of
 restricting ourselves to first-order terms.
 
-\wouter{Todo: no references to locally bound variables, such as those
-  arising from a pattern match}
+Another restriction is that it is not currently possible to use
+
+\todo{no references to locally bound variables, such as those arising
+  from a pattern match}
 
 \paragraph{Refinement and Recursion}
 The |auto| function returns a complete proof term or fails
