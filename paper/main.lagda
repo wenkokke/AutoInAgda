@@ -1438,11 +1438,11 @@ library for tactic writers to use that exposes common commands, such
 as unification, evaluation, or type checking. Furthermore, there are
 library functions to help handle the construction of proof terms,
 generation of fresh names, and splitting subgoals. This approach is
-reminiscent of the HOL family of theorem provers or Coq's plug-in
-mechanism. An important drawback is that tactic writers need to write
-their tactics in a different language to the rest of their Idris code;
-furthermore, any changes to tactics requires a recompilation of the
-entire Idris system.
+reminiscent of the HOL family of theorem provers~\cite{hol} or Coq's
+plug-in mechanism. An important drawback is that tactic writers need
+to write their tactics in a different language to the rest of their
+Idris code; furthermore, any changes to tactics requires a
+recompilation of the entire Idris system.
 
 \paragraph{Agsy}
 
