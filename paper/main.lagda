@@ -242,10 +242,10 @@ database:
 \end{code}
 To construct such a database, we |quote| any terms that we wish to
 include in it and pass them to the |hintdb| function.  We
-defer any discussion about the |hintdb| function for the moment. Note,
-however, that unlike Coq, the hint data base is a \emph{first-class}
-value that can be manipulated, inspected, or passed as an argument to
-a function.
+defer any discussion about the |hintdb| function
+to~\autoref{sec:hintdbs}. Note, however, that unlike Coq, the hint
+data base is a \emph{first-class} value that can be manipulated,
+inspected, or passed as an argument to a function.
 
 We now give an alternative proof of the |simple| lemma, using this
 hint database:
@@ -702,7 +702,7 @@ constructs the |SearchSpace|, flattens this to a |SearchTree|, and
 finally traverses the resulting tree in depth-first order up to depth
 |d|.
 \begin{code}
-searchToDepth :ℕ → Rules → Goal m → List (Result m)
+searchToDepth : ℕ → Rules → Goal m → List (Result m)
 searchToDepth depth rules goal =
   dfs depth (mkTree rules (resolve goal))
 \end{code}
@@ -1154,7 +1154,7 @@ argument term in a lambda:
 \end{code}
 
 \subsection*{Hint databases}
-
+\label{sec:hintdbs}
 
 We allow users to provide hints, rules that may be used during
 resolution, in the form of a \emph{hint database}. Such a hint
