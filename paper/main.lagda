@@ -1386,7 +1386,7 @@ Show× : Show A -> Show B -> Show (A × B)
   terms. Plus your statement that we simply use the degenerate, simply
 typed case is simply incorrect. We use the full dependent case here,
 due to ambiguity in the meaning of |B|. Shall I change this to a story
-detailing normalisation and the implementation of _×_ using Σ?}
+detailing normalisation and the implementation of |_×_| using |Σ|?}
 
 Here we define a type for \emph{dependent} pairs, but only use the
 degenerate, simply typed case. Converting the goal |Show (A × (λ _ ->
@@ -1395,6 +1395,9 @@ the goal type contains a lambda which we cannot handle. Even if the
 lambda is redundant and could be avoided, the construction of the
 desired dictionary fails. This behaviour is a consequence of
 restricting ourselves to first-order terms.
+
+\wouter{Todo: no references to locally bound variables, such as those
+  arising from a pattern match}
 
 \paragraph{Refinement and Recursion}
 The |auto| function returns a complete proof term or fails
@@ -1420,6 +1423,7 @@ induction hypotheses as hints.
 \pepijn{We cannot add terms (i.e.\ variables we've already
   pattern-matched on) to the hint database, due to limitations in the
   refection mechanism. I'll write about this shortly.}
+
 \paragraph{Metatheory}
 The |auto| function is necessarily untyped because the interface of
 Agda's reflection mechanism is untyped. Defining a well-typed
@@ -1446,8 +1450,10 @@ the approach taken in this paper to these existing systems.
 
 \paragraph{Coq}
 Of the existing proof assistants based on dependent types, Coq has the
-richest support for proof automation.
-\todo{auto Ltac Mtac}
+richest support for proof automation. The Ltac language and the many
+primitive tactics are extremely powerful~\cite{chlipala}.
+
+Mtac~\cite{mtac}
 
 \paragraph{Idris}
 The dependently typed programming language Idris also has a collection
