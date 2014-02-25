@@ -1485,10 +1485,8 @@ finegrained control over all these issues.
 \subsection*{Closure}
 
 The proof automation presented in this paper is not as mature as some
-of the alternatives. Yet we strongly believe that this style of proof
-automation brings something new to the table.
-
-\todo{Write conclusion}
+of these alternative systems. Yet we strongly believe that this style
+of proof automation brings something new to the table.
 
 The advantages of using reflection to program proof tactics should be
 clear: we do not need to learn a new programming language to write new
@@ -1496,25 +1494,30 @@ tactics; we can use existing language technology to debug and test our
 tactics; and we can use all of Agda's expressive power in the design
 and implementation of our tactics. If a particular problem domain
 requires a different search strategy, this can be implemented by
-writing a new traversal over a |SearchTree|.
+writing a new traversal over a |SearchTree|. Hint databases are
+first-class values. There is never any built-in magic; there are no
+primitives beyond Agda's reflection mechanism.
 
-proof tactics. We can debug and test our proof search mechanism just
-as easily as we debug any other Agda function. It is straightforward
-to record a log of all the rules that have been attempted, for
-example, which is invaluable information when trying to debug proof
-automation. It is easy to write variations of the proof search
-resolution mechanism. We have first-class hint databases that can be
-assembled modularly, inspected by other functions, or even modified
-during proof search. This is super useful: consider the problem of
-having |trans| in a hint database.
+The central philosophy of Martin-L\"of type theory is that the
+construction of programs and proofs are the same activity. Any
+external language for proof automation renounces this philosophy. This
+paper demonstrates that proof automation is not inherently at odds
+with the philosophy of type theory. Paraphrasing
+Martin-L\"of~\cite{martin-lof}, we might say: it no longer seems
+possible to distinguish the discipline of programming from the
+construction of mathematics.
 
-Using the techniques described in this paper, it is possible to write
-many other pieces of proof automation. Automated rewriting, for
-example. Or a high-level, first-class tactic language: try this piece
-of automation, and if that fails try something else.
+% This is super useful: consider the problem of having |trans| in a hint
+% database.
 
-This is the way forward for proof automation.
 
+% Using the techniques described in this paper, it is possible to write
+% many other pieces of proof automation. Automated rewriting, for
+% example. Or a high-level, first-class tactic language: try this piece
+% of automation, and if that fails try something else.
+
+% This is the way forward for proof automation.
+\
 \bibliographystyle{plainnat}
 \bibliography{main}
 
