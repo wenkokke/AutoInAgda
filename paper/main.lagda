@@ -1420,7 +1420,8 @@ the correct definition:
 \begin{code}
   λ z → isEven+2 (even+ind e z)
 \end{code}
-However, it is rejected by Agda's type-checker.
+However, it is rejected by Agda's type-checker, due to the sudden
+presence of an |unknown| term.
 \todo{Clarify which type checker we mean: batch, non-interactive?}
 
 \paragraph{Refinement}
