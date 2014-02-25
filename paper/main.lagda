@@ -898,17 +898,19 @@ variables. The |PrologTerm| data type, on the other hand, represents
 variables using a finite type |Fin n|, for some |n|. To convert
 between these representations, we could compute the number of free
 variables in a |Term|, and use this information to map between the two
-different representations of bound variables. To keep matters simple,
-however, we allow the conversion to fail with an |indexOutOfBounds|
-message, even though this should never occur. While we could do more
-work to prove totality of the variable conversion, we are already
-defining a function that could fail. Totality of the variable
-conversion will still not make our conversion total.
+different representations of bound variables.
+
+To keep matters simple, however, we allow the conversion to fail with
+an |indexOutOfBounds| message, even though this should never
+occur. While we could do more work to prove totality of the variable
+conversion, we are already defining a function that could
+fail. Totality of the variable conversion will still not make our
+conversion total.
+\pepijn{I suggest we leave out this paragraph in its entirety.}
 \todo{This is incorrect; it was failing because it could also refer to
   variables bound on the left-hand side, which would have their
   indices exceed my perceived depth (due to the fact that they'd be
-  removed from the type returned by |quoteGoal|). Also,
-  |indexOutOfBounds| has been removed   from the code.}
+  removed from the type returned by |quoteGoal|).}
 
 The conversion function, |fromTerm|, traverses the argument term,
 keeping track of the number of |Π|-types it has encountered. We sketch
@@ -973,11 +975,15 @@ fromVar (dot(_))  i         | greater  (dot(_)) k  = (suc k , var (# k))
 %}
 The |fromVar| function computes compares the number of binders that
 have been traversed with its argument De Bruijn index. If the variable
-is bound, it computes the corresponding |PrologTerm| variable;
-otherwise it returns an error.
+is bound within the goal type, it computes the corresponding
+|PrologTerm| variable;
+\wouter{otherwise it returns an error.}
+\pepijn{if the variable is bound outside of the goal type, we compute a
+  skolem constant.}
 \todo{As can be seen, it now returns a skolem constant instead of an
   error. Also, the line is a bit longer than it should be, due to the
-  horrifying constructor for negative integers.}
+  horrifying constructor for negative integers. Alternatives are in
+  pepijn/wouter notes.}
 
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
