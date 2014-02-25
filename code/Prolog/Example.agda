@@ -72,3 +72,4 @@ module Prolog.Example where
     where
       substs : List (Result 1)
       substs = searchToDepth 5 ((_ , AddBase) ∷ (_ , AddStep) ∷ []) Three+One?
+
