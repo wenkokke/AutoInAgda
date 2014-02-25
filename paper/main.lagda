@@ -1,4 +1,4 @@
-\documentclass[preprint,draft]{sigplanconf}
+\documentclass[preprint]{sigplanconf}
 
 %include agda.fmt
 %include main.fmt
@@ -35,7 +35,7 @@
   type classes.
 
   \noindent
-  \pepijn{Wrote a bit to potentially use in the final abstract. \smiley{}}
+  \wouter{Still need to finalize the abstract}
 \end{abstract}
 
 \section{Introduction}
@@ -955,21 +955,23 @@ fromDef f (n , ts) = n , con (pname f) ts
 \end{code}
 Lastly, the |fromVar| function converts a natural number,
 corresponding to a variable name in the Agda |Term| type, to the
-corresponding |PrologTerm| by taking the difference between the number
-of binders traversed and the De Bruijn index:
+corresponding |PrologTerm|: % by taking the difference between the number
+% of binders traversed and the De Bruijn index:
 %{
 %format (dot (a)) = "\lfloor " a "\rfloor"
 \begin{code}
 fromVar : ℕ → ℕ → Error (∃ PrologTerm)
 fromVar n i with compare n i
-fromVar n (dot(suc (n + k)))  | less     (dot(_)) k  
-  = left indexOutOfBounds
-fromVar n (dot(n))            | equal    (dot(_))    
-  = right (suc 0 , var (# 0))
-fromVar (dot(suc (i + k))) i  | greater  (dot(_)) k  
-  = right (suc k , var (# k))
+fromVar n         (dot(_))  | less     (dot(_)) k  = left indexOutOfBounds
+fromVar n         (dot(n))  | equal    (dot(_))    = right (suc 0 , var (# 0))
+fromVar (dot(_))  i         | greater  (dot(_)) k  = right (suc k , var (# k))
 \end{code}
 %}
+The |fromVar| function computes compares the number of binders that
+have been traversed with its argument De Bruijn index. If the variable
+is bound, it computes the corresponding |PrologTerm| variable;
+otherwise it returns an error.
+
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
 |0|:
@@ -997,14 +999,16 @@ In our Agda implementation, we can define such a rule manually:
 \begin{code}
 Even+ : Rule 2
 Even+ = record {
-  name        = rname even+
-  conclusion  = con (pname Even)
-                  (con (pname _+_)
-                    (var (# 0) ∷ var (# 1) ∷ [])
-                  ∷ [])
-  premises    =   con (pname Even) (var (# 0) ∷ [])
-               ∷  con (pname Even) (var (# 1) ∷ [])
-               ∷  []
+  name        =  rname even+
+  conclusion  =  con  (pname Even)
+                      (con (pname _+_) 
+                         (var (# 0) ∷ var (# 1) ∷ [])
+                      ∷ [])
+  premises    =  con  (pname Even) 
+                      (var (# 0) ∷ [])
+                 ∷ con (pname Even) 
+                      (var (# 1) ∷ [])
+                 ∷  [] 
   }
 \end{code}
 In the coming subsection, we will show how to generate the above
@@ -1021,11 +1025,11 @@ its type; the |unel| function discards any information about sorts; the
 |toPrologTerm| was defined previously.
 
 In the next step, we process this |PrologTerm|. The |splitTerm|
-function splits a |PrologTerm| at every top-most occurrence of the
-function symbol |pimpl|. Note that it would be
+function, defined below, splits a |PrologTerm| at every top-most
+occurrence of the function symbol |pimpl|. Note that it would be
 possible to define this function directly on Agda's |Term| data type,
-but defining it on the |PrologTerm| data type is much cleaner as all
-unsupported syntax has been removed.
+but defining it on the |PrologTerm| data type is much cleaner as we
+may assume that any unsupported syntax has already been removed.
 \begin{code}
 splitTerm  : PrologTerm n 
            → ∃ (λ k → Vec (PrologTerm n) (suc k))
@@ -1034,8 +1038,8 @@ splitTerm (con pimpl (t₁ ∷ t₂ ∷ []))  =
 splitTerm t = 0 , t ∷ []
 \end{code}
 
-Using all these auxiliary functions, it is straightforward to
-construct the desired rule. 
+Using all these auxiliary functions, it is straightforward to define
+the |toRule| function below that constructs a |Rule| from an Agda |Name|.
 \begin{code}
 toRule : Name → Error (∃ Rule)
 toRule name with fromName name
@@ -1094,15 +1098,22 @@ variable. When considering the goal type, however, we want to generate
 skolem constants for our variables, rather than Prolog variables which
 may still be unified. To account for this difference, we use the
 |fromTerm'| function, a slight variation of the |fromTerm| function
-described previously.
+described previously. The only difference between |fromTerm| and
+|fromTerm'| is the treatment of variables.
 
 \subsection*{Reification of proof terms}
 
 Now that we can compute Prolog terms, goals and rules from an Agda
 |Term|, we are ready to call the resolution mechanism described in
 Section~\ref{sec:prolog}. The only remaining problem is to convert the
-witness computed by our proof search back to an Agda |Term|. The
-|fromProof| function does exactly that:
+witness computed by our proof search back to an Agda |Term|. This
+function traverses its argument |ProofTerm|; the only interesting
+question is how it handles the variables and names it encounters.
+
+The |ProofTerm| may contain two kinds of variables: locally bound
+variables, |rvar i|, or variables storing an Agda |Name|, |rname
+n|. Each of these variables is treated differently in the |fromProof|
+function.
 \begin{code}
 fromProof : ProofTerm → Term
 fromProof (con (rvar i) ps) = var i []
@@ -1113,10 +1124,12 @@ fromProof (con (rname n) ps) with definition n
   where
    toArg = arg visible relevant
 \end{code}
-Any bound variables, corresponding to usage of the local premises, can
-be mapped to the |var| constructor the Agda |Term| data type. As we
-know by construction that these correspond to rules without premises,
-these variables do not need any further arguments.
+Any references to locally bound variables are mapped to the |var|
+constructor of the Agda |Term| data type. These variables correspond
+to usage of arguments to the function being defined. As we know by
+construction that these arguments are mapped to rules without
+premises, the corresponding Agda variables do not need any further
+arguments.
 
 If the rule being applied is constructed using an |rname|, we do
 disambiguate whether the rule name refers to a function or a
@@ -1156,9 +1169,15 @@ hintdb = concatMap (fromError ∘ toRule)
     fromError : Error A → List A
     fromError = fromEither (const []) [_]
 \end{code}
-Note that if the generation of a rule fails for whatever reason, no
-error is raised, and the rule is simply ignored. This behaviour is
-easily adapted.
+If the generation of a rule fails for whatever reason, no error is
+raised, and the rule is simply ignored. This makes it easier to use
+the results of the |hintdb| function, but may produce unintended
+results. Alternatively, we could require an implicit proof argument
+that all the names in the argument list can be quoted successfully. If
+you define such proofs to compute the trivial unit record as evidence,
+Agda will fill them in automatically in every call to the |hintdb|
+function. This simple form of proof automation is pervasive in Agda
+programs.\todo{add citations}
 
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
@@ -1166,6 +1185,11 @@ priorities to certain rules or limit the number of times a rule may be
 applied. The only function that would need to be adapted to handle
 such requirements is the |mkTree| function in
 Section~\ref{sec:prolog}.
+
+Furthermore, note that a hint database is a simple list of rules. It
+is an entirely first-class entity. We can combine hints databases,
+filter certain rules from a hint database, or manipulate them in any
+way we wish.
 
 \subsection*{Error messages}
 Lastly, we need to decide how to report error messages. Since we are
