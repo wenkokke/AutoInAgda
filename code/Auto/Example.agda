@@ -2,7 +2,7 @@ open import Auto
 open import Algebra
 open import Data.List using (_∷_; [];_++_)
 open import Data.Nat using (ℕ; suc; zero; _+_)
-open import Data.Product using (∃₂; proj₁; proj₂)
+open import Data.Product using (_×_; ∃₂; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 open import Reflection
 
@@ -56,6 +56,8 @@ module Auto.Example where
 
   evenConstructors : HintDB
   evenConstructors = hintdb (quote isEven0 ∷ quote isEven+2 ∷ [])
+
+
 
   -- even+ind : ∀ {n m} -> Even n -> Even m -> Even (n + m)
   -- even+ind (isEven0)    = quoteGoal g in unquote (auto 5 evenConstructors g)

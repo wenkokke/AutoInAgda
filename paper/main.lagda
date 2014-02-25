@@ -1001,14 +1001,14 @@ Even+ : Rule 2
 Even+ = record {
   name        =  rname even+
   conclusion  =  con  (pname Even)
-                      (con (pname _+_) 
+                      (con (pname _+_)
                          (var (# 0) ∷ var (# 1) ∷ [])
                       ∷ [])
-  premises    =  con  (pname Even) 
+  premises    =  con  (pname Even)
                       (var (# 0) ∷ [])
-                 ∷ con (pname Even) 
+                 ∷ con (pname Even)
                       (var (# 1) ∷ [])
-                 ∷  [] 
+                 ∷  []
   }
 \end{code}
 In the coming subsection, we will show how to generate the above
@@ -1365,35 +1365,26 @@ would certainly help speed up the proof search.
 The |auto| function can only handle first-order terms. Even though
 higher-order unification is not decidable in general, we believe that it
 should be possible to adapt our algorithm to work on second-order
-functions. 
-\pepijn{How? You mean using defuctionalisation?}
-\wouter{Turning arguments into rules with premises}
+functions.
 Furthermore, there are plenty of Agda features that are not
 supported or ignored by our quotation functions, such as universe
-polymorphism, instance arguments, and primitive functions. Even in the
-presence of simple dependent types, our resolution function can
-fail unexpectedly. Consider the following example, defining a
-show function on dependent pairs:
+polymorphism, instance arguments, and primitive functions.
 
+Even for definitions that seem completely first-order, our |auto|
+function can fail unexpectedly. Consider the following definition of
+the product type, adapted from the standard library:
 \begin{code}
-data _×_ (A : Set) (B : A -> Set) : Set where
-  _,_ : (x : A) -> B x -> A × B
-
-Show× : Show A -> Show B -> Show (A × B)
+_×_ : (A B : Set) → Set
+A × B = Σ A (λ _ → B)
 \end{code}
-
-\pepijn{This will simply fail due to the presence of higher-order
-  terms. Plus your statement that we simply use the degenerate, simply
-typed case is simply incorrect. We use the full dependent case here,
-due to ambiguity in the meaning of |B|. Shall I change this to a story
-detailing normalisation and the implementation of |_×_| using |Σ|?}
-
-Here we define a type for \emph{dependent} pairs, but only use the
-degenerate, simply typed case. Converting the goal |Show (A × (λ _ ->
-B))| to a |PrologTerm| raises the `exception' |unsupportedSyntax| --
-the goal type contains a lambda which we cannot handle. Even if the
-lambda is redundant and could be avoided, the construction of the
-desired dictionary fails. This behaviour is a consequence of
+However, attempting to derive an instance of |Show| for this product
+type will fail. The reason for this is that |quoteGoal| will always
+return the goal in normal form, which unveil the higher-order terms in
+the definition of |_×_|.
+Converting the goal |Show (A × (λ _ → B))| to a |PrologTerm| will
+raises the `exception' |unsupportedSyntax|; the goal type contains a
+lambda which we cannot handle, even if the lambda is (as in this case)
+redundant and could be avoided. This behaviour is a consequence of
 restricting ourselves to first-order terms.
 
 \wouter{Todo: no references to locally bound variables, such as those
@@ -1481,7 +1472,7 @@ opportunities for customization: there is limited control over which
 hints may (or may not) be used; there is no way to assign priorities
 to certain hints; and there is a single fixed search strategy. In
 contrast to the proof search presented here, where we have much more
-finegrained control over all these issues. 
+finegrained control over all these issues.
 
 \subsection*{Closure}
 Having said all of this, we have good reasons to believe the approach
