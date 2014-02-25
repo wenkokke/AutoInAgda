@@ -45,6 +45,7 @@ example₁ = show (left true) ++ show (right 4)
     ShowInst = quoteGoal g in unquote (auto 5 ShowHints g)
 
 
+-- THIS WORKS! HOORAY!
 module Pair1 where
 
   data _×_ (A B : Set) : Set where
@@ -61,6 +62,8 @@ module Pair1 where
     where
       ShowInst = quoteGoal g in unquote (auto 5 (ShowHints << quote ShowPair) g)
 
+
+-- THIS BEHAVES STRANGELY DUE TO NORMALISATION
 module Pair2 where
 
   open import Data.Product using (Σ; _,_)
