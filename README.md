@@ -2,7 +2,11 @@
 
 #### Abstract
 
-> TODO: put abstract here
+> We present the reader with an implementation of Prolog-style proof search in Agda.
+> We then use this implementation, together with Agda’s Reflection mechanism,
+> to implement an auto tactic for first- order Agda terms.
+> Last, we demonstrate one possible usage of this tactic,
+> by implementing modular instance search for Agda-style type classes.
 
 #### Technical Details
 
