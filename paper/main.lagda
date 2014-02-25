@@ -243,7 +243,7 @@ database:
 To construct such a database, we |quote| any terms that we wish to
 include in it and pass them to the |hintdb| function.  We
 defer any discussion about the |hintdb| function
-to~\autoref{sec:hintdbs}. Note, however, that unlike Coq, the hint
+to~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
 data base is a \emph{first-class} value that can be manipulated,
 inspected, or passed as an argument to a function.
 
