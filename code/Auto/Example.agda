@@ -1,6 +1,6 @@
 open import Auto
 open import Algebra
-open import Data.List using (_∷_; [])
+open import Data.List using (_∷_; [];_++_)
 open import Data.Nat using (ℕ; suc; zero; _+_)
 open import Data.Product using (∃₂; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
@@ -42,6 +42,16 @@ module Auto.Example where
   test₄ : ∀ {n} → Even n → Even (n + 2)
   test₄ = quoteGoal g in unquote (auto 5 hints g)
 
+  evenConstructors : HintDB
+  evenConstructors = hintdb (quote isEven0 ∷ quote isEven+2 ∷ [])
+
+--  An attempt at using induction hypotheses
+  -- even+rec : ∀ {n m} -> Even n -> Even m -> Even (n + m)
+  -- even+rec isEven0 = quoteGoal g in unquote (auto 5 evenConstructors g)
+  -- even+rec (isEven+2 e1) = (quoteGoal g in
+  --                               unquote
+  --                               (auto 5 ((hintdb quote even+rec ∷ []) ++ evenConstructors) g))
+
   -- attempting to prove an impossible goal (e.g. evenness of n + 3 for all n)
   -- will result in searchSpaceExhausted
   goal₁ = quoteTerm (∀ {n} → Even n → Even (n + 3))
@@ -54,3 +64,4 @@ module Auto.Example where
   fail₂ : unquote (auto 5 hints goal₂) ≡ throw unsupportedSyntax
   fail₂ = refl
 
+  
