@@ -1440,11 +1440,17 @@ automation. In the remainder of this section, we will briefly compare
 the approach taken in this paper to these existing systems.
 
 \paragraph{Coq}
-Of the existing proof assistants based on dependent types, Coq has the
-richest support for proof automation. The Ltac language and the many
-primitive tactics are extremely powerful~\cite{chlipala}.
-
-Mtac~\cite{mtac}
+Coq has the rich support for proof automation. The Ltac language
+and the many primitive, customizable tactics are extremely
+powerful~\cite{chlipala}. Despite Coq's success, it is still
+worthwhile to explore better methods for proof automation. Recent work
+on Mtac~\cite{mtac} shows how to add a typed language for proof
+automation on top of Ltac. Furthermore, Ltac itself is not designed to
+be a general purpose programming language. It can be difficult to
+abstract over certain patterns, tactics can be slow and debugging
+proof automation is not easy. The programmable proof automation,
+written using reflection, presented here may not be as mature as Coq's
+Ltac language, but addresses many of these issues.
 
 \paragraph{Idris}
 The dependently typed programming language Idris also has a collection
@@ -1475,6 +1481,15 @@ contrast to the proof search presented here, where we have much more
 finegrained control over all these issues.
 
 \subsection*{Closure}
+
+
+
+The advantages of using reflection to program proof tactics should be
+clear: we do not need to learn a new programming language to write new
+tactics; we can use existing language technology to debug and test our
+tactics; and we can use all of Agda's expressive power in the design
+and implementation of our tactics.
+
 Having said all of this, we have good reasons to believe the approach
 to proof automation described in this paper is interesting and worth
 exploring further. Unlike Coq, we do not need a custom language of
