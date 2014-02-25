@@ -659,7 +659,7 @@ continuation to every rule. Since we also wish to maintain a trace of
 the rules that have been applied, we shall define this transformation
 using an auxiliary function with an accumulating parameter:
 \begin{code}
-  mkTree  : Rules → SearchSpace m 
+  mkTree  : Rules → SearchSpace m
           → SearchTree (Result m)
   mkTree rs₀ s = go s []
     where
@@ -820,7 +820,7 @@ concrete definitions for the |TermName| and |RuleName| data types,
 two were parameters to the development presented in the previous sections.
 It would be desirable to identify both types with Agda's |Name| type,
 but unfortunately the Agda does not assign a name to the function
-space type operator, |_→_|; nor does Agda assign names to locally bound variables. 
+space type operator, |_→_|; nor does Agda assign names to locally bound variables.
 To address this, we define two new data types |TermName| and |RuleName|.
 
 First, we define the |TermName| data type as follows:
@@ -876,7 +876,7 @@ variables. The |match| function takes two bound variables of types
 |Fin m| and |Fin n| and computes the corresponding variables in |Fin
 (m ⊔ n)| variables -- where |m ⊔ n| denotes the maximum of |m| and |n|:
 \begin{code}
-match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)  
+match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
 \end{code}
 The implementation is reasonably straightforward. We compare the
 numbers |n| and |m|, and use the |inject| function to weaken the
@@ -920,9 +920,9 @@ fromTerm d (pi (arg visible _ (el _ t₁)) (el _ t₂))
 ... | _               | left msg  = left msg
 ... | right (n₁ , p₁)  | right (n₂ , p₂)
   with matchTerms p₁ p₂
-... | (p₁' , p₂') =  let term = con pimpl (p₁' ∷ p₂' ∷ []) 
+... | (p₁' , p₂') =  let term = con pimpl (p₁' ∷ p₂' ∷ [])
                      in right (n₁ ⊔ n₂ , term)
-fromTerm d (pi (arg _ _ _) (el _ t₂)) 
+fromTerm d (pi (arg _ _ _) (el _ t₂))
   = fromTerm (suc d) t₂
 fromTerm _ _             = left unsupportedSyntax
 \end{code}
@@ -943,13 +943,13 @@ of Prolog terms, by stripping the |arg| constructor and recursively
 applying the |fromTerm| function. We only give its type signature
 here, as the definition is straightforward:
 \begin{code}
-fromArgs  : ℕ → List (Arg Term) 
+fromArgs  : ℕ → List (Arg Term)
           → Error (∃ (List ∘ PrologTerm))
 \end{code}
 Next, the |fromDef| function constructs a first-order constant from an
 Agda |Name| and list of terms:
 \begin{code}
-fromDef  : Name → ∃ (λ n → List (PrologTerm n)) 
+fromDef  : Name → ∃ (λ n → List (PrologTerm n))
          → ∃ PrologTerm
 fromDef f (n , ts) = n , con (pname f) ts
 \end{code}
@@ -1031,7 +1031,7 @@ possible to define this function directly on Agda's |Term| data type,
 but defining it on the |PrologTerm| data type is much cleaner as we
 may assume that any unsupported syntax has already been removed.
 \begin{code}
-splitTerm  : PrologTerm n 
+splitTerm  : PrologTerm n
            → ∃ (λ k → Vec (PrologTerm n) (suc k))
 splitTerm (con pimpl (t₁ ∷ t₂ ∷ []))  =
   Product.map suc (_∷_ t₁) (splitTerm t₂)
@@ -1040,6 +1040,9 @@ splitTerm t = 0 , t ∷ []
 
 Using all these auxiliary functions, it is straightforward to define
 the |toRule| function below that constructs a |Rule| from an Agda |Name|.
+
+Using all these auxiliary functions, it is straightforward to
+construct the desired rule.
 \begin{code}
 toRule : Name → Error (∃ Rule)
 toRule name with fromName name
@@ -1071,7 +1074,7 @@ Fortunately, we can reuse many of the auxiliary functions we have
 defined already to achieve this. We convert a |Term| to the
 corresponding |PrologTerm|. Using the |splitTerm| and |initLast|
 function, we can get our hands on the list of arguments |args| and the
-desired return type |goal|. 
+desired return type |goal|.
 \begin{code}
 toGoalRules :  Term → Error (∃ PrologTerm × Rules)
 toGoalRules t       with fromTerm′ 0 t
@@ -1086,7 +1089,7 @@ converts a list of |PrologTerm|s to a |Rules| list.
 \begin{code}
 toRules : ℕ → Vec (PrologTerm n) k → Rules
 toRules i []        =  []
-toRules i (t ∷ ts)  =  (n , rule (rvar i) t []) 
+toRules i (t ∷ ts)  =  (n , rule (rvar i) t [])
                        ∷ toRules (suc i) ts
 \end{code}
 The |toRules| converts every |PrologTerm| in its argument list to a
@@ -1209,13 +1212,13 @@ Next, we define a function to produce an Agda |Term| from a
 just use Agda's |quoteTerm| construct:
 \begin{code}
 quoteError : Message → Term
-quoteError (searchSpaceExhausted) 
+quoteError (searchSpaceExhausted)
   = quoteTerm (throw searchSpaceExhausted)
-quoteError (indexOutOfBounds)     
+quoteError (indexOutOfBounds)
   = quoteTerm (throw indexOutOfBounds)
-quoteError (unsupportedSyntax)    
+quoteError (unsupportedSyntax)
   = quoteTerm (throw unsupportedSyntax)
-quoteError (panic!)               
+quoteError (panic!)
   = quoteTerm (throw panic!)
 \end{code}
 
@@ -1269,23 +1272,22 @@ record Show (A : Set) : Set where
     show : A → String
 \end{code}
 
-We can write instances for the |Show| `class' by writing explicit
+We can write instances for the |Show| `class' by constructing explicit
 dictionary objects:
 \begin{code}
 ShowBool  : Show Bool
-ShowBool = record { show = showBool }
+ShowBool = record { show = ... }
 
 Showℕ : Show ℕ
-Showℕ = record { show = showℕ }
+Showℕ = record { show = ... }
 \end{code}
-
 Using instance arguments, we can now call our |show| function without
 having to pass the required dictionary explicitly:
 \begin{code}
 open Show {{...}}
 
 example : String
-example = show 3  
+example = show 3
 \end{code}
 The instance argument mechanism infers that the |show| function is
 being called on a natural number, hence a dictionary of type |Show ℕ|
@@ -1301,8 +1303,8 @@ ShowEither : Show A → Show B → Show (Either A B)
 ShowEither ShowA ShowB = record { show = showE }
   where
     showE : Either A B -> String
-    showE (Inl x)  = "Inl " ++ show x
-    showE (Inr y)  = "Inr " ++ show y
+    showE (left x)   = "left " ++ show x
+    showE (right y)  = "right " ++ show y
 \end{code}
 Unfortunately, instance arguments do not do any recursive search for
 suitable instances. Trying to call |show| on a value of type |Either ℕ
@@ -1321,8 +1323,8 @@ instance argument automatically. We start by putting the desired
 instances in a hint database:
 \begin{code}
 ShowHints : HintDB
-ShowHints = hintdb  (quote ShowEither 
-                    ∷ quote ShowBool 
+ShowHints = hintdb  (quote ShowEither
+                    ∷ quote ShowBool
                     ∷ quote Showℕ ∷ [])
 \end{code}
 
@@ -1330,9 +1332,9 @@ The desired dictionary can now be assembled for us by calling the
 |auto| function:
 \begin{code}
 example : String
-example = show (Inl 4) ++ show (Inr true)
+example = show (left 4) ++ show (right true)
   where
-    instance =  quoteGoal g 
+    instance =  quoteGoal g
                 in unquote (auto 5 ShowHints g)
 \end{code}
 Note that the type of the locally bound |instance| record is inferred
@@ -1352,6 +1354,7 @@ First of all, the performance of the |auto| function is terrible. Any
 proofs that require a depth greater than ten are intractable in
 practice. This is an immediate consequence of Agda's poor compile-time
 evaluation. The current implementation is call-by-name and does no
+
 optimization whatsoever. While a mature evaluator is beyond the scope
 of this project, we believe that it is essential for Agda proofs to
 scale beyond toy examples. Simple optimizations, such as the erasure
@@ -1360,20 +1363,31 @@ would certainly help speed up the proof search.
 
 \paragraph{Restrictions}
 The |auto| function can only handle first-order terms. Even though
-higher-order unification is undecidable in general, we believe that it
+higher-order unification is not decidable in general, we believe that it
 should be possible to adapt our algorithm to work on second-order
-functions. Furthermore, there are plenty of Agda features that are not
+functions. 
+\pepijn{How? You mean using defuctionalisation?}
+\wouter{Turning arguments into rules with premises}
+Furthermore, there are plenty of Agda features that are not
 supported or ignored by our quotation functions, such as universe
 polymorphism, instance arguments, and primitive functions. Even in the
 presence of simple dependent types, our resolution function can
 fail unexpectedly. Consider the following example, defining a
 show function on dependent pairs:
+
 \begin{code}
 data _×_ (A : Set) (B : A -> Set) : Set where
   _,_ : (x : A) -> B x -> A × B
 
 Show× : Show A -> Show B -> Show (A × B)
 \end{code}
+
+\pepijn{This will simply fail due to the presence of higher-order
+  terms. Plus your statement that we simply use the degenerate, simply
+typed case is simply incorrect. We use the full dependent case here,
+due to ambiguity in the meaning of |B|. Shall I change this to a story
+detailing normalisation and the implementation of _×_ using Σ?}
+
 Here we define a type for \emph{dependent} pairs, but only use the
 degenerate, simply typed case. Converting the goal |Show (A × (λ _ ->
 B))| to a |PrologTerm| raises the `exception' |unsupportedSyntax| --
@@ -1382,11 +1396,12 @@ lambda is redundant and could be avoided, the construction of the
 desired dictionary fails. This behaviour is a consequence of
 restricting ourselves to first-order terms.
 
+\paragraph{Refinement and Recursion}
 The |auto| function returns a complete proof term or fails
 entirely. This is not always desirable. We may want to return an
 incomplete proof, that still has open holes that the user must
 complete. This difficult with the current implementation of Agda's
-reflection mechanism: it cannot generate an incomplete |Term|. 
+reflection mechanism: it cannot generate an incomplete |Term|.
 
 Another consequence of this restriction is that we cannot use
 induction hypotheses as hints.\wouter{Why is this exactly? Do we have
@@ -1399,8 +1414,13 @@ incomplete) proof term, this could be replaced with the current goal
 quite easily. An additional advantage of this approach would be that
 reloading the file does no longer needs to recompute the proof terms.
 
+Another consequence of this restriction is that we cannot use
+induction hypotheses as hints.
+\wouter{Why is this exactly? Do we have a good story here?}
+\pepijn{We cannot add terms (i.e.\ variables we've already
+  pattern-matched on) to the hint database, due to limitations in the
+  refection mechanism. I'll write about this shortly.}
 \paragraph{Metatheory}
-
 The |auto| function is necessarily untyped because the interface of
 Agda's reflection mechanism is untyped. Defining a well-typed
 representation of dependent types in a dependently typed language
@@ -1477,19 +1497,6 @@ example. Or a high-level, first-class tactic language: try this piece
 of automation, and if that fails try something else.
 
 This is the way forward for proof automation.
-
-% \todo{mention that we \emph{could} theoretically return, for instance,
-% the specific bit of syntax that is unsupported, but that since we
-% cannot quote the |Term| type, we cannot just pass the terms around.}
-
-% \pepijn{One ``problem'' with our current implementation of proof
-%   search is that, while we encode the maximum number of variables used
-%   in a term, we do not enforce that all variables are used. As a
-%   consequence of this, we cannot guarantee that the substitution
-%   obtained from a successful proof search will substitute \emph{all}
-%   variables. Since we don't actually \emph{use} the substitution
-%   though, this does not really bother use in using our Prolog library
-%   to define an |auto| tactic.}
 
 \bibliographystyle{plainnat}
 \bibliography{main}

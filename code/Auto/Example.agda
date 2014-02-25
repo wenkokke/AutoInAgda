@@ -42,16 +42,6 @@ module Auto.Example where
   test₄ : ∀ {n} → Even n → Even (n + 2)
   test₄ = quoteGoal g in unquote (auto 5 hints g)
 
-  evenConstructors : HintDB
-  evenConstructors = hintdb (quote isEven0 ∷ quote isEven+2 ∷ [])
-
---  An attempt at using induction hypotheses
-  -- even+rec : ∀ {n m} -> Even n -> Even m -> Even (n + m)
-  -- even+rec isEven0 = quoteGoal g in unquote (auto 5 evenConstructors g)
-  -- even+rec (isEven+2 e1) = (quoteGoal g in
-  --                               unquote
-  --                               (auto 5 ((hintdb quote even+rec ∷ []) ++ evenConstructors) g))
-
   -- attempting to prove an impossible goal (e.g. evenness of n + 3 for all n)
   -- will result in searchSpaceExhausted
   goal₁ = quoteTerm (∀ {n} → Even n → Even (n + 3))
@@ -64,4 +54,9 @@ module Auto.Example where
   fail₂ : unquote (auto 5 hints goal₂) ≡ throw unsupportedSyntax
   fail₂ = refl
 
-  
+  evenConstructors : HintDB
+  evenConstructors = hintdb (quote isEven0 ∷ quote isEven+2 ∷ [])
+
+  -- even+ind : ∀ {n m} -> Even n -> Even m -> Even (n + m)
+  -- even+ind (isEven0)    = quoteGoal g in unquote (auto 5 evenConstructors g)
+  -- even+ind (isEven+2 e) = quoteGoal g in unquote (auto 5 (evenConstructors << quote even+ind <<! quoteTerm e) g)

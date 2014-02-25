@@ -43,14 +43,25 @@ Showℕ = record { show = showℕ }
 
 ShowHints : HintDB
 ShowHints = hintdb
-  quote ShowEither ∷ quote ShowBool ∷ quote Showℕ ∷ quote ShowPair ∷ []
+  (quote ShowProd ∷ quote ShowBool ∷ quote Showℕ ∷ [])
 
+example₁ : String
+example₁ = show (true , 5)
+  where
+    ShowInst = quoteGoal g in unquote (auto 5 ShowHints g)
 
+example₂ : String
+example₂ = show (true , 5) ++ show (5 , true)
+  where
+    Show₁ : Show (ℕ × _)
+    Show₁ = quoteGoal g in unquote (auto 5 ShowHints g)
+    Show₂ = quoteGoal g in unquote (auto 5 ShowHints g)
 
-silly = show 3
+data _×′_ (A : Set) (B : A → Set) : Set where
+  _,′_ : (x : A) → B x → A ×′ B
 
-example : String
-example = show (true , true)
+example₃ : String
+example₃ = show (true ,′ 5)
   where
     ShowInst : Show (Bool × Bool)
     ShowInst = quoteGoal g in unquote (auto 7 ShowHints g)
