@@ -35,7 +35,7 @@
   type classes.
 
   \noindent
-  \wouter{Still need to finalize the abstract}
+  \todo{Still need to finalize the abstract}
 \end{abstract}
 
 \section{Introduction}
@@ -827,7 +827,7 @@ First, we define the |TermName| data type as follows:
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
-  pvar   : (i : ℕ) → TermName
+  pvar   : (i : ℤ) → TermName
   pimpl  : TermName
 \end{code}
 The |TermName| data type has three constructors. The |pname|
@@ -864,7 +864,6 @@ failure:
 \begin{code}
   data Message : Set where
     searchSpaceExhausted  : Message
-    indexOutOfBounds      : Message
     unsupportedSyntax     : Message
     panic!                : Message
 \end{code}
@@ -905,13 +904,18 @@ message, even though this should never occur. While we could do more
 work to prove totality of the variable conversion, we are already
 defining a function that could fail. Totality of the variable
 conversion will still not make our conversion total.
+\todo{This is incorrect; it was failing because it could also refer to
+  variables bound on the left-hand side, which would have their
+  indices exceed my perceived depth (due to the fact that they'd be
+  removed from the type returned by |quoteGoal|). Also,
+  |indexOutOfBounds| has been removed   from the code.}
 
 The conversion function, |fromTerm|, traverses the argument term,
 keeping track of the number of |Π|-types it has encountered. We sketch
 its definition below:
 \begin{code}
 fromTerm : ℕ → Term → Error (∃ PrologTerm)
-fromTerm d (var i [])    = fromVar d i
+fromTerm d (var i [])    = pure (fromVar d i)
 fromTerm d (con c args)  = fromDef c ⟨$⟩ fromArgs d args
 fromTerm d (def f args)  = fromDef f ⟨$⟩ fromArgs d args
 fromTerm d (pi (arg visible _ (el _ t₁)) (el _ t₂))
@@ -960,17 +964,20 @@ corresponding |PrologTerm|: % by taking the difference between the number
 %{
 %format (dot (a)) = "\lfloor " a "\rfloor"
 \begin{code}
-fromVar : ℕ → ℕ → Error (∃ PrologTerm)
+fromVar : ℕ → ℕ → ∃ PrologTerm
 fromVar n i with compare n i
-fromVar n         (dot(_))  | less     (dot(_)) k  = left indexOutOfBounds
-fromVar n         (dot(n))  | equal    (dot(_))    = right (suc 0 , var (# 0))
-fromVar (dot(_))  i         | greater  (dot(_)) k  = right (suc k , var (# k))
+fromVar n         (dot(_))  | less     (dot(_)) k  = (0 , con (pvar (-[1+ k ])) [])
+fromVar n         (dot(n))  | equal    (dot(_))    = (suc 0 , var (# 0))
+fromVar (dot(_))  i         | greater  (dot(_)) k  = (suc k , var (# k))
 \end{code}
 %}
 The |fromVar| function computes compares the number of binders that
 have been traversed with its argument De Bruijn index. If the variable
 is bound, it computes the corresponding |PrologTerm| variable;
 otherwise it returns an error.
+\todo{As can be seen, it now returns a skolem constant instead of an
+  error. Also, the line is a bit longer than it should be, due to the
+  horrifying constructor for negative integers.}
 
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
@@ -1214,8 +1221,6 @@ just use Agda's |quoteTerm| construct:
 quoteError : Message → Term
 quoteError (searchSpaceExhausted)
   = quoteTerm (throw searchSpaceExhausted)
-quoteError (indexOutOfBounds)
-  = quoteTerm (throw indexOutOfBounds)
 quoteError (unsupportedSyntax)
   = quoteTerm (throw unsupportedSyntax)
 quoteError (panic!)

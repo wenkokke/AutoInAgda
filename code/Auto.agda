@@ -108,32 +108,32 @@ module Auto where
   -- We'll need the function below later on, when we try to convert found
   -- variables to finitely indexed variables within our domain `n`.
 
-  convertDef : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
-  convertDef f (n , ts) = n , con (pname f) ts
+  fromDefOrCon : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
+  fromDefOrCon f (n , ts) = n , con (pname f) ts
 
   record Case : Set where
     field
-      fromVar : ℕ → ℕ → Error (∃  PrologTerm)
+      fromVar : ℕ → ℕ → ∃  PrologTerm
       fromCon : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
       fromDef : (s : Name) → ∃ (λ n → List (PrologTerm n)) → ∃ PrologTerm
 
   CaseTerm : Case
-  CaseTerm = record { fromVar = fromVar ; fromCon = convertDef ; fromDef = convertDef  }
+  CaseTerm = record { fromVar = fromVar ; fromCon = fromDefOrCon ; fromDef = fromDefOrCon  }
     where
-      fromVar : ℕ → ℕ → Error (∃ PrologTerm)
+      fromVar : ℕ → ℕ → ∃ PrologTerm
       fromVar  d i with compare d i
-      fromVar  d .(suc (d + k)) | less    .d k = right (0     , con (pvar (-[1+ k ])) [])
-      fromVar .i i              | equal   .i   = right (1     , var zero)
-      fromVar .(suc (i + k)) i  | greater .i k = right (suc k , var (Fin.fromℕ k))
+      fromVar  d .(suc (d + k)) | less    .d k = (0     , con (pvar (-[1+ k ])) [])
+      fromVar .i i              | equal   .i   = (1     , var zero)
+      fromVar .(suc (i + k)) i  | greater .i k = (suc k , var (Fin.fromℕ k))
 
   CaseGoal : Case
-  CaseGoal = record { fromVar = fromVar′ ; fromCon = convertDef ; fromDef = convertDef }
+  CaseGoal = record { fromVar = fromVar′ ; fromCon = fromDefOrCon ; fromDef = fromDefOrCon }
     where
-      fromVar′ : ℕ → ℕ → Error (∃ PrologTerm)
+      fromVar′ : ℕ → ℕ → ∃ PrologTerm
       fromVar′  d i with compare d i
-      fromVar′  d .(suc (d + k)) | less    .d k = right (0 , con (pvar (-[1+ k ])) [])
-      fromVar′ .i i              | equal   .i   = right (0 , con (pvar (+ 0)) [])
-      fromVar′ .(suc (i + k)) i  | greater .i k = right (0 , con (pvar (+ k)) [])
+      fromVar′  d .(suc (d + k)) | less    .d k = (0 , con (pvar (-[1+ k ])) [])
+      fromVar′ .i i              | equal   .i   = (0 , con (pvar (+ 0)) [])
+      fromVar′ .(suc (i + k)) i  | greater .i k = (0 , con (pvar (+ k)) [])
 
   second : ∀ {A B C : Set} → (B → C) → A × B → A × C
   second f (x , y) = (x , f y)
@@ -144,7 +144,7 @@ module Auto where
 
   mutual
     convertTerm : Case → ℕ → Term → Error (∃ PrologTerm)
-    convertTerm dict d (var i [])   = Case.fromVar dict d i
+    convertTerm dict d (var i [])   = pure (Case.fromVar dict d i)
     convertTerm dict d (var i args) = left unsupportedSyntax
     convertTerm dict d (con c args) = Case.fromCon dict c ⟨$⟩ convertArgs dict d args
     convertTerm dict d (def f args) = Case.fromDef dict f ⟨$⟩ convertArgs dict d args
