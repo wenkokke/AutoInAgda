@@ -73,3 +73,17 @@ module Prolog.Example where
       substs : List (Result 1)
       substs = searchToDepth 5 ((_ , AddBase) ∷ (_ , AddStep) ∷ []) Three+One?
 
+  -- WARNING: THIS BECOMES AN INFINITE LOOP SOMEHOW
+  test : Actual ≡ Expected
+  test = {!refl!}
+
+  -- DETAILS:
+  --
+  -- C-c C-t:
+  --     con Suc (con Suc (con Suc (con Suc (con Zero [] ∷ []) ∷ []) ∷ []) ∷ []) ∷ []
+  --   ≡ con Suc (con Suc (con Suc (con Suc (con Zero [] ∷ []) ∷ []) ∷ []) ∷ []) ∷ []
+  --
+  -- C-c C-SPC:
+  --
+  --     INFINITE LOOP
+  --
