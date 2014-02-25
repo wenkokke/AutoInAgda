@@ -1482,17 +1482,20 @@ finegrained control over all these issues.
 
 \subsection*{Closure}
 
+The proof automation presented in this paper is not as mature as some
+of the alternatives. Yet we strongly believe that this style of proof
+automation brings something new to the table.
 
+\todo{Write conclusion}
 
 The advantages of using reflection to program proof tactics should be
 clear: we do not need to learn a new programming language to write new
 tactics; we can use existing language technology to debug and test our
 tactics; and we can use all of Agda's expressive power in the design
-and implementation of our tactics.
+and implementation of our tactics. If a particular problem domain
+requires a different search strategy, this can be implemented by
+writing a new traversal over a |SearchTree|.
 
-Having said all of this, we have good reasons to believe the approach
-to proof automation described in this paper is interesting and worth
-exploring further. Unlike Coq, we do not need a custom language of
 proof tactics. We can debug and test our proof search mechanism just
 as easily as we debug any other Agda function. It is straightforward
 to record a log of all the rules that have been attempted, for
