@@ -1332,14 +1332,27 @@ substantially.
 
 \paragraph{Language}
 The |auto| function can only handle first-order terms. Even if
-higher-order unification is undecidable in general, we believe we
-should be able to adapt our algorithm to work on second-order
-functions. Furthermore, there are plenty of Agda features that are not
-supported by our quotation or Agda's reflection mechanism, such as
-universe polymorphism, instance arguments, and primitive
-functions. Even in the presence of simple dependent types, our
-resolution function can produce surprising results. Consider the
-following example, defining a show function on dependent pairs:
+higher-order unification is undecidable in general,
+\pepijn{Higher-order unification is semi-decidable, due to Huet's
+  algorithm. See my very credible source:
+  http://en.wikipedia.org/wiki/Unification_(computer_science)#Higher-order_unification
+}
+we believe we should be able to adapt our algorithm to work on
+second-order functions.
+\pepijn{How? You mean using defuctionalisation?}
+In addition, there are many Agda features that are not supported by
+our quotation or Agda's reflection mechanism. Examples of this include
+universe polymorphism (due to its higher-order nature), instance
+arguments (\pepijn{I don't see why not?}), and primitive functions
+(\pepijn{Again, why not?}). Even in the presence of simple dependent
+types, our resolution function can produce surprising
+results. Consider the following example, defining a show function on
+dependent pairs:
+\pepijn{This will simply fail due to the presence of higher-order
+  terms. Plus your statement that we simply use the degenerate, simply
+typed case is simply incorrect. We use the full dependent case here,
+due to ambiguity in the meaning of |B|. Shall I change this to a story
+detailing normalisation and the implementation of _×_ using Σ?}
 \begin{code}
 data _×_ (A : Set) (B : A -> Set) : Set where
   _,_ : (x : A) -> B x -> A × B
@@ -1353,8 +1366,9 @@ unresolved metavariables. We suspect that this is because Agda cannot
 figure out how to instantiate the second argument of the dependent
 pair. We suspect this is a limitation of the reflection
 mechanism.
-\pepijn{Most of this is incorrect---we should discuss what to say
-  here. See the email I sent you.}
+\pepijn{I'll try this code. Have you tested this claim? Because I
+  cannot reproduce it. All I can get is a bunch of unresolved metas
+  due to the fact that you're trying to force, e.g.\ |ℕ| with |A → Set|.}
 
 \paragraph{Refinement and Recursion}
 The |auto| function returns a complete proof term or fails
@@ -1373,6 +1387,9 @@ reloading the file does no longer needs to recompute the proof terms.
 Another consequence of this restriction is that we cannot use
 induction hypotheses as hints.
 \wouter{Why is this exactly? Do we have a good story here?}
+\pepijn{We cannot add terms (i.e.\ variables we've already
+  pattern-matched on) to the hint database, due to limitations in the
+  refection mechanism. I'll write about this shortly.}
 
 \paragraph{Metatheory}
 The |auto| function is necessarily untyped because the interface of

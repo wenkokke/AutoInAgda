@@ -48,3 +48,11 @@ example₂ = show (true , 5) ++ show (5 , true)
     Show₁ : Show (ℕ × _)
     Show₁ = quoteGoal g in unquote (auto 5 ShowHints g)
     Show₂ = quoteGoal g in unquote (auto 5 ShowHints g)
+
+data _×′_ (A : Set) (B : A → Set) : Set where
+  _,′_ : (x : A) → B x → A ×′ B
+
+example₃ : String
+example₃ = show (true ,′ 5)
+  where
+    ShowInst = quoteGoal g in unquote (auto 5 ShowHints g)
