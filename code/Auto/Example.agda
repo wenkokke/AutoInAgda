@@ -55,7 +55,7 @@ module Auto.Example where
   fail₂ = refl
 
   -- THIS EXAMPLE BEHAVES RIDICULOUSLY!
-  even+ind : ∀ {n m} -> Even n -> Even m -> Even (n + m)
+  even+ind : ∀ {n m} → Even n → Even m → Even (n + m)
   even+ind {0} (isEven0) = quoteGoal g in unquote (auto 5 [] g)
   even+ind {suc (suc n)} {m} (isEven+2 e) = quoteGoal g in {!unquote (auto 5 hintdb g)!}
     where
