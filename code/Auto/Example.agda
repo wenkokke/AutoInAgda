@@ -54,3 +54,9 @@ module Auto.Example where
   fail₂ : unquote (auto 5 hints goal₂) ≡ throw unsupportedSyntax
   fail₂ = refl
 
+  evenConstructors : HintDB
+  evenConstructors = hintdb (quote isEven0 ∷ quote isEven+2 ∷ [])
+
+  even+ind : ∀ {n m} -> Even n -> Even m -> Even (n + m)
+  even+ind (isEven0)    = quoteGoal g in unquote (auto 5 evenConstructors g)
+  even+ind (isEven+2 e) = quoteGoal g in unquote (auto 5 (evenConstructors << quote even+ind <<! quoteTerm e) g)
