@@ -556,8 +556,8 @@ sub-goals, accumulating a substitution along the way:
 If we have no remaining goals, we can use the |retn| constructor to
 return the substitution we have accumulated so far. If at any point,
 however, the conclusion of the chosen rule was not unifiable with the
-next open subgoal---and thus the accumulating parameter has become
-|nothing|---the search will fail. The interesting case is the third
+next open subgoal -- and thus the accumulating parameter has become
+|nothing| -- the search will fail. The interesting case is the third
 one. If there are remaining goals to resolve, we recursively construct
 a new |SearchSpace|. To do so, we use the |step| constructor and
 branch over the choice of rule. The |next| function defined below
@@ -846,7 +846,7 @@ data RuleName : Set where
   rvar   : (i : ℕ) → RuleName
 \end{code}
 The |rvar| constructor is used to refer to Agda variables as
-rules. Its argument |i| is corresponds to a De Bruijn index---the
+rules. Its argument |i| is corresponds to a De Bruijn index -- the
 value of |i| can be used directly as an argument to the |var|
 constructor of Agda's |Term| data type.
 
@@ -874,7 +874,7 @@ encounter them in our implementation below.
 Finally, we wil need one more auxiliary function to manipulate bound
 variables. The |match| function takes two bound variables of types
 |Fin m| and |Fin n| and computes the corresponding variables in |Fin
-(m ⊔ n)| variables---where |m ⊔ n| denotes the maximum of |m| and |n|:
+(m ⊔ n)| variables -- where |m ⊔ n| denotes the maximum of |m| and |n|:
 \begin{code}
 match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)  
 \end{code}
@@ -924,7 +924,7 @@ fromTerm d (pi (arg visible _ (el _ t₁)) (el _ t₂))
                      in right (n₁ ⊔ n₂ , term)
 fromTerm d (pi (arg _ _ _) (el _ t₂)) 
   = fromTerm (suc d) t₂
-fromTerm _ _  = left unsupportedSyntax
+fromTerm _ _             = left unsupportedSyntax
 \end{code}
 We define special functions, |fromVar| and |fromDef|, to convert
 variables and constructors or defined terms respectively. The
@@ -1177,7 +1177,7 @@ that all the names in the argument list can be quoted successfully. If
 you define such proofs to compute the trivial unit record as evidence,
 Agda will fill them in automatically in every call to the |hintdb|
 function. This simple form of proof automation is pervasive in Agda
-programs.\todo{add citations}
+programs.\cite{oury,swierstra-more}
 
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
@@ -1269,7 +1269,8 @@ record Show (A : Set) : Set where
     show : A → String
 \end{code}
 
-We can write instances for the |Show| `class' by constructing records:
+We can write instances for the |Show| `class' by writing explicit
+dictionary objects:
 \begin{code}
 ShowBool  : Show Bool
 ShowBool = record { show = showBool }
@@ -1306,17 +1307,16 @@ ShowEither ShowA ShowB = record { show = showE }
 Unfortunately, instance arguments do not do any recursive search for
 suitable instances. Trying to call |show| on a value of type |Either ℕ
 Bool|, for example, will not succeed: the Agda type checker will
-complain that it cannot find a suitable instance argument.
-
-At the moment, the only way to resolve this is to construct the
-required instances manually:
+complain that it cannot find a suitable instance argument. At the
+moment, the only way to resolve this is to construct the required
+instances manually:
 \begin{code}
   ShowEitherBoolℕ : Show (Either Bool ℕ)
   ShowEitherBoolℕ = ShowEither ShowBool Showℕ
 \end{code}
 Writing out such dictionaries is rather tedious.
 
-We can however, use the |auto| function to construct the desired
+We can, however, use the |auto| function to construct the desired
 instance argument automatically. We start by putting the desired
 instances in a hint database:
 \begin{code}
@@ -1326,7 +1326,8 @@ ShowHints = hintdb  (quote ShowEither
                     ∷ quote Showℕ ∷ [])
 \end{code}
 
-Now we can call our proof search to assemble the instances for us:
+The desired dictionary can now be assembled for us by calling the
+|auto| function:
 \begin{code}
 example : String
 example = show (Inl 4) ++ show (Inr true)
@@ -1334,8 +1335,10 @@ example = show (Inl 4) ++ show (Inr true)
     instance =  quoteGoal g 
                 in unquote (auto 5 ShowHints g)
 \end{code}
-The type of the locally bound |instance| record is inferred; the proof
-search manages to assemble the desired dictionary.
+Note that the type of the locally bound |instance| record is inferred
+in this example. Using this type, the |auto| function assembles the
+desired dictionary. While deceptively simple, this example illustrates
+how \emph{useful} it can be to have even a little automation.
 
 \section{Discussion}
 \label{sec:discussion}
@@ -1349,23 +1352,22 @@ First of all, the performance of the |auto| function is terrible. Any
 proofs that require a depth greater than ten are intractable in
 practice. This is an immediate consequence of Agda's poor compile-time
 evaluation. The current implementation is call-by-name and does no
-optimization or sharing whatsoever. While a mature evaluator is beyond
-the scope of this project, we believe that it is essential for Agda
-proofs to scale beyond toy examples. Simple optimizations,
-such as the erasure of the natural number indexes used in
-unification~\cite{brady-opt}, would help speed up the proof search
-substantially.
+optimization whatsoever. While a mature evaluator is beyond the scope
+of this project, we believe that it is essential for Agda proofs to
+scale beyond toy examples. Simple optimizations, such as the erasure
+of the natural number indexes used in unification~\cite{brady-opt},
+would certainly help speed up the proof search.
 
-\paragraph{Language}
-The |auto| function can only handle first-order terms. Even if
-higher-order unification is undecidable in general, we believe we
-should be able to adapt our algorithm to work on second-order
+\paragraph{Restrictions}
+The |auto| function can only handle first-order terms. Even though
+higher-order unification is undecidable in general, we believe that it
+should be possible to adapt our algorithm to work on second-order
 functions. Furthermore, there are plenty of Agda features that are not
-supported by our quotation or Agda's reflection mechanism, such as
-universe polymorphism, instance arguments, and primitive
-functions. Even in the presence of simple dependent types, our
-resolution function can produce surprising results. Consider the
-following example, defining a show function on dependent pairs:
+supported or ignored by our quotation functions, such as universe
+polymorphism, instance arguments, and primitive functions. Even in the
+presence of simple dependent types, our resolution function can
+fail unexpectedly. Consider the following example, defining a
+show function on dependent pairs:
 \begin{code}
 data _×_ (A : Set) (B : A -> Set) : Set where
   _,_ : (x : A) -> B x -> A × B
@@ -1373,19 +1375,22 @@ data _×_ (A : Set) (B : A -> Set) : Set where
 Show× : Show A -> Show B -> Show (A × B)
 \end{code}
 Here we define a type for \emph{dependent} pairs, but only use the
-degenerate, simply typed case. Although our proof search can construct
-the required dictionary, using the |show| function results in various
-unresolved metavariables. We suspect that this is because Agda cannot
-figure out how to instantiate the second argument of the dependent
-pair. We suspect this is a limitation of the reflection
-mechanism. \wouter{Pepijn: is dit opgelost in de HEAD?}
+degenerate, simply typed case. Converting the goal |Show (A × (λ _ ->
+B))| to a |PrologTerm| raises the `exception' |unsupportedSyntax| --
+the goal type contains a lambda which we cannot handle. Even if the
+lambda is redundant and could be avoided, the construction of the
+desired dictionary fails. This behaviour is a consequence of
+restricting ourselves to first-order terms.
 
-\paragraph{Refinement and Recursion}
 The |auto| function returns a complete proof term or fails
 entirely. This is not always desirable. We may want to return an
 incomplete proof, that still has open holes that the user must
 complete. This difficult with the current implementation of Agda's
 reflection mechanism: it cannot generate an incomplete |Term|. 
+
+Another consequence of this restriction is that we cannot use
+induction hypotheses as hints.\wouter{Why is this exactly? Do we have
+  a good story here?}
 
 In the future, it may be interesting to explore how to integrate proof
 automation, as described in this paper, better with Agda's IDE. If the
@@ -1393,10 +1398,6 @@ call to |auto| were to generate the concrete syntax for a (possibly
 incomplete) proof term, this could be replaced with the current goal
 quite easily. An additional advantage of this approach would be that
 reloading the file does no longer needs to recompute the proof terms.
-
-Another consequence of this restriction is that we cannot use
-induction hypotheses as hints.\wouter{Why is this exactly? Do we have
-  a good story here?}
 
 \paragraph{Metatheory}
 
@@ -1407,26 +1408,54 @@ remains an open problem, despite various efforts in this
 direction~\cite{james-phd,nisse,devriese,kipling}. If we had such a
 representation, however, we might be able to use the type information
 to prove that when the |auto| function succeeds, the resulting term
-has the correct type. As it stands, to do prove soundness of the
+has the correct type. As it stands, proving soundness of the
 |auto| function is non-trivial: we would need to define the typing
 rules of Agda's |Term| data type and prove that the |Term| we produce
 witnesses the validity of our goal |Term|. It may be slightly easier
 to ignore Agda's reflection mechanism and instead verify the
 metatheory of the Prolog interpreter: if a proof exists at some given
 depth, |searchToDepth| should find it; any |Result| returned by
-|searchToDepth| should represent a valid derivation.
-
+|searchToDepth| should correspond to a valid derivation.
 
 \subsection*{Related work}
 
-There are several existing alternatives 
+There are several other interactive proof assistants, dependently
+typed programming languages, and alternative forms of proof
+automation. In the remainder of this section, we will briefly compare
+the approach taken in this paper to these existing systems.
 
-\begin{description}
-\item[Coq and Ltac]
-\item[Mtac]
-\item[Idris]
-\item[Agsy] 
-\end{description}
+\paragraph{Coq}
+Of the existing proof assistants based on dependent types, Coq has the
+richest support for proof automation.
+\todo{auto Ltac Mtac}
+
+\paragraph{Idris}
+The dependently typed programming language Idris also has a collection
+of tactics, inspired by some of the more simple Coq tactics, such as
+|rewrite|, |intros|, or |exact|. Each of these tactics is built-in and
+implemented as part of the Idris system. There is a small Haskell
+library for tactic writers to use that exposes common commands, such
+as unification, evaluation, or type checking. Furthermore, there are
+library functions to help handle the construction of proof terms,
+generation of fresh names, and splitting subgoals. This approach is
+reminiscent of the HOL family of theorem provers or Coq's plug-in
+mechanism. An important drawback is that tactic writers need to write
+their tactics in a different language to the rest of their Idris code;
+furthermore, any changes to tactics requires a recompilation of the
+entire Idris system.
+
+\paragraph{Agsy}
+
+Agda already has a built-in `auto' tactic that outperforms the |auto|
+function we have defined here~\cite{lindblad}. It is nicely integrated
+with the IDE and does not require the users to provide an explicit
+hint database. It is, however, implemented in Haskell and shipped as
+part of the Agda system. As a result, users have very few
+opportunities for customization: there is limited control over which
+hints may (or may not) be used; there is no way to assign priorities
+to certain hints; and there is a single fixed search strategy. In
+contrast to the proof search presented here, where we have much more
+finegrained control over all these issues. 
 
 \subsection*{Closure}
 Having said all of this, we have good reasons to believe the approach
