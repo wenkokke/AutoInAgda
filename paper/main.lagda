@@ -73,18 +73,18 @@ this paper makes the following novel contributions:
 
 \begin{itemize}
 \item %
-  After illustrating the usage of our library with several motivating
-  examples (Section~\ref{sec:motivation}), we show how to implement a
-  Prolog interpreter in the style of \citet{stutterheim} in Agda
-  (Section~\ref{sec:prolog}). Note that, in contrast to Agda,
-  resolving a Prolog query need not terminate. Using coinduction,
-  however, we can write an interpreter for Prolog that is \emph{total}.
+  We show how to implement a Prolog interpreter in the style of
+  \citet{stutterheim} in Agda (Section~\ref{sec:prolog}). Note that,
+  in contrast to Agda, resolving a Prolog query need not terminate.
+  Using coinduction, however, we can write an interpreter for Prolog
+  that is \emph{total}.
 \item %
   Resolving a Prolog query results in a substitution that, when applied
-  to the goal, produces a term that can be derived from the given
-  rules. We extend our interpreter to produce a proof term that
-  witnesses the validity of the resulting substitution
-  (Section~\ref{sec:proofs}).
+  to the goal, produces a solution in the form of a term that can be
+  derived from the given rules.
+  We extend our interpreter to also produce a trace of the applied
+  rules, which allow us to produce a proof term that is a witness to
+  the validity of the resulting substitution (Section~\ref{sec:proofs}).
 \item %
   We integrate this proof search algorithm with Agda's
   \emph{reflection} mechanism (Section~\ref{sec:reflection}). This
@@ -95,10 +95,9 @@ this paper makes the following novel contributions:
 \item %
   Finally, we show how we can use our proof search together with
   Agda's \emph{instance arguments}~\cite{instance-args} to implement
-  lightweight type classes in Agda
-  (Section~\ref{sec:type-classes}). This resolves one of the major
-  restrictions of instance arguments: the lack of a recursive search
-  procedure for their construction.
+  lightweight type classes in Agda (Section~\ref{sec:type-classes}).
+  This resolves one of the major restrictions of instance arguments:
+  the lack of a recursive search procedure for their construction.
 \end{itemize}
 
 All the code described in this paper is freely available from
@@ -134,7 +133,7 @@ in previous work~\cite{van-der-walt}. A more complete overview can be
 found in the Agda release notes~\cite{agda-relnotes-228} and Van der
 Walt's thesis~\cite{vdWalt:Thesis:2012}.
 
-The central type in the reflection mechanism is a type |Term : Set|
+The central type in the reflection mechanism is the type |Term : Set|
 that defines an abstract syntax tree for Agda terms. There are several
 language constructs for quoting and unquoting program fragments. The simplest
 example of the reflection mechanism is the quotation of a single
@@ -190,16 +189,16 @@ predicate |Even| on natural numbers as follows:
 
 \begin{code}
   data Even : ℕ → Set where
-    Base : Even 0
-    Step : ∀ {n} → Even n → Even (suc (suc n))
+    isEven0  : Even 0
+    isEven+2 : ∀ {n} → Even n → Even (suc (suc n))
 \end{code}
 %
 Next we may want to prove properties of this definition:
 %
 \begin{code}
   even+ : Even n → Even m → Even (n + m)
-  even+ Base       e2  = e2
-  even+ (Step e1)  e2  = Step (even+ e1 e2)
+  even+ isEven0        e2  = e2
+  even+ (isEven+2 e1)  e2  = Step (even+ e1 e2)
 \end{code}
 %
 Note that we omit universally quantified implicit arguments from the
@@ -214,7 +213,7 @@ below, we need to call it explicitly.
 
 \begin{code}
   simple : Even n → Even (n + 2)
-  simple e = even+ e (Step Base)
+  simple e = even+ e (isEven+2 isEven0)
 \end{code}
 Manually constructing explicit proof objects
 in this fashion is not easy. The proof is brittle. We cannot easily
