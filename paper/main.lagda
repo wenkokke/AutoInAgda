@@ -189,8 +189,8 @@ predicate |Even| on natural numbers as follows:
 
 \begin{code}
   data Even : ℕ → Set where
-    isEven0  : Even 0
-    isEven+2 : ∀ {n} → Even n → Even (suc (suc n))
+    isEven0   : Even 0
+    isEven+2  : ∀ {n} → Even n → Even (suc (suc n))
 \end{code}
 %
 Next we may want to prove properties of this definition:
