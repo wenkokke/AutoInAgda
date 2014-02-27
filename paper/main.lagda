@@ -197,8 +197,8 @@ Next we may want to prove properties of this definition:
 %
 \begin{code}
   even+ : Even n → Even m → Even (n + m)
-  even+ isEven0        e2  = e2
-  even+ (isEven+2 e1)  e2  = Step (even+ e1 e2)
+  even+    isEven0       e2  = e2
+  even+ (  isEven+2 e1)  e2  = isEven+2 (even+ e1 e2)
 \end{code}
 %
 Note that we omit universally quantified implicit arguments from the
@@ -296,17 +296,18 @@ module, parameterized by two sets:
 The heart of our proof search implementation is the structurally
 recursive unification algorithm described by~\citet{unification}. Here
 the type of terms is indexed by the number of variables a given term
-may contain. Doing so enables the unification algorithm to formulated
-by structural induction on the number of free variables. This yields
-the following definition of terms:
+may contain. Doing so enables the formulation of the unification
+algorithm by structural induction on the number of free variables.
+For this to work, we will use the following definition of terms:
 \begin{code}
 data PrologTerm (n : ℕ) : Set where
   var  : Fin n → PrologTerm n
   con  : TermName → List (PrologTerm n)
          → PrologTerm n
 \end{code}
-In addition to variables, we will encode first-order constants as a
-|TermName| with a list of arguments.
+In addition to a restricted set of variables, we will allow
+first-order constants encoded as a |TermName| with a list of
+arguments.
 
 For instance, if we choose to instantiate the |TermName| with the
 following |Arith| data type, we can encode numbers and simple
@@ -341,7 +342,7 @@ Instead, we restrict ourself to presenting the interface that we will use:
 \begin{code}
   unify  : (t₁ t₂ : PrologTerm m) → Maybe (∃ (Subst m))
 \end{code}
-Substitutions are indexed by two natural numbers |n| and |m|. A
+Substitutions are indexed by two natural numbers |m| and |n|. A
 substitution of type |Subst m n| can be applied to a |PrologTerm m| to
 produce a value of type |PrologTerm n|. The |unify| function takes two
 terms |t₁| and |t₂| and tries to compute the most general unifier. As
@@ -408,12 +409,12 @@ AddStep = record {
   }
 \end{code}
 
-Lastly, before we can implement some form of proof search, we
-define a pair of auxiliary functions. During proof
-resolution, we will need to work with terms and rules containing a
-different number of variables. We will use the following pair of
-functions, |inject| and |raise|, to weaken bound variables, that is,
-map values of type |Fin n| to some larger finite type.
+Before we can implement some form of proof search, we define a pair of
+auxiliary functions. During proof resolution, we will need to work
+with terms and rules containing a different number of variables. We
+will use the following pair of functions, |inject| and |raise|, to
+weaken bound variables, that is, map values of type |Fin n| to some
+larger finite type.
 \begin{code}
   inject : ∀ {m} n → Fin m → Fin (m + n)
   inject n  zero    = zero
@@ -497,7 +498,7 @@ We start by defining the following type synonym to distinguish goals
 from regular Prolog terms:
 \begin{code}
   Goal : ℕ → Set
-  Goal n = Term n
+  Goal n = PrologTerm n
 \end{code}
 Next we define the data type that we will use to model the
 abstract search space.
@@ -529,7 +530,7 @@ usual |♭|.
 
 Now let us turn our attention to the indices. The variable |m| denotes
 the number of variables in the goal; |δ| denotes the number of fresh
-variables necessary to apply a rule; and |n| will denote the number of
+variables necessary to apply a rule; and |n| denotes the number of
 variables remaining after we have resolved the goal. This naming will
 be used consistently in subsequent definitions.
 
@@ -603,7 +604,7 @@ unify two terms that have the same type. Therefore we must ensure that
 the goal, the rule's conclusion and its premises have the same number
 of variables. At the same time, the substitution we are accumulating
 should be kept in synch with the variables used in the initial
-goal. Furthermore, the variables mentioned in the rule are implicitly
+goal. Furthermore, the variables mentioned in the rules are implicitly
 universally quantified. We need to instantiate them with fresh
 variables to avoid introducing unintended constraints. This is where
 |inject| and |raise| come in.
@@ -616,9 +617,9 @@ substitution, whereas we |raise| the terms in the applied rule. This
 ensures that the substitution and goals are kept in synch, whereas any
 variables mentioned in the rule are fresh.
 
-Note the number of free variables in the chosen rule, |δ₂|, is added
+Note the number of free variables in the chosen rule, |δ'|, is added
 to the amount of space that had to be made for previous rule
-applications, |δ₁|. As a result, we need to |raise| by more and more as
+applications, |δ|. As a result, we need to |raise| by more and more as
 the proof search proceeds.
 
 \subsubsection*{Constructing search trees}
