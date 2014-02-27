@@ -624,10 +624,11 @@ the proof search proceeds.
 
 \subsubsection*{Constructing search trees}
 
+\pepijn{What is a \emph{first-order} rose tree?}
 The second step in our proof search implementation is to transform the
 |SearchSpace| we have just constructed into a first-order rose tree. We do this
-by branching once for every rule at every |step| constructor.
-The result of this transformation shall be expressed in terms of the
+by branching once for every rule at every |step| constructor. The
+result of this transformation shall be expressed in terms of the
 following data type.
 \begin{code}
 data SearchTree (A : Set) : Set where
@@ -698,7 +699,7 @@ variations of the solution presented here.
 
 Putting all these pieces together, we can define a function |searchToDepth|,
 which implements proof search up to a given depth |d|, i.e.\ it
-constructs the |SearchSpace|, flattens this to a |SearchTree|, and
+constructs the |SearchSpace|, expands this into a |SearchTree|, and
 finally traverses the resulting tree in depth-first order up to depth
 |d|.
 \begin{code}
@@ -752,7 +753,7 @@ substitution. To use such an interpreter to produced proof terms,
 however, we need to do a bit more work.
 
 Besides the resulting substitution, the |Result| type returned by the
-proof search process also contains a a trace of the applied rules. In
+proof search process also contains a trace of the applied rules. In
 the following section we will discuss how to use this information to
 reconstruct a proof term. That is, we will construct a closed term of
 the following type:
@@ -777,7 +778,7 @@ toProofTerms = foldr next []
 The |next| function combines a list of proof terms, produced by
 recursive calls, and the single rule |r| that has just been
 applied. If the list contains enough elements, we construct a new
-|ProofTerm| node by applying the rule to the first |arity r| elements
+|ProofTerm| node by applying the rule to the first |(arity r)| elements
 of the list. This new |ProofTerm| is the head of the list, replacing
 the children terms that previously formed the prefix of the
 list. Essentially, this is the `unflattening' of a rose tree using the
@@ -817,7 +818,7 @@ does expose some of the limitations and design choices of the |auto| function.
 
 The first thing we will need are
 concrete definitions for the |TermName| and |RuleName| data types,
-two were parameters to the development presented in the previous sections.
+which were parameters to the development presented in the previous sections.
 It would be desirable to identify both types with Agda's |Name| type,
 but unfortunately the Agda does not assign a name to the function
 space type operator, |_→_|; nor does Agda assign names to locally bound variables.
@@ -832,12 +833,16 @@ data TermName : Set where
 \end{code}
 The |TermName| data type has three constructors. The |pname|
 constructor embeds Agda's built-in |Name| in the a |TermName| type.
-The |pvar| constructor describes locally bound variables, represent by
-their De Bruijn index. Note that the |pvar| constructor has nothing to
-do with |PrologTerm|'s |var| constructor: it is not used to construct
-a Prolog variable, but rather to be able to refer to a local variable
-as a Prolog constant. Finally, |pimpl| explicitly represents the Agda
-function space.
+The |pvar| constructor describes locally bound variables by integer
+names, which are function of their De Bruijn index and the depth.
+\footnote{The reason we use integers is that, when converting De
+  Bruijn indices to names, we may encounter indices that are not bound
+  in the goal type. These are represented by negative numbers.}
+\pepijn{Review the changes here (see footnote).}
+Note that the |pvar| constructor has nothing to do with |PrologTerm|'s
+|var| constructor: it is not used to construct a Prolog variable, but
+rather to be able to refer to a local variable as a Prolog
+constant. Finally, |pimpl| explicitly represents the Agda function space.
 
 We define the |RuleName| type in a similar fashion:
 \begin{code}
@@ -846,8 +851,8 @@ data RuleName : Set where
   rvar   : (i : ℕ) → RuleName
 \end{code}
 The |rvar| constructor is used to refer to Agda variables as
-rules. Its argument |i| is corresponds to a De Bruijn index -- the
-value of |i| can be used directly as an argument to the |var|
+rules. Its argument |i| corresponds to the variable's De Bruijn index
+-- the value of |i| can be used directly as an argument to the |var|
 constructor of Agda's |Term| data type.
 
 As we have seen in Section~\ref{sec:motivation}, the |auto| function
@@ -873,7 +878,7 @@ encounter them in our implementation below.
 Finally, we wil need one more auxiliary function to manipulate bound
 variables. The |match| function takes two bound variables of types
 |Fin m| and |Fin n| and computes the corresponding variables in |Fin
-(m ⊔ n)| variables -- where |m ⊔ n| denotes the maximum of |m| and |n|:
+(m ⊔ n)| -- where |m ⊔ n| denotes the maximum of |m| and |n|:
 \begin{code}
 match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
 \end{code}
@@ -896,25 +901,10 @@ fail, throwing an `exception' with the message |unsupportedSyntax|.
 Secondly, the Agda |Term| data type uses natural numbers to represent
 variables. The |PrologTerm| data type, on the other hand, represents
 variables using a finite type |Fin n|, for some |n|. To convert
-between these representations, we could compute the number of free
-variables in a |Term|, and use this information to map between the two
-different representations of bound variables.
-
-To keep matters simple, however, we allow the conversion to fail with
-an |indexOutOfBounds| message, even though this should never
-occur. While we could do more work to prove totality of the variable
-conversion, we are already defining a function that could
-fail. Totality of the variable conversion will still not make our
-conversion total.
-\pepijn{I suggest we leave out this paragraph in its entirety.}
-\todo{This is incorrect; it was failing because it could also refer to
-  variables bound on the left-hand side, which would have their
-  indices exceed my perceived depth (due to the fact that they'd be
-  removed from the type returned by |quoteGoal|).}
-
-The conversion function, |fromTerm|, traverses the argument term,
-keeping track of the number of |Π|-types it has encountered. We sketch
-its definition below:
+between these representations, the function keeps track of the current
+depth, i.e.\ the number of |Π|-types it has encountered, and uses this
+information to ensure a correct conversion. We sketch the definition
+of the main function below:
 \begin{code}
 fromTerm : ℕ → Term → Error (∃ PrologTerm)
 fromTerm d (var i [])    = pure (fromVar d i)
@@ -935,11 +925,12 @@ fromTerm _ _             = left unsupportedSyntax
 We define special functions, |fromVar| and |fromDef|, to convert
 variables and constructors or defined terms respectively. The
 arguments to constructors or defined terms are processed using the
-|fromArgs| function defined below. The conversion of a |pi| node
-binding an explicit argument proceeds by converting the domain and
-codomain. If both conversions succeed, the resulting terms are
-|match|ed and a |PrologTerm| is constructed using |pimpl|. Implicit
-arguments and instance arguments are ignored by this conversion
+|fromArgs| function defined below.
+The conversion of a |pi| node binding an explicit argument proceeds by
+converting the domain and codomain. If both conversions succeed, the
+resulting terms are |match|ed and a |PrologTerm| is constructed using
+|pimpl|.
+Implicit arguments and instance arguments are ignored by this conversion
 function. Sorts, levels, or any other Agda feature mapped to the
 constructor |unknown| of type |Term| triggers a failure with the
 message |unsupportedSyntax|.
@@ -961,29 +952,24 @@ fromDef f (n , ts) = n , con (pname f) ts
 \end{code}
 Lastly, the |fromVar| function converts a natural number,
 corresponding to a variable name in the Agda |Term| type, to the
-corresponding |PrologTerm|: % by taking the difference between the number
-% of binders traversed and the De Bruijn index:
+corresponding |PrologTerm|:
 %{
 %format (dot (a)) = "\lfloor " a "\rfloor"
 \begin{code}
 fromVar : ℕ → ℕ → ∃ PrologTerm
 fromVar n i with compare n i
-fromVar n         (dot(_))  | less     (dot(_)) k  = (0 , con (pvar (-[1+ k ])) [])
-fromVar n         (dot(n))  | equal    (dot(_))    = (suc 0 , var (# 0))
-fromVar (dot(_))  i         | greater  (dot(_)) k  = (suc k , var (# k))
+fromVar (dot(  _))         _    | greater  (dot(_)) k  = (suc k , var (# k))
+fromVar (dot(  _))         _    | equal    (dot(_))    = (suc 0 , var (# 0))
+fromVar        _    (dot(  _))  | less     (dot(_)) k  =
+  (0 , con (pvar (-[1+ k ])) [])
 \end{code}
 %}
-The |fromVar| function computes compares the number of binders that
-have been traversed with its argument De Bruijn index. If the variable
-is bound within the goal type, it computes the corresponding
-|PrologTerm| variable;
-\wouter{otherwise it returns an error.}
-\pepijn{if the variable is bound outside of the goal type, we compute a
-  skolem constant.}
-\todo{As can be seen, it now returns a skolem constant instead of an
-  error. Also, the line is a bit longer than it should be, due to the
-  horrifying constructor for negative integers. Alternatives are in
-  pepijn/wouter notes.}
+The |fromVar| function compares the number of binders that have been
+encountered with its argument De Bruijn index. If the variable is
+bound within the goal type, it computes a corresponding |PrologTerm|
+variable;
+if the variable is bound \emph{outside} of the goal type, however, we
+compute a skolem constant.
 
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
@@ -996,7 +982,7 @@ toPrologTerm = fromTerm 0
 \subsection*{Constructing rules}
 
 Our next goal is to construct rules. More specifically, we need to
-convert a list of quoted |Name|s to a hint databases of Prolog rules.
+convert a list of quoted |Name|s to a hint database of Prolog rules.
 To return to our example in Section~\ref{sec:motivation}, the
 definition of |even+| had the following type:
 \begin{code}
@@ -1006,7 +992,7 @@ We would like to construct a value of type |Rule| that expresses how
 |even+| can be used. In Prolog, we might formulate the lemma above as
 the rule:
 \begin{verbatim}
-  Even(Plus(m,n)) :- Even(m), Even(n).
+  Even(Add(m,n)) :- Even(m), Even(n).
 \end{verbatim}
 In our Agda implementation, we can define such a rule manually:
 \begin{code}
@@ -1080,8 +1066,8 @@ Consider the example given in Section~\ref{sec:motivation}. The goal
 |Term| we wish to prove is |Even n → Even (n + 2)|. Calling
 |toPrologTerm| would convert this to a |PrologTerm|, where the
 function space has been replaced by the |pimpl|. What we would like to
-do, however, is to introduce as any available assumptions, such as
-|Even n|, and try to resolve the remaining goal |Even (n + 2)|.
+do, however, is to introduce arguments as available assumptions, such
+as |Even n|, and try to resolve the remaining goal |Even (n + 2)|.
 
 Fortunately, we can reuse many of the auxiliary functions we have
 defined already to achieve this. We convert a |Term| to the
@@ -1101,21 +1087,21 @@ The only missing piece of the puzzle is a function, |toRules|, that
 converts a list of |PrologTerm|s to a |Rules| list.
 \begin{code}
 toRules : ℕ → Vec (PrologTerm n) k → Rules
-toRules i []        =  []
-toRules i (t ∷ ts)  =  (n , rule (rvar i) t [])
-                       ∷ toRules (suc i) ts
+toRules i []        =   []
+toRules i (t ∷ ts)  =   (n , rule (rvar i) t [])
+                        ∷  toRules (suc i) ts
 \end{code}
 The |toRules| converts every |PrologTerm| in its argument list to a
-rule, generating a fresh variable for each parameter.
+rule, using the argument's De Bruijn index as its rule name.
 
 There is one last technical point. In the previous version of
 |fromTerm|, an Agda |Term| variable was mapped to a Prolog
 variable. When considering the goal type, however, we want to generate
-skolem constants for our variables, rather than Prolog variables which
-may still be unified. To account for this difference, we use the
-|fromTerm'| function, a slight variation of the |fromTerm| function
-described previously. The only difference between |fromTerm| and
-|fromTerm'| is the treatment of variables.
+\emph{only} skolem constants for our variables, rather than Prolog
+variables which may still be unified. To account for this difference,
+we use the |fromTerm'| function, a slight variation of the |fromTerm|
+function described previously. The only difference between |fromTerm|
+and |fromTerm'| is the treatment of variables.
 
 \subsection*{Reification of proof terms}
 
@@ -1132,7 +1118,7 @@ n|. Each of these variables is treated differently in the |fromProof|
 function.
 \begin{code}
 fromProof : ProofTerm → Term
-fromProof (con (rvar i) ps) = var i []
+fromProof (con (rvar i) _) = var i []
 fromProof (con (rname n) ps) with definition n
 ... | function _    = def n ∘ toArg ∘ fromProof ⟨$⟩ ps
 ... | constructor′  = con n ∘ toArg ∘ fromProof ⟨$⟩ ps
@@ -1156,9 +1142,10 @@ this definition to only handle defined functions and data
 constructors. It is easy enough to extend with further branches for
 postulates, primitives, and so forth.
 
-We will also need to wrap an additional lambda around all the
-premises that were introduced by the |toGoalRules| function. To
-do so, we define the |intros| function that repeatedly wraps its
+We will also need to wrap additional lambdas around the resulting
+term, due to the premises that were introduced by the
+|toGoalRules| function.
+To do so, we define the |intros| function that repeatedly wraps its
 argument term in a lambda:
 \begin{code}
   intros : ℕ → Term → Term
