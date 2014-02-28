@@ -822,7 +822,7 @@ To address this, we define two new data types |TermName| and |RuleName|.
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
-  pvar   : (i : ℤ) → TermName
+  pvar   : (i : ℕ) → TermName
   pimpl  : TermName
 \end{code}
 The |TermName| data type has three constructors. The |pname|
@@ -957,8 +957,7 @@ fromVar : ℕ → ℕ → ∃ PrologTerm
 fromVar n i with compare n i
 fromVar (dot(  _))         _    | greater  (dot(_)) k  = (suc k , var (# k))
 fromVar (dot(  _))         _    | equal    (dot(_))    = (suc 0 , var (# 0))
-fromVar        _    (dot(  _))  | less     (dot(_)) k  =
-  (0 , con (pvar (-[1+ k ])) [])
+fromVar        _    (dot(  _))  | less     (dot(_)) k  = (0 , con (pvar k) [])
 \end{code}
 %}
 The |fromVar| function compares the number of binders that have been
@@ -1400,9 +1399,8 @@ the correct definition:
 \begin{code}
   λ z → isEven+2 (even+ind e z)
 \end{code}
-However, it is rejected by Agda's type-checker, due to the sudden
-presence of an |unknown| term.
-\todo{Clarify which type checker we mean: batch, non-interactive?}
+However, when recompiling the code using Agda's batch type-checker, it
+is rejected. \pepijn{Batch type-checker?}
 
 \paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
