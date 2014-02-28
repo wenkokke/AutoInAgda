@@ -829,7 +829,7 @@ function space:
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
-  pvar   : (i : ℤ) → TermName
+  pvar   : (i : ℕ) → TermName
   pimpl  : TermName
 \end{code}
 The |pvar| constructor describes locally bound variables by integer
@@ -955,8 +955,7 @@ fromVar : ℕ → ℕ → ∃ PrologTerm
 fromVar n i with compare n i
 fromVar (dot(  _))         _    | greater  (dot(_)) k  = (suc k , var (# k))
 fromVar (dot(  _))         _    | equal    (dot(_))    = (suc 0 , var (# 0))
-fromVar        _    (dot(  _))  | less     (dot(_)) k  =
-  (0 , con (pvar (-[1+ k ])) [])
+fromVar        _    (dot(  _))  | less     (dot(_)) k  = (0 , con (pvar k) [])
 \end{code}
 %}
 The |fromVar| function compares the number of binders that have been
