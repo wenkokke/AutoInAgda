@@ -812,7 +812,7 @@ To complete the definition of our |auto| function, we still need to
 convert between Agda's built-in |Term| data type and the
 data type required by our unification and resolution algorithms, |PrologTerm|. This
 is an essential piece of plumbing, necessary to provide the desired proof
-automation.  While not difficult in principle, this
+automation.  While not conceptually difficult, this
 does expose some of the limitations and design choices of the |auto| function.
 
 The first thing we will need are
@@ -823,21 +823,21 @@ but unfortunately the Agda does not assign a name to the function
 space type operator, |_→_|; nor does Agda assign names to locally bound variables.
 To address this, we define two new data types |TermName| and |RuleName|.
 
-First, we define the |TermName| data type as follows:
+First, we define the |TermName| data type.
+The |TermName| data type has three constructors. The |pname|
+constructor embeds Agda's built-in |Name| in the a |TermName| type.
+The |pvar| constructor describes locally bound variables, represented by
+their De Bruijn index. Note that the |pvar| constructor has nothing to
+do with |PrologTerm|'s |var| constructor: it is not used to construct
+a Prolog variable, but rather to be able to refer to a local variable
+as a Prolog constant. Finally, |pimpl| explicitly represents the Agda
+function space:
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
   pvar   : (i : ℤ) → TermName
   pimpl  : TermName
 \end{code}
-The |TermName| data type has three constructors. The |pname|
-constructor embeds Agda's built-in |Name| in the a |TermName| type.
-The |pvar| constructor describes locally bound variables, represent by
-their De Bruijn index. Note that the |pvar| constructor has nothing to
-do with |PrologTerm|'s |var| constructor: it is not used to construct
-a Prolog variable, but rather to be able to refer to a local variable
-as a Prolog constant. Finally, |pimpl| explicitly represents the Agda
-function space.
 
 We define the |RuleName| type in a similar fashion:
 \begin{code}
