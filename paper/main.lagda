@@ -55,10 +55,10 @@ proof automation may be inefficient~\cite{brabaint}.
 Agda does not have Coq's segregation of proof and programming
 language.  Instead, programmers are encouraged to automate proofs by
 writing their own solvers~\cite{ulf-tphols}. In combination with
-Agda's reflection mechanism~\cite{van-der-walt}, developers can write
+Agda's reflection mechanism~\cite{agda-relnotes-228,van-der-walt}, developers can write
 powerful automatic decision procedures~\cite{allais}. Unfortunately,
-not all proofs are easily automated in this fashion. When this is the
-case, the user is forced to interact with the integrated development
+not all proofs are easily automated in this fashion. In that case,
+the user is forced to interact with the integrated development
 environment and manually construct a proof term step by step.
 
 This paper tries to combine the best of both worlds by implementing
@@ -156,7 +156,7 @@ Dual to quotation, the |unquote| mechanism allows users to splice in a
 |Term|, replacing it with a its concrete syntax. For example, we could
 give a convoluted definition of the |K| combinator as follows:
 \begin{code}
-  const : ∀ {a b} → a  → b → a
+  const : ∀ {A B} → A  → B → A
   const = unquote (lam visible (lam visible (var 1 [])))
 \end{code}
 The language construct |unquote| is followed by a value of type
@@ -217,7 +217,7 @@ instead, we need to rewrite our proof. Proof automation can make
 propositions more robust against such changes.
 
 Coq's proof search tactics, such as |auto|, can be customized with a
-\emph{hint database}, containing a collection of lemmas. In our
+\emph{hint database}, a collection of related lemmas. In our
 example, |auto| would be able to prove the |simple| lemma, provided it
 the hint database contains at least the constructors of the |Even|
 data type and the |even+| lemma.
@@ -231,7 +231,7 @@ database:
 \begin{code}
   hints : HintDB
   hints = hintdb
-    (quote Base :: quote Step :: quote even+ :: [])
+    (quote isEven0 :: quote isEven+2 :: quote even+ :: [])
 \end{code}
 To construct such a database, we |quote| any terms that we wish to
 include in it and pass them to the |hintdb| function.  We
@@ -315,14 +315,14 @@ data Arith : Set where
 The closed term corresponding to the number one could be written as follows:
 \begin{code}
 One : PrologTerm 0
-One = con Suc (con Zero ∷ [])
+One = con Suc (con Zero [] ∷ [])
 \end{code}
 Similarly, we can use the |var| constructor to represent open terms,
 such as |x + 1|. We use the prefix operator |#| to convert from
 natural numbers to finite types:
 \begin{code}
 AddOne : PrologTerm 1
-AddOne = con Add (var (# 0) ∷ con One ∷ [])
+AddOne = con Add (var (# 0) ∷ con One [] ∷ [])
 \end{code}
 Note that this representation of terms is untyped. There is no check
 that enforces addition is provided precisely two arguments. Although
@@ -369,8 +369,8 @@ are shared between the premises and conclusion.
 Using our newly defined |Rule| we can give a simple definition of
 addition. In Prolog, this would be written as follows.
 \begin{verbatim}
-  add(0, x, x).
-  add(x, y, z) :- add(suc(x), y, suc(z)).
+  add(0, X, X).
+  add(suc(X), Y, suc(Z)) :- add(X, Y, Z).
 \end{verbatim}
 Unfortunately, the named equivalents in our Agda implementation are a
 bit more verbose. Note that we have, for the sake of this example,
@@ -541,8 +541,7 @@ substitution and a list of goals that only contains the initial goal
 |g|. The |resolveAcc| function will attempt to resolve a list of
 sub-goals, accumulating a substitution along the way:
 \begin{code}
-  resolveAcc  : ∀ {m δ : ℕ}
-    → Maybe (∃ (λ n → Subst (m + δ) n))
+  resolveAcc : Maybe (∃ (λ n → Subst (m + δ) n))
     → List (Goal (m + δ)) → SearchSpace m
   resolveAcc (just (n , subst))  []              = retn subst
   resolveAcc nothing         _                   = fail
@@ -570,7 +569,7 @@ given rule:
           goal'    = injectTerm δ' goal
 
           subst'    : ∃ (Subst (m + (δ + δ')))
-          subst'    = n + δ' , injectSubst δ' subst
+          subst'    = (n + δ' , injectSubst δ' subst)
 
           concl'  : PrologTerm (m + (δ + δ'))
           concl'  = raiseTerm (m + δ) (conclusion rule)
@@ -656,13 +655,13 @@ using an auxiliary function with an accumulating parameter:
 \begin{code}
   mkTree  : Rules → SearchSpace m
           → SearchTree (Result m)
-  mkTree rs₀ s = go s []
+  mkTree rules s = go s []
     where
     go : SearchSpace m → Rules → SearchTree (Result m)
     go fail      _    = fail
     go (retn s)  acc  = retn ((_ , (_ , s)) , acc)
     go (step f)  acc  =
-      fork (map (λ r → ~ go (! f r) (acc ∷ʳ r)) rs₀)
+      fork (map (λ r → ~ go (! f r) (acc ∷ʳ r)) rules)
 \end{code}
 Note that we accumulate the trace of rules applied in the order in
 which they are applied: new rules are added to the end of the list
@@ -814,7 +813,7 @@ The first thing we will need are
 concrete definitions for the |TermName| and |RuleName| data types,
 which were parameters to the development presented in the previous sections.
 It would be desirable to identify both types with Agda's |Name| type,
-but unfortunately the Agda does not assign a name to the function
+but unfortunately Agda does not assign a name to the function
 space type operator, |_→_|; nor does Agda assign names to locally bound variables.
 To address this, we define two new data types |TermName| and |RuleName|.
 
@@ -988,7 +987,7 @@ We would like to construct a value of type |Rule| that expresses how
 |even+| can be used. In Prolog, we might formulate the lemma above as
 the rule:
 \begin{verbatim}
-  Even(Add(m,n)) :- Even(m), Even(n).
+  even(add(M,N)) :- even(M), even(N).
 \end{verbatim}
 In our Agda implementation, we can define such a rule manually:
 \begin{code}
@@ -1220,7 +1219,7 @@ the examples in Section~\ref{sec:motivation}:
 \begin{code}
 auto : (depth : ℕ) → HintDB → Term → Term
 auto depth hints goalType
-  with toGoal goalType
+  with toGoalRules goalType
 ... | left msg  = quoteError msg
 ... | right ((n , goal) , args)
   with searchToDepth depth (args ++ hints) goal
@@ -1355,7 +1354,7 @@ would certainly help speed up the proof search.
 The |auto| function can only handle first-order terms. Even though
 higher-order unification is not decidable in general, we believe that it
 should be possible to adapt our algorithm to work on second-order
-functions.
+goals.
 Furthermore, there are plenty of Agda features that are not
 supported or ignored by our quotation functions, such as universe
 polymorphism, instance arguments, and primitive functions.
