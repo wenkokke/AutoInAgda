@@ -1407,9 +1407,8 @@ the correct definition:
 \begin{code}
   λ z → isEven+2 (even+ind e z)
 \end{code}
-However, it is rejected by Agda's type-checker, due to the sudden
-presence of an |unknown| term.
-\todo{Clarify which type checker we mean: batch, non-interactive?}
+However, when recompiling the code using Agda's batch type-checker, it
+is rejected. \pepijn{Batch type-checker?}
 
 \paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
