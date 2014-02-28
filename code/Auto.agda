@@ -265,3 +265,4 @@ module Auto where
           introsAcc : ℕ → Term → Term
           introsAcc  zero   t = t
           introsAcc (suc k) t = lam visible (introsAcc k t)
+ 
