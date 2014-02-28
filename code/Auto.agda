@@ -1,6 +1,8 @@
 open import Level using (Level) renaming (suc to lsuc; zero to lzero)
 open import Function using (_$_; _∘_; id; flip; const)
 open import Category.Applicative
+open import Data.Unit using (⊤)
+open import Data.Empty using (⊥)
 open import Data.Bool using (Bool; true; false)
 open import Data.Fin as Fin using (Fin; suc; zero; #_)
 open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _⊔_; compare; less; equal; greater)
@@ -222,11 +224,21 @@ module Auto where
   HintDB : Set
   HintDB = List (∃ Rule)
 
-  hintdb : List Name → HintDB
-  hintdb l = concatMap (fromError ∘ toRule) l
-    where
-      fromError : {A : Set} → Error A → List A
-      fromError = fromEither (const []) [_]
+  all : {A : Set} {P : A -> Set} -> List A -> Set
+  all [] = ⊤
+  all {P = P} (x ∷ xs) = P x × all {P = P} xs
+
+  isRight : {A B : Set} -> Either A B -> Set
+  isRight (left _)   = ⊥
+  isRight (right _)  = ⊤
+
+  fromRight : {A : Set} -> (x : Error A) -> {p : isRight x} -> A
+  fromRight (left x) {()} 
+  fromRight (right y) = y
+
+  hintdb : (nms : List Name) → {p : all {Name} {\nm -> isRight (toRule nm)} nms} -> HintDB
+  hintdb [] = []
+  hintdb (nm ∷ nms) {p , ps} = (fromRight (toRule nm) {p}) ∷ hintdb nms {ps}
 
   infixl 5 _<<_
 
