@@ -59,10 +59,10 @@ Agda's reflection mechanism~\cite{agda-relnotes-228,van-der-walt}, developers ca
 powerful automatic decision procedures~\cite{allais}. Unfortunately,
 not all proofs are easily automated in this fashion. In that case,
 the user is forced to interact with the integrated development
-environment and manually construct a proof term step by step.
+environment and manually construct a proof term step by step. 
 
-This paper tries to combine the best of both worlds by implementing
-a library for proof search \emph{within} Agda itself. More specifically,
+This paper tries to combine the best of both worlds by implementing a
+library for proof search \emph{within} Agda itself. More specifically,
 this paper makes the several novel contributions.
 
 \begin{itemize}
@@ -93,6 +93,13 @@ this paper makes the several novel contributions.
   This resolves one of the major restrictions of instance arguments:
   the lack of a recursive search procedure for their construction.
 \end{itemize}
+
+Although Agda already has built-in proof search
+functionality~\cite{lindblad}, we believe that exploring the
+first-class proof automation defined in this paper is still
+worthwhile. For the moment, however, we would like to defer discussing
+the various forms of proof automation until after we have
+presented our work (Section~\ref{sec:discussion}).
 
 All the code described in this paper is freely available from
 GitHub.\footnote{
@@ -280,7 +287,7 @@ section, we will present a standalone Prolog
 interpreter. Subsequently, we will show how this can be combined with
 the reflection mechanism and suitably invoked in the definition of the
 |auto| function. The code in this section is contained in its own Agda
-module, parametrized by two sets:
+module, parametrized by two sets.
 
 > module Prolog
 >    (TermName : Set) (RuleName : Set) where
@@ -343,7 +350,10 @@ terms |t₁| and |t₂| and tries to compute the most general unifier. As
 unification may fail, the result is wrapped in the |Maybe| monad. The
 number of variables in the terms resulting from the unifying
 substitution is not known \emph{a priori}, hence this number is
-existentially quantified over.
+existentially quantified over. Agda allows us to write |∃ (Subst m)|
+for the dependent pair containing a number |n| and a substitution
+|Subst m n|, inferring the type of the existentially quantified
+variable.
 
 This unification function is defined using an accumulating parameter,
 representing an approximation of the final substitution. In what
@@ -517,11 +527,11 @@ determines the remainder of the search. As a search need not
 terminate, the |SearchSpace| resulting from applying a rule are marked
 as coinductive.
 
-In what follows, we have renamed Agda's notation for coinduction to more closely
-resemble notation already familiar to Haskell programmers. Coinductive
-suspensions are created with the prefix operator |~| rather than |♯|;
-such suspensions can be forced using a bang, |!|, rather than the
-usual |♭|.
+% In what follows, we have renamed Agda's notation for coinduction to more closely
+% resemble notation already familiar to Haskell programmers. Coinductive
+% suspensions are created with the prefix operator |~| rather than |♯|;
+% such suspensions can be forced using a bang, |!|, rather than the
+% usual |♭|.
 
 Now let us turn our attention to the indices. The variable |m| denotes
 the number of variables in the goal; |δ| denotes the number of fresh
@@ -554,13 +564,13 @@ next open sub-goal -- and thus the accumulating parameter has become
 |nothing| -- the search will fail. The interesting case is the third
 one. If there are remaining goals to resolve, we recursively construct
 a new |SearchSpace|. To do so, we use the |step| constructor and
-branch over the choice of rule. The |next| function defined below
+branch over the choice of rule. The locally defined |next| function 
 computes the remainder of the |SearchSpace| after trying to apply a
 given rule:
 \begin{code}
   next : ∃ Rule → ∞ (SearchSpace m)
   next (δ' , rule) =
-    ~ resolveAcc mgu (prems' ++ goals')
+    ♯ resolveAcc mgu (prems' ++ goals')
     where
       mgu   : Maybe (∃ (λ n → Subst (m + (δ + δ')) n))
       mgu   = unifyAcc goal' concl' subst'
@@ -585,7 +595,10 @@ For the moment, try to ignore the various calls to |raise| and
 function computes most general unifier of the conclusion of |rule| and
 our current |goal|. The resulting substitution is passed to
 |resolveAcc|, which continues the construction of the
-|SearchSpace|. The premises of the |rule| are added to the list of
+|SearchSpace|. 
+The prefix operator |♯| creates a coinductive suspension, that may
+later be forced.
+The premises of the |rule| are added to the list of
 open goals that must be resolved. The apparent complexity of the
 |next| function comes from the careful treatment of variables.
 
@@ -649,9 +662,12 @@ in the terms produced by the final substitution, |n|.
 The function that takes care of the transformation is almost
 trivial. For a given set of rules, we simply traverse the
 |SearchSpace| structure, where at every |step| we apply the
-continuation to every rule. Since we also wish to maintain a trace of
-the rules that have been applied, we shall define this transformation
-using an auxiliary function with an accumulating parameter:
+continuation to every rule. For every rule, we create a new suspension
+using the |♯| operator; the recursive call to go forces the
+coinductive thunk using the |♭| operator. Since we also wish to
+maintain a trace of the rules that have been applied, we shall define
+this transformation using an auxiliary function with an accumulating
+parameter:
 \begin{code}
   mkTree  : Rules → SearchSpace m
           → SearchTree (Result m)
@@ -661,17 +677,17 @@ using an auxiliary function with an accumulating parameter:
     go fail      _    = fail
     go (retn s)  acc  = retn ((_ , (_ , s)) , acc)
     go (step f)  acc  =
-      fork (map (λ r → ~ go (! f r) (acc ∷ʳ r)) rules)
+      fork (map (λ r → ♯ go (♭ f r) (acc ∷ʳ r)) rules)
 \end{code}
 Note that we accumulate the trace of rules applied in the order in
 which they are applied: new rules are added to the end of the list
 with the snoc operator |∷ʳ|.
 
 In the implementation of |mkTree|, Agda's guardedness checker cannot
-tell that the call to |map| is size-preserving, and therefore safe. To
-show this definition is suitably guarded, we need to inline the
-definition of |map| and explicitly recurse over the list of rules
-|rs₀|.
+tell that the call to |map| is size-preserving, and therefore the
+forcing of the coinductive suspension is safe. To show this
+definition is suitably guarded, we need to inline the definition of
+|map| and explicitly recurse over the list of rules |rules|.
 
 After the transformation, we are left with a first-order tree
 structure, that we can traverse in search of solutions. For example,
@@ -681,7 +697,7 @@ we can define a simple bounded depth-first traversal as follows:
   dfs zero     _          = []
   dfs (suc k)  fail       = []
   dfs (suc k)  (retn x)   = return x
-  dfs (suc k)  (fork xs)  = concatMap (λ x → dfs k (! x)) xs
+  dfs (suc k)  (fork xs)  = concatMap (λ x → dfs k (♭ x)) xs
 \end{code}
 It is fairly straightforward to define other traversal strategies,
 such as a breadth-first search. Similarly, we can also vary the rules
