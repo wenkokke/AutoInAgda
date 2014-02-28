@@ -19,23 +19,17 @@
 \maketitle
 
 \begin{abstract}
-  % Proof automation is important. Custom tactic languages are hacky. We
-  % show how proof automation can be programmed in a general purpose
-  % dependently typed programming language using reflection. This makes
-  % it easier to automate, debug, and test proof automation.
 
-  % \noindent
-  % \wouter{Write good abstract! \frownie{}}
-
-  We present the reader with an implementation of Prolog-style proof
-  search in Agda. We then use this implementation, together with
-  Agda's Reflection mechanism, to implement an |auto| tactic for
-  first-order Agda terms. Last, we demonstrate one possible usage of
-  this tactic, by implementing modular instance search for Agda-style
-  type classes.
-
-  \noindent
-  \todo{Still need to finalize the abstract}
+  As proofs in type theory become increasingly complex, there is a
+  growing need to provide better proof automation. This paper shows
+  how to implement a Prolog-style resolution mechanism in the
+  dependently typed programming language Agda. Connecting this
+  resolution mechanism to Agda's reflection mechanism provides a
+  first-class proof search tactic for first-order Agda
+  terms. Furthermore, the same mechanism may be used in tandem with
+  Agda's instance arguments to implement type classes in the style of
+  Haskell. As a result, writing proof automation tactics need not be
+  different from writing any other program.
 \end{abstract}
 
 \section{Introduction}
@@ -178,7 +172,7 @@ with an example:
 \end{code}
 In this example, the construct |quoteGoal g| binds the |Term|
 representing the \emph{type} of the current goal, |ℕ|, to the variable
-|g|. When completing this definition by filling in the hole labelled
+|g|. When completing this definition by filling in the hole labeled
 |0|, we may now refer to the variable |g|. This variable is bound to
 to |def ℕ []|, the |Term| representing the type |ℕ|.
 
@@ -286,7 +280,7 @@ section, we will present a standalone Prolog
 interpreter. Subsequently, we will show how this can be combined with
 the reflection mechanism and suitably invoked in the definition of the
 |auto| function. The code in this section is contained in its own Agda
-module, parameterized by two sets:
+module, parametrized by two sets:
 
 > module Prolog
 >    (TermName : Set) (RuleName : Set) where
@@ -331,14 +325,14 @@ AddOne : PrologTerm 1
 AddOne = con Add (var (# 0) ∷ con One ∷ [])
 \end{code}
 Note that this representation of terms is untyped. There is no check
-that enforces addition is provided precisily two arguments. Although
+that enforces addition is provided precisely two arguments. Although
 we could add further type information to this effect, this introduces
 additional overhead without adding safety to the proof automation
 presented in this paper. For the sake of simplicity, we have therefore
 chosen to work with this untyped definition.
 
 We shall refrain from further discussion of the unification algorithm itself.
-Instead, we restrict ourself to presenting the interface that we will use:
+Instead, we restrict ourselves to presenting the interface that we will use:
 \begin{code}
   unify  : (t₁ t₂ : PrologTerm m) → Maybe (∃ (Subst m))
 \end{code}
@@ -348,7 +342,7 @@ produce a value of type |PrologTerm n|. The |unify| function takes two
 terms |t₁| and |t₂| and tries to compute the most general unifier. As
 unification may fail, the result is wrapped in the |Maybe| monad. The
 number of variables in the terms resulting from the unifying
-substition is not known \emph{a priori}, hence this number is
+substitution is not known \emph{a priori}, hence this number is
 existentially quantified over.
 
 This unification function is defined using an accumulating parameter,
@@ -485,7 +479,7 @@ space, where we branch over some collection of undetermined rules at
 every step. In the second step we flatten this abstract representation
 to a first-order search tree.
 
-The distinction between these two phases keeps the nitty gritty
+The distinction between these two phases keeps the nitty-gritty
 details involved with unification and weakening used in the first
 phase separate from the actual proof search. By doing so, we can
 implement various search strategies, such as breadth-first search,
@@ -603,7 +597,7 @@ Next, there is the problem of avoiding variable capture. We can only
 unify two terms that have the same type. Therefore we must ensure that
 the goal, the rule's conclusion and its premises have the same number
 of variables. At the same time, the substitution we are accumulating
-should be kept in synch with the variables used in the initial
+should be kept in sync with the variables used in the initial
 goal. Furthermore, the variables mentioned in the rules are implicitly
 universally quantified. We need to instantiate them with fresh
 variables to avoid introducing unintended constraints. This is where
@@ -614,7 +608,7 @@ value the same, whereas |raise| maps the variable into a 'fresh'
 portion of the set that was previously unused. Therefore we will
 always take care to |inject| our goal terms and our accumulating
 substitution, whereas we |raise| the terms in the applied rule. This
-ensures that the substitution and goals are kept in synch, whereas any
+ensures that the substitution and goals are kept in sync, whereas any
 variables mentioned in the rule are fresh.
 
 Note the number of free variables in the chosen rule, |δ'|, is added
@@ -624,9 +618,8 @@ the proof search proceeds.
 
 \subsubsection*{Constructing search trees}
 
-\pepijn{What is a \emph{first-order} rose tree?}
-The second step in our proof search implementation is to transform the
-|SearchSpace| we have just constructed into a first-order rose tree. We do this
+The second step in our proof search implementation is to flatten a
+|SearchSpace| to a first-order rose tree. We do this
 by branching once for every rule at every |step| constructor. The
 result of this transformation shall be expressed in terms of the
 following data type.
@@ -813,7 +806,7 @@ To complete the definition of our |auto| function, we still need to
 convert between Agda's built-in |Term| data type and the
 data type required by our unification and resolution algorithms, |PrologTerm|. This
 is an essential piece of plumbing, necessary to provide the desired proof
-automation.  While not difficult in principle, this
+automation.  While not conceptually difficult, this
 does expose some of the limitations and design choices of the |auto| function.
 
 The first thing we will need are
@@ -824,25 +817,27 @@ but unfortunately the Agda does not assign a name to the function
 space type operator, |_→_|; nor does Agda assign names to locally bound variables.
 To address this, we define two new data types |TermName| and |RuleName|.
 
-First, we define the |TermName| data type as follows:
+First, we define the |TermName| data type.
+The |TermName| data type has three constructors. The |pname|
+constructor embeds Agda's built-in |Name| in the a |TermName| type.
+The |pvar| constructor describes locally bound variables, represented by
+their De Bruijn index. Note that the |pvar| constructor has nothing to
+do with |PrologTerm|'s |var| constructor: it is not used to construct
+a Prolog variable, but rather to be able to refer to a local variable
+as a Prolog constant. Finally, |pimpl| explicitly represents the Agda
+function space:
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
   pvar   : (i : ℤ) → TermName
   pimpl  : TermName
 \end{code}
-The |TermName| data type has three constructors. The |pname|
-constructor embeds Agda's built-in |Name| in the a |TermName| type.
 The |pvar| constructor describes locally bound variables by integer
 names, which are function of their De Bruijn index and the depth.
 \footnote{The reason we use integers is that, when converting De
   Bruijn indices to names, we may encounter indices that are not bound
   in the goal type. These are represented by negative numbers.}
 \pepijn{Review the changes here (see footnote).}
-Note that the |pvar| constructor has nothing to do with |PrologTerm|'s
-|var| constructor: it is not used to construct a Prolog variable, but
-rather to be able to refer to a local variable as a Prolog
-constant. Finally, |pimpl| explicitly represents the Agda function space.
 
 We define the |RuleName| type in a similar fashion:
 \begin{code}
@@ -875,7 +870,7 @@ failure:
 The meaning of each of these error messages will be explained as we
 encounter them in our implementation below.
 
-Finally, we wil need one more auxiliary function to manipulate bound
+Finally, we will need one more auxiliary function to manipulate bound
 variables. The |match| function takes two bound variables of types
 |Fin m| and |Fin n| and computes the corresponding variables in |Fin
 (m ⊔ n)| -- where |m ⊔ n| denotes the maximum of |m| and |n|:
@@ -1241,7 +1236,7 @@ The |auto| function converts the |Term| to a |PrologTerm|, the return
 type of the goal, and a list of arguments that may be used to
 construct this term. It then proceeds by calling the |searchToDepth|
 function with the argument hint database. If this proof search
-succceeds, the |Result| is converted to an Agda |Term|, a witness that
+succeeds, the |Result| is converted to an Agda |Term|, a witness that
 the original goal is inhabited. There are three places that this
 function may fail: the conversion to a |PrologTerm| may fail, for
 instance because of unsupported syntax; the proof search may not find
@@ -1294,7 +1289,7 @@ required dictionary is inserted automatically. If we have multiple
 instance definitions for the same type or omit the required instance
 altogether, the Agda type checker would have given an error.
 
-It is more interesting to consider parameterised instances, such as
+It is more interesting to consider parametrized instances, such as
 the |Either| instance given below.
 \begin{code}
 ShowEither : Show A → Show B → Show (Either A B)
@@ -1352,7 +1347,6 @@ First of all, the performance of the |auto| function is terrible. Any
 proofs that require a depth greater than ten are intractable in
 practice. This is an immediate consequence of Agda's poor compile-time
 evaluation. The current implementation is call-by-name and does no
-
 optimization whatsoever. While a mature evaluator is beyond the scope
 of this project, we believe that it is essential for Agda proofs to
 scale beyond toy examples. Simple optimizations, such as the erasure
@@ -1375,7 +1369,7 @@ the product type, adapted from the standard library:
 _×_ : (A B : Set) → Set
 A × B = Σ A (λ _ → B)
 \end{code}
-However, attempting to derive an instance of |Show| for this product
+Somewhat surprisingly, attempting to derive an instance of |Show| for this product
 type will fail. The reason for this is that |quoteGoal| will always
 return the goal in normal form, which unveil the higher-order terms in
 the definition of |_×_|.
@@ -1435,7 +1429,8 @@ to prove that when the |auto| function succeeds, the resulting term
 has the correct type. As it stands, proving soundness of the
 |auto| function is non-trivial: we would need to define the typing
 rules of Agda's |Term| data type and prove that the |Term| we produce
-witnesses the validity of our goal |Term|. It may be slightly easier
+witnesses the validity of our goal |Term|.
+It may be slightly easier
 to ignore Agda's reflection mechanism and instead verify the
 metatheory of the Prolog interpreter: if a proof exists at some given
 depth, |searchToDepth| should find it; any |Result| returned by
@@ -1445,21 +1440,21 @@ depth, |searchToDepth| should find it; any |Result| returned by
 
 There are several other interactive proof assistants, dependently
 typed programming languages, and alternative forms of proof
-automation. In the remainder of this section, we will briefly compare
+automation in Agda. In the remainder of this section, we will briefly compare
 the approach taken in this paper to these existing systems.
 
 \paragraph{Coq}
-Coq has the rich support for proof automation. The Ltac language
+Coq has rich support for proof automation. The Ltac language
 and the many primitive, customizable tactics are extremely
 powerful~\cite{chlipala}. Despite Coq's success, it is still
 worthwhile to explore better methods for proof automation. Recent work
 on Mtac~\cite{mtac} shows how to add a typed language for proof
 automation on top of Ltac. Furthermore, Ltac itself is not designed to
 be a general purpose programming language. It can be difficult to
-abstract over certain patterns, tactics can be slow and debugging
+abstract over certain patterns and debugging
 proof automation is not easy. The programmable proof automation,
 written using reflection, presented here may not be as mature as Coq's
-Ltac language, but addresses many of these issues.
+Ltac language, but addresses  these issues.
 
 \paragraph{Idris}
 The dependently typed programming language Idris also has a collection
@@ -1487,13 +1482,13 @@ opportunities for customization: there is limited control over which
 hints may (or may not) be used; there is no way to assign priorities
 to certain hints; and there is a single fixed search strategy. In
 contrast to the proof search presented here, where we have much more
-finegrained control over all these issues.
+fine grained control over all these issues.
 
 \subsection*{Closure}
 
 The proof automation presented in this paper is not as mature as some
 of these alternative systems. Yet we strongly believe that this style
-of proof automation brings something new to the table.
+of proof automation is worth pursuing further.
 
 The advantages of using reflection to program proof tactics should be
 clear: we do not need to learn a new programming language to write new
@@ -1503,7 +1498,7 @@ and implementation of our tactics. If a particular problem domain
 requires a different search strategy, this can be implemented by
 writing a new traversal over a |SearchTree|. Hint databases are
 first-class values. There is never any built-in magic; there are no
-primitives beyond Agda's reflection mechanism.
+compiler primitives beyond Agda's reflection mechanism.
 
 The central philosophy of Martin-L\"of type theory is that the
 construction of programs and proofs is the same activity. Any
