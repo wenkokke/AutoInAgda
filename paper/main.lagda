@@ -735,10 +735,11 @@ Next, we use |searchToDepth| to search for a substitution. We use a
 function |apply| which applies a list of solutions to a goal term:
 \begin{code}
   apply : List (Result m) → Goal m → List (Term 0)
-\end{code}\todo{Wouter: geef uitleg}
-Since we do not wish to go into the details of unification and
-substitution, we shall leave this function undefined. Instead we will
-present a complete usage of |searchToDepth|, resolving the previously
+\end{code}
+The |apply| function applies the substitutions in the list of results
+to the goal, and discards any resulting terms that still contain
+variables. Although not useful in general, we can use it together
+with the |searchToDepth| function to illustrate the resolution of the previously
 defined |query|:
 \begin{code}
   result : List (Term 0)
@@ -847,14 +848,8 @@ their De Bruijn index. Note that the |pvar| constructor has nothing to
 do with |PrologTerm|'s |var| constructor: it is not used to construct
 a Prolog variable, but rather to be able to refer to a local variable
 as a Prolog constant. 
-The |pvar| constructor describes locally bound variables by integer
-names, which are function of their De Bruijn index and the depth.
-\footnote{The reason we use integers is that, when converting De
-  Bruijn indices to names, we may encounter indices that are not bound
-  in the goal type. These are represented by negative numbers.}
 Finally, |pimpl| explicitly represents the Agda
 function space.
-\pepijn{Review the changes here (see footnote).}
 
 We define the |RuleName| type in a similar fashion:
 \begin{code}
@@ -980,11 +975,11 @@ encountered with its argument De Bruijn index. If the variable is
 bound within the goal type, it computes a corresponding |PrologTerm|
 variable;
 if the variable is bound \emph{outside} of the goal type, however, we
-compute a skolem constant.\todo{Pepijn: geef compromis uitleg}
+compute a skolem constant.
 
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
-|0|:
+|0|.
 \begin{code}
 toPrologTerm : Term → Error (∃ PrologTerm)
 toPrologTerm = fromTerm 0
@@ -1050,10 +1045,6 @@ splitTerm t = (0 , t ∷ [])
 
 Using all these auxiliary functions, it is straightforward to define
 the |toRule| function below that constructs a |Rule| from an Agda |Name|.
-We convert a name to its corresponding |PrologTerm|, which is split
-into a vector of terms using |splitTerm|.  The last element of this
-vector is the conclusion of the rule; the initial prefix constitutes
-the premises.
 \begin{code}
 toRule : Name → Error (∃ Rule)
 toRule name with fromName name
@@ -1063,6 +1054,10 @@ toRule name with fromName name
 ... | (prems , concl , _)  =
   right (n , rule (rname name) concl (toList prems))
 \end{code}
+We convert a name to its corresponding |PrologTerm|, which is split
+into a vector of terms using |splitTerm|.  The last element of this
+vector is the conclusion of the rule; the initial prefix constitutes
+the premises.
 
 \subsection*{Constructing goals}
 
@@ -1130,7 +1125,7 @@ constructor of the Agda |Term| data type. These variables correspond
 to usage of arguments to the function being defined. As we know by
 construction that these arguments are mapped to rules without
 premises, the corresponding Agda variables do not need any further
-arguments:
+arguments.
 \begin{code}
 fromProof : ProofTerm → Term
 fromProof (con (rvar i) _) = var i []
@@ -1345,8 +1340,11 @@ example = show (left 4) ++ show (right true)
 \end{code}
 Note that the type of the locally bound |instance| record is inferred
 in this example. Using this type, the |auto| function assembles the
-desired dictionary. While deceptively simple, this example illustrates
-how \emph{useful} it can be to have even a little automation.
+desired dictionary. When |show| is called on different types, however,
+we may still need to provide the type signatures of the instances we
+desire.
+While deceptively simple, this example illustrates how \emph{useful}
+it can be to have even a little automation.
 
 \section{Discussion}
 \label{sec:discussion}
@@ -1377,45 +1375,64 @@ polymorphism, instance arguments, and primitive functions.
 
 Even for definitions that seem completely first-order, our |auto|
 function can fail unexpectedly. Consider the following definition of
-the product type, adapted from the standard library:
+the product type, taken from Agda's standard library:
 \begin{code}
 _×_ : (A B : Set) → Set
 A × B = Σ A (λ _ → B)
 \end{code}
-Somewhat surprisingly, attempting to derive an instance of |Show| for this product
-type will fail. The reason for this is that |quoteGoal| will always
-return the goal in normal form, which unveil the higher-order terms in
-the definition of |_×_|.
-Converting the goal |Show (A × (λ _ → B))| to a |PrologTerm| will
-raises the `exception' |unsupportedSyntax|; the goal type contains a
-lambda which we cannot handle, even if the lambda is (as in this case)
-redundant and could be avoided. This behaviour is a consequence of
-restricting ourselves to first-order terms.
+Here a (non-dependent) pair is defined as a special case of the
+type |Σ|, representing dependent pairs. We can define the obvious |Show|
+instance for such pairs:
+\begin{code}
+Show× : Show A -> Show B -> Show (A × B)
+\end{code}
+Somewhat surprisingly, trying to use this rule to create an instance
+of the |Show| `class' fails. The |quoteGoal| construct always returns
+the goal in normal form, which exposes the higher-order nature of
+|A × B|.  Converting the goal |Show (A × (λ _ → B))| to a |PrologTerm|
+will raises the `exception' |unsupportedSyntax|; the goal type
+contains a lambda which we cannot handle.
 
-Another restriction is that it is not currently possible to pass
-arguments to a hint database manually. For instance, see the following
-definition of |even+|:
+Furthermore, there are some limitations on the hints that may be
+stored in the hint database. At the moment, we construct every hint by
+quoting an Agda |Name|. Not all useful hints, however, have a such a
+|Name|, such as any variables locally bound in the context by pattern
+matching or function arguments. For example, the following call to the
+|auto| function fails to produce the desired proof:
 \begin{code}
-even+ : Even n → Even m → Even (n + m)
-even+ (isEven0) = quoteGoal g in unquote (auto 5 [] g)
-even+ (isEven+2 e) = quoteGoal g in unquote hole
+  simple : Even n → Even (n + 2)
+  simple e = quoteGoal g in unquote (auto 5 hints g)
 \end{code}
-Directly trying to add |e| to a hint database results in the error
-message ``\textbf{quote}: not a defined name''.
-Using |quoteTerm| on |e| returns |var 0 []|, which we could
-potentially use to construct a rule for the usage of |e|. However,
-there is currently no function in the Reflection API that enables us
-to obtain the type corresponding to a |Term|, and thus no way of
-constructing a rule based on |e|.
-A last resort, binding the variable |e| to a name in a where-clause,
-gives quite unexpected results: the invocation of |auto| is accepted
-through Agda's interactive interface, and can be shown to reduce to
-the correct definition:
-\begin{code}
-  λ z → isEven+2 (even+ind e z)
-\end{code}
-However, when recompiling the code using Agda's batch type-checker, it
-is rejected. \pepijn{Batch type-checker?}
+The variable |e|, necessary to complete the proof is not part of the
+hint database. We hope that this could be easily fixed by providing a
+variation of the |quoteGoal| construct that returns both the term
+representing to the current goal and a list of the terms bound in the
+local context.
+
+% Another restriction is that it is not currently possible to pass
+% arguments to a hint database manually. For instance, see the following
+% definition of |even+|:
+% \begin{code}
+% even+ : Even n → Even m → Even (n + m)
+% even+ (isEven0) = quoteGoal g in unquote (auto 5 [] g)
+% even+ (isEven+2 e) = quoteGoal g in unquote hole
+% \end{code}
+% Directly trying to add |e| to a hint database results in the error
+% message ``\textbf{quote}: not a defined name''.
+% Using |quoteTerm| on |e| returns |var 0 []|, which we could
+% potentially use to construct a rule for the usage of |e|. However,
+% there is currently no function in the Reflection API that enables us
+% to obtain the type corresponding to a |Term|, and thus no way of
+% constructing a rule based on |e|.
+% A last resort, binding the variable |e| to a name in a where-clause,
+% gives quite unexpected results: the invocation of |auto| is accepted
+% through Agda's interactive interface, and can be shown to reduce to
+% the correct definition:
+% \begin{code}
+%   λ z → isEven+2 (even+ind e z)
+% \end{code}
+% However, when recompiling the code using Agda's batch type-checker, it
+% is rejected. \pepijn{Batch type-checker?}
 
 \paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
@@ -1532,6 +1549,11 @@ distinguish the discipline of \emph{programming} from the
 % of automation, and if that fails try something else.
 
 % This is the way forward for proof automation.
+
+\paragraph{Acknowledgements}
+We would like to thank the Software Technology Reading Club at the
+Universiteit Utrecht for their helpful feedback.
+
 
 \bibliographystyle{plainnat}
 \bibliography{main}
