@@ -22,9 +22,9 @@
 
   As proofs in type theory become increasingly complex, there is a
   growing need to provide better proof automation. This paper shows
-  how to implement a Prolog-style resolution mechanism in the
+  how to implement a Prolog-style resolution procedure in the
   dependently typed programming language Agda. Connecting this
-  resolution mechanism to Agda's reflection mechanism provides a
+  resolution procedure to Agda's reflection mechanism provides a
   first-class proof search tactic for first-order Agda
   terms. Furthermore, the same mechanism may be used in tandem with
   Agda's instance arguments to implement type classes in the style of
@@ -720,7 +720,7 @@ Next, we use |searchToDepth| to search for a substitution. We use a
 function |apply| which applies a list of solutions to a goal term:
 \begin{code}
   apply : List (Result m) → Goal m → List (Term 0)
-\end{code}\wouter{Kan dit altijd zo?}
+\end{code}\todo{Wouter: geef uitleg}
 Since we do not wish to go into the details of unification and
 substitution, we shall leave this function undefined. Instead we will
 present a complete usage of |searchToDepth|, resolving the previously
@@ -966,7 +966,7 @@ encountered with its argument De Bruijn index. If the variable is
 bound within the goal type, it computes a corresponding |PrologTerm|
 variable;
 if the variable is bound \emph{outside} of the goal type, however, we
-compute a skolem constant.\wouter{Hoe werkt dit?}
+compute a skolem constant.\todo{Pepijn: geef compromis uitleg}
 
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
@@ -1172,8 +1172,9 @@ and the rule is simply ignored. Our actual implementation requires an
 implicit proof argument that all the names in the argument list can be
 quoted successfully. If you define such proofs to compute the trivial
 unit record as evidence, Agda will fill them in automatically in every
-call to the |hintdb| function. This simple form of proof automation is
-pervasive in Agda programs~\cite{oury,swierstra-more}.
+call to the |hintdb| function on constant arguments. This simple form
+of proof automation is pervasive in Agda
+programs~\cite{oury,swierstra-more}.
 
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
