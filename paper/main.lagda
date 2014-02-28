@@ -63,7 +63,7 @@ environment and manually construct a proof term step by step.
 
 This paper tries to combine the best of both worlds by implementing
 a library for proof search \emph{within} Agda itself. More specifically,
-this paper makes the following novel contributions:
+this paper makes the several novel contributions.
 
 \begin{itemize}
 \item %
@@ -95,9 +95,9 @@ this paper makes the following novel contributions:
 \end{itemize}
 
 All the code described in this paper is freely available from
-GitHub\footnote{
+GitHub.\footnote{
   See \url{https://github.com/pepijnkokke/AutoInAgda}.
-}. It is important to emphasize that all our code
+} It is important to emphasize that all our code
 is written in the safe fragment of Agda: it does not depend on any
 postulates or foreign functions; all definitions pass Agda's
 termination checker; and all metavariables are resolved.
@@ -127,8 +127,8 @@ in previous work~\cite{van-der-walt}. A more complete overview can be
 found in the Agda release notes~\cite{agda-relnotes-228} and Van der
 Walt's thesis~\cite{vdWalt:Thesis:2012}.
 
-The central type in the reflection mechanism is the type |Term : Set|
-that defines an abstract syntax tree for Agda terms. There are several
+The type |Term : Set| is the central type provided by the reflection mechanism.
+It defines an abstract syntax tree for Agda terms. There are several
 language constructs for quoting and unquoting program fragments. The simplest
 example of the reflection mechanism is the quotation of a single
 term. In the definition of |idTerm| below, we quote the identity
@@ -221,10 +221,10 @@ Coq's proof search tactics, such as |auto|, can be customized with a
 example, |auto| would be able to prove the |simple| lemma, provided it
 the hint database contains at least the constructors of the |Even|
 data type and the |even+| lemma.
-The resulting proof is robust against reformulation and refactoring. In
+In
 contrast to the construction of explicit proof terms, changes to the
 theorem statement need not break the proof. This paper shows how to
-implement such a tactic similar to |auto| in Agda.
+implement a similar tactic as an ordinary function in Agda.
 
 Before we can use our |auto| function, we need to construct a hint
 database:
@@ -236,7 +236,7 @@ database:
 To construct such a database, we |quote| any terms that we wish to
 include in it and pass them to the |hintdb| function.  We
 defer any discussion about the |hintdb| function
-to~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
+to Section~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
 data base is a \emph{first-class} value that can be manipulated,
 inspected, or passed as an argument to a function.
 
@@ -504,7 +504,11 @@ abstract search space.
           → SearchSpace m
 \end{code}
 Ignoring the indices for the moment, the |SearchSpace| type has three
-constructors: |fail|, |retn| and |step|. In the case of |retn|, we have
+constructors: |fail|, |retn| and |step|. 
+The |fail| constructor is used to mark branches of the search space
+that fail, i.e.,\ where the selected rule is not unifiable with the
+current goal.
+In the case of |retn|, we have
 found a substitution that resolves the goal we are trying to prove. In
 the |step| constructor, we have not yet resolved the goal, and instead
 have a choice of which |Rule| to apply. Note that we do not specify
@@ -512,11 +516,8 @@ have a choice of which |Rule| to apply. Note that we do not specify
 determines the remainder of the search. As a search need not
 terminate, the |SearchSpace| resulting from applying a rule are marked
 as coinductive.
-The |fail| constructor is used to mark branches of the search space
-that fail, i.e.,\ where the selected rule is not unifiable with the
-current goal.
 
-Note that we rename Agda's notation for coinduction to more closely
+In what follows, we have renamed Agda's notation for coinduction to more closely
 resemble notation already familiar to Haskell programmers. Coinductive
 suspensions are created with the prefix operator |~| rather than |♯|;
 such suspensions can be forced using a bang, |!|, rather than the
@@ -550,7 +551,7 @@ sub-goals, accumulating a substitution along the way:
 If we have no remaining goals, we can use the |retn| constructor to
 return the substitution we have accumulated so far. If at any point,
 however, the conclusion of the chosen rule was not unifiable with the
-next open subgoal -- and thus the accumulating parameter has become
+next open sub-goal -- and thus the accumulating parameter has become
 |nothing| -- the search will fail. The interesting case is the third
 one. If there are remaining goals to resolve, we recursively construct
 a new |SearchSpace|. To do so, we use the |step| constructor and
@@ -637,9 +638,9 @@ rules, but there is no guarantee that we can construct the entire
 In our case, we will instantiate the type variable |A| with a tuple
 containing a substitution together with a trace that keeps track of
 all the applied rules. In order to keep the code readable, let us
-introduce the following alias.\footnote{ |Rules| is an alias for a
-  list of existentially quantified rules |List (∃ Rule)|.  }
+introduce the following type synonyms:
 \begin{code}
+  Rules     = List (∃ Rule)
   Result m  = ∃₂ (λ δ n → Subst (m + δ) n) × Rules
 \end{code}
 The existential quantifier |∃₂| hides both the number of fresh
@@ -715,11 +716,11 @@ Note that we must |inject| the terms |Three| and |One|, which are
 closed terms, in order to make it match the variable domain of our
 variable |var (# 0)|.
 
-Second, we use |searchToDepth| to search for a substitution. We use a
+Next, we use |searchToDepth| to search for a substitution. We use a
 function |apply| which applies a list of solutions to a goal term:
 \begin{code}
   apply : List (Result m) → Goal m → List (Term 0)
-\end{code}
+\end{code}\wouter{Kan dit altijd zo?}
 Since we do not wish to go into the details of unification and
 substitution, we shall leave this function undefined. Instead we will
 present a complete usage of |searchToDepth|, resolving the previously
@@ -817,26 +818,27 @@ but unfortunately the Agda does not assign a name to the function
 space type operator, |_→_|; nor does Agda assign names to locally bound variables.
 To address this, we define two new data types |TermName| and |RuleName|.
 
-First, we define the |TermName| data type.
-The |TermName| data type has three constructors. The |pname|
-constructor embeds Agda's built-in |Name| in the a |TermName| type.
-The |pvar| constructor describes locally bound variables, represented by
-their De Bruijn index. Note that the |pvar| constructor has nothing to
-do with |PrologTerm|'s |var| constructor: it is not used to construct
-a Prolog variable, but rather to be able to refer to a local variable
-as a Prolog constant. Finally, |pimpl| explicitly represents the Agda
-function space:
+\noindent First, we define the |TermName| data type.
 \begin{code}
 data TermName : Set where
   pname  : (n : Name) → TermName
   pvar   : (i : ℤ) → TermName
   pimpl  : TermName
 \end{code}
+The |TermName| data type has three constructors. The |pname|
+constructor embeds Agda's built-in |Name| in the |TermName| type.
+The |pvar| constructor describes locally bound variables, represented by
+their De Bruijn index. Note that the |pvar| constructor has nothing to
+do with |PrologTerm|'s |var| constructor: it is not used to construct
+a Prolog variable, but rather to be able to refer to a local variable
+as a Prolog constant. 
 The |pvar| constructor describes locally bound variables by integer
 names, which are function of their De Bruijn index and the depth.
 \footnote{The reason we use integers is that, when converting De
   Bruijn indices to names, we may encounter indices that are not bound
   in the goal type. These are represented by negative numbers.}
+Finally, |pimpl| explicitly represents the Agda
+function space.
 \pepijn{Review the changes here (see footnote).}
 
 We define the |RuleName| type in a similar fashion:
@@ -964,7 +966,7 @@ encountered with its argument De Bruijn index. If the variable is
 bound within the goal type, it computes a corresponding |PrologTerm|
 variable;
 if the variable is bound \emph{outside} of the goal type, however, we
-compute a skolem constant.
+compute a skolem constant.\wouter{Hoe werkt dit?}
 
 To convert between an Agda |Term| and |PrologTerm| we simply call the
 |fromTerm| function, initializing the number of binders encountered to
@@ -1029,14 +1031,15 @@ splitTerm  : PrologTerm n
            → ∃ (λ k → Vec (PrologTerm n) (suc k))
 splitTerm (con pimpl (t₁ ∷ t₂ ∷ []))  =
   Product.map suc (_∷_ t₁) (splitTerm t₂)
-splitTerm t = 0 , t ∷ []
+splitTerm t = (0 , t ∷ [])
 \end{code}
 
 Using all these auxiliary functions, it is straightforward to define
 the |toRule| function below that constructs a |Rule| from an Agda |Name|.
-
-Using all these auxiliary functions, it is straightforward to
-construct the desired rule.
+We convert a name to its corresponding |PrologTerm|, which is split
+into a vector of terms using |splitTerm|.  The last element of this
+vector is the conclusion of the rule; the initial prefix constitutes
+the premises.
 \begin{code}
 toRule : Name → Error (∃ Rule)
 toRule name with fromName name
@@ -1046,10 +1049,6 @@ toRule name with fromName name
 ... | (prems , concl , _)  =
   right (n , rule (rname name) concl (toList prems))
 \end{code}
-We convert a name to its corresponding |PrologTerm|, which is split
-into a vector of terms using |splitTerm|.  The last element of this
-vector is the conclusion of the rule; the initial prefix constitutes
-the premises.
 
 \subsection*{Constructing goals}
 
@@ -1103,14 +1102,21 @@ and |fromTerm'| is the treatment of variables.
 Now that we can compute Prolog terms, goals and rules from an Agda
 |Term|, we are ready to call the resolution mechanism described in
 Section~\ref{sec:prolog}. The only remaining problem is to convert the
-witness computed by our proof search back to an Agda |Term|. This
-function traverses its argument |ProofTerm|; the only interesting
-question is how it handles the variables and names it encounters.
+witness computed by our proof search back to an Agda |Term|, which can
+be unquoted to produce the desired proof. This is done by the
+|fromProof| function that traverses its argument |ProofTerm|; the only
+interesting question is how it handles the variables and names it
+encounters.
 
 The |ProofTerm| may contain two kinds of variables: locally bound
 variables, |rvar i|, or variables storing an Agda |Name|, |rname
 n|. Each of these variables is treated differently in the |fromProof|
-function.
+function. Any references to locally bound variables are mapped to the |var|
+constructor of the Agda |Term| data type. These variables correspond
+to usage of arguments to the function being defined. As we know by
+construction that these arguments are mapped to rules without
+premises, the corresponding Agda variables do not need any further
+arguments:
 \begin{code}
 fromProof : ProofTerm → Term
 fromProof (con (rvar i) _) = var i []
@@ -1121,19 +1127,12 @@ fromProof (con (rname n) ps) with definition n
   where
    toArg = arg visible relevant
 \end{code}
-Any references to locally bound variables are mapped to the |var|
-constructor of the Agda |Term| data type. These variables correspond
-to usage of arguments to the function being defined. As we know by
-construction that these arguments are mapped to rules without
-premises, the corresponding Agda variables do not need any further
-arguments.
-
 If the rule being applied is constructed using an |rname|, we do
 disambiguate whether the rule name refers to a function or a
 constructor. The |definition| function, defined in Agda's reflection
 library, returns information about how the piece of abstract syntax to
-which its argument |Name| corresponds. For the moment, we restrict
-this definition to only handle defined functions and data
+which its argument |Name| corresponds. For the sake of brevity, we restrict
+the definition here to only handle defined functions and data
 constructors. It is easy enough to extend with further branches for
 postulates, primitives, and so forth.
 
@@ -1144,8 +1143,8 @@ To do so, we define the |intros| function that repeatedly wraps its
 argument term in a lambda:
 \begin{code}
   intros : ℕ → Term → Term
-  intros zero    t = t
-  intros (suc k) t = lam visible (intros k t)
+  intros zero    t  = t
+  intros (suc k) t  = lam visible (intros k t)
 \end{code}
 
 \subsection*{Hint databases}
@@ -1167,15 +1166,14 @@ hintdb = concatMap (fromError ∘ toRule)
     fromError : Error A → List A
     fromError = fromEither (const []) [_]
 \end{code}
-If the generation of a rule fails for whatever reason, no error is
-raised, and the rule is simply ignored. This makes it easier to use
-the results of the |hintdb| function, but may produce unintended
-results. Alternatively, we could require an implicit proof argument
-that all the names in the argument list can be quoted successfully. If
-you define such proofs to compute the trivial unit record as evidence,
-Agda will fill them in automatically in every call to the |hintdb|
-function. This simple form of proof automation is pervasive in Agda
-programs.\cite{oury,swierstra-more}
+Once again, we have simplified the presentation slightly. If the
+generation of a rule fails for whatever reason, no error is raised,
+and the rule is simply ignored. Our actual implementation requires an
+implicit proof argument that all the names in the argument list can be
+quoted successfully. If you define such proofs to compute the trivial
+unit record as evidence, Agda will fill them in automatically in every
+call to the |hintdb| function. This simple form of proof automation is
+pervasive in Agda programs~\cite{oury,swierstra-more}.
 
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
@@ -1465,7 +1463,7 @@ implemented as part of the Idris system. There is a small Haskell
 library for tactic writers to use that exposes common commands, such
 as unification, evaluation, or type checking. Furthermore, there are
 library functions to help handle the construction of proof terms,
-generation of fresh names, and splitting subgoals. This approach is
+generation of fresh names, and splitting sub-goals. This approach is
 reminiscent of the HOL family of theorem provers~\cite{hol} or Coq's
 plug-in mechanism. An important drawback is that tactic writers need
 to write their tactics in a different language to the rest of their
