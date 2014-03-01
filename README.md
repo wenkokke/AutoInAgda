@@ -2,11 +2,16 @@
 
 #### Abstract
 
-> We present the reader with an implementation of Prolog-style proof search in Agda.
-> We then use this implementation, together with Agda’s Reflection mechanism,
-> to implement an auto tactic for first- order Agda terms.
-> Last, we demonstrate one possible usage of this tactic,
-> by implementing modular instance search for Agda-style type classes.
+> As proofs in type theory become increasingly complex, there is a
+> growing need to provide better proof automation. This paper shows
+> how to implement a Prolog-style resolution procedure in the
+> dependently typed programming language Agda. Connecting this
+> resolution procedure to Agda's reflection mechanism provides a
+> first-class proof search tactic for first-order Agda
+> terms. Furthermore, the same mechanism may be used in tandem with
+> Agda's instance arguments to implement type classes in the style of
+> Haskell. As a result, writing proof automation tactics need not be
+> different from writing any other program.
 
 #### Technical Details
 
