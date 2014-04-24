@@ -240,18 +240,14 @@ module Auto where
   db << n | left msg = db
   db << n | right r  = db ++ [ r ]
 
-{-
   auto : ℕ → HintDB → AgTerm → AgTerm
   auto depth rules type
     with toGoalAndPremises type
   ... | left msg = quoteError msg
   ... | right ((n , g) , args)
-    with searchToDepth depth (args ++ rules) g
-  ... | [] = quoteError searchSpaceExhausted
-  ... | (_ , ap) ∷ _
-    with toProof ap
-  ... | nothing = quoteError panic!
-  ... | just p  = intros (reify p)
+    with dfs depth (solve g (args ++ rules))
+  ... | []      = quoteError searchSpaceExhausted
+  ... | (p ∷ _) = intros (reify p)
     where
       intros : AgTerm → AgTerm
       intros = introsAcc (length args)
@@ -259,4 +255,3 @@ module Auto where
           introsAcc : ℕ → AgTerm → AgTerm
           introsAcc  zero   t = t
           introsAcc (suc k) t = lam visible (introsAcc k t)
--}
