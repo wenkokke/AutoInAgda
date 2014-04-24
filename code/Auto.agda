@@ -155,7 +155,7 @@ module Auto where
     ... | left msg | _        = left msg
     ... | _        | left msg = left msg
     ... | right (n₁ , p₁) | right (n₂ , p₂)
-      with matchTerms p₁ p₂
+      with match p₁ p₂
     ... | (p₁′ , p₂′) = right (n₁ ⊔ n₂ , con pimpl (p₁′ ∷ p₂′ ∷ []))
     convertTerm dict d (pi (arg _ _ _) (el _ t₂)) = convertTerm dict (suc d) t₂
     convertTerm dict d (lam v t) = left unsupportedSyntax
@@ -167,7 +167,7 @@ module Auto where
     convertArgs dict d (arg visible _ t ∷ ts) with convertTerm dict d t | convertArgs dict d ts
     ... | left msg       | _              = left msg
     ... | _              | left msg       = left msg
-    ... | right (m , p)  | right (n , ps) with matchTermAndList p ps
+    ... | right (m , p)  | right (n , ps) with match p ps
     ... | (p′ , ps′)                      = right (m ⊔ n , p′ ∷ ps′)
     convertArgs dict d (arg _ _ _ ∷ ts) = convertArgs dict d ts
 
@@ -233,7 +233,7 @@ module Auto where
   isRight (right _)  = ⊤
 
   fromRight : {A : Set} -> (x : Error A) -> {p : isRight x} -> A
-  fromRight (left x) {()} 
+  fromRight (left x) {()}
   fromRight (right y) = y
 
   hintdb : (nms : List Name) → {p : all {Name} {\nm -> isRight (toRule nm)} nms} -> HintDB
@@ -265,4 +265,3 @@ module Auto where
           introsAcc : ℕ → Term → Term
           introsAcc  zero   t = t
           introsAcc (suc k) t = lam visible (introsAcc k t)
- 
