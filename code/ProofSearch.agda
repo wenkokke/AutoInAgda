@@ -23,7 +23,7 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
   open Alg.DistributiveLattice {{...}} using (_∧_; ∧-comm)
   open Rel.DecTotalOrder {{...}} using (total)
   open Mon.RawMonad {{...}} using (return; _>>=_)
-  open import Unification TermName _≟-TermName_ hiding (_++_)
+  open import Unification TermName _≟-TermName_ public hiding (_++_)
 
   private
     ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b ⊔ a)
