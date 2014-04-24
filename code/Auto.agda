@@ -17,7 +17,7 @@ open import Data.Integer as Int using (ℤ; -[1+_]; +_)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
-open import Reflection renaming (_≟-Name_ to decEqName; _≟_ to decEqTerm)
+open import Reflection renaming (_≟_ to _≟-Term_)
 
 module Auto where
 
@@ -25,7 +25,6 @@ module Auto where
   private
     open RawApplicative {{...}} renaming (_⊛_ to _⟨*⟩_; _<$>_ to _⟨$⟩_)
     open DecSetoid {{...}} using (_≟_)
-    NameDecSetoid  = PropEq.decSetoid decEqName
     NatDecSetoid   = PropEq.decSetoid Nat._≟_
     IntDecSetoid   = Int.decSetoid
 
@@ -87,16 +86,17 @@ module Auto where
     TermNameDecSetoid = PropEq.decSetoid decEqTermName
 
   data RuleName : Set where
-    rname : Name → RuleName
-    rvar  : ℕ → RuleName
+    name : Name → RuleName
+    var  : ℕ → RuleName
 
+{-
   -- Due to this functionality being unavailable and unimplementable in plain Agda
   -- we'll just have to postulate the existance of a show function for Agda names.
   -- Using this postulate we can then implement a show function for Prolog names.
 
   -- Now we can load the Prolog libraries.
 
-  open import Prolog RuleName TermName decEqTermName as PI public
+  open import ProofSearch RuleName TermName decEqTermName as PI public
 
   -- We'll implement a few basic functions to ease our working with Agda's
   -- Reflection library.
@@ -265,3 +265,4 @@ module Auto where
           introsAcc : ℕ → Term → Term
           introsAcc  zero   t = t
           introsAcc (suc k) t = lam visible (introsAcc k t)
+-}
