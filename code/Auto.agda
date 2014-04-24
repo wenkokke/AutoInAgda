@@ -17,7 +17,7 @@ open import Data.Integer as Int using (ℤ; -[1+_]; +_)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
-open import Reflection renaming (_≟_ to _≟-Term_)
+open import Reflection hiding (var) renaming (_≟_ to _≟-Term_)
 
 module Auto where
 
@@ -45,49 +45,41 @@ module Auto where
       right f ⊛ right x  = right (f x)
 
   data TermName : Set where
-    pname : (n : Name) → TermName
-    pvar  : (i : ℤ) → TermName
-    pimpl : TermName
+    name : (n : Name) → TermName
+    tvar : (i : ℤ) → TermName
+    impl : TermName
 
-  agdaTypeArity : Type → ℕ
-  agdaTypeArity (el _ (pi _ t)) = suc (agdaTypeArity t)
-  agdaTypeArity (el _ t)        = zero
+  pname-inj : ∀ {x y} → name x ≡ name y → x ≡ y
+  pname-inj refl = refl
 
-  agdaNameArity : Name → ℕ
-  agdaNameArity n = agdaTypeArity (type n)
+  pvar-inj : ∀ {i j} → tvar i ≡ tvar j → i ≡ j
+  pvar-inj refl = refl
 
-  prologNameArity : TermName → ℕ
-  prologNameArity (pname n) = agdaNameArity n
-  prologNameArity (pvar _)  = 0
-  prologNameArity (pimpl)   = 2
-
-  pname-injective : ∀ {x y} → pname x ≡ pname y → x ≡ y
-  pname-injective refl = refl
-
-  pvar-injective : ∀ {i j} → pvar i ≡ pvar j → i ≡ j
-  pvar-injective refl = refl
-
-  decEqTermName : (x y : TermName) → Dec (x ≡ y)
-  decEqTermName (pname x) (pname  y) with x ≟ y
-  decEqTermName (pname x) (pname .x) | yes refl = yes refl
-  decEqTermName (pname x) (pname  y) | no  x≢y  = no (x≢y ∘ pname-injective)
-  decEqTermName (pname _) (pvar _)   = no (λ ())
-  decEqTermName (pname _)  pimpl     = no (λ ())
-  decEqTermName (pvar _)  (pname _)  = no (λ ())
-  decEqTermName (pvar i)  (pvar  j)  with i ≟ j
-  decEqTermName (pvar i)  (pvar .i)  | yes refl = yes refl
-  decEqTermName (pvar i)  (pvar  j)  | no i≢j = no (i≢j ∘ pvar-injective)
-  decEqTermName (pvar _)   pimpl     = no (λ ())
-  decEqTermName  pimpl    (pname _)  = no (λ ())
-  decEqTermName  pimpl    (pvar _)   = no (λ ())
-  decEqTermName  pimpl     pimpl     = yes refl
-
-  private
-    TermNameDecSetoid = PropEq.decSetoid decEqTermName
+  _≟-TermName_ : (x y : TermName) → Dec (x ≡ y)
+  _≟-TermName_ (name x) (name  y) with x ≟-Name y
+  _≟-TermName_ (name x) (name .x) | yes refl = yes refl
+  _≟-TermName_ (name x) (name  y) | no  x≠y  = no (x≠y ∘ pname-inj)
+  _≟-TermName_ (name _) (tvar _)  = no (λ ())
+  _≟-TermName_ (name _)  impl     = no (λ ())
+  _≟-TermName_ (tvar _) (name _)  = no (λ ())
+  _≟-TermName_ (tvar i) (tvar  j) with i ≟ j
+  _≟-TermName_ (tvar i) (tvar .i) | yes refl = yes refl
+  _≟-TermName_ (tvar i) (tvar  j) | no i≠j = no (i≠j ∘ pvar-inj)
+  _≟-TermName_ (tvar _)  impl     = no (λ ())
+  _≟-TermName_  impl    (name _)  = no (λ ())
+  _≟-TermName_  impl    (tvar _)  = no (λ ())
+  _≟-TermName_  impl     impl     = yes refl
 
   data RuleName : Set where
     name : Name → RuleName
-    var  : ℕ → RuleName
+    rvar : ℕ → RuleName
+
+  arity : Name → ℕ
+  arity n = arity′ (type n)
+    where
+      arity′ : Type → ℕ
+      arity′ (el _ (pi _ t)) = suc (arity′ t)
+      arity′ (el _ t)        = zero
 
 {-
   -- Due to this functionality being unavailable and unimplementable in plain Agda

@@ -1,12 +1,12 @@
 open import Level using (_⊔_)
-open import Function using (id; _∘_)
+open import Function using (id; _∘_; _$_)
 open import Coinduction using (∞; ♯_; ♭)
 open import Data.Nat as Nat using (ℕ; suc; zero; _≤_; z≤n; s≤s; decTotalOrder)
 open import Data.Nat.Properties as NatProps using (commutativeSemiring; distributiveLattice)
 open import Data.Fin as Fin using (Fin; suc; zero)
 open import Data.Fin.Props as FinProps renaming (_≟_ to _≟-Fin_)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; monad)
-open import Data.List as List using (List; _∷_; []; _++_; concat; map; foldr; concatMap; monad)
+open import Data.List as List using (List; _∷_; []; _++_; length; concat; map; foldr; concatMap; monad)
 open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)
 open import Data.Vec as Vec using (Vec; _∷_; [])
 open import Data.Sum as Sum using (_⊎_; inj₁; inj₂)
@@ -17,7 +17,7 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary as Rel using (StrictTotalOrder)
 open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; trans; cong; cong₂)
 
-module ProofSearch (RuleName : Set) (arity : RuleName → ℕ) (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y)) where
+module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y)) where
 
   open Alg.CommutativeSemiring {{...}} using (_+_; +-comm; +-assoc)
   open Alg.DistributiveLattice {{...}} using (_∧_; ∧-comm)
@@ -37,9 +37,13 @@ module ProofSearch (RuleName : Set) (arity : RuleName → ℕ) (TermName : Set) 
     field
       name        : RuleName
       conclusion  : Term n
-      premises    : Vec (Term n) (arity name)
+      premises    : List (Term n)
 
   open Rule using (name; conclusion; premises)
+
+  -- compute the arity of a rule
+  arity : ∀ {n} (r : Rule n) → ℕ
+  arity = length ∘ premises
 
   -- compute difference from ≤
   diff : ∀ {m n} → m ≤ n → ∃[ k ] n ≡ m + k
@@ -125,14 +129,14 @@ module ProofSearch (RuleName : Set) (arity : RuleName → ℕ) (TermName : Set) 
   Rules  = List (∃ Rule)
 
   data Proof : Set where
-    con : (name : RuleName) (args : Vec Proof (arity name)) → Proof
+    con : (name : RuleName) (args : List Proof) → Proof
 
   -- representation of an incomplete proof
   Proof′ : ℕ → Set
   Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
 
-  con′ : ∀ {k} (r : RuleName) → Vec Proof (arity r + k) → Vec Proof (suc k)
-  con′ {k} r xs = con r (Vec.take (arity r) xs) ∷ Vec.drop (arity r) xs
+  con′ : ∀ {n k} (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
+  con′ r xs = con (name r) (Vec.toList $ Vec.take (arity r) xs) ∷ Vec.drop (arity r) xs
 
   -- build search tree for a goal term
   {-# NO_TERMINATION_CHECK #-}
@@ -145,7 +149,7 @@ module ProofSearch (RuleName : Set) (arity : RuleName → ℕ) (TermName : Set) 
       solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = fork (map step rules)
         where
           step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
-          step (δ′ , rule r cnc prm) = ♯ solveAcc {δ′ + δ} {m} mgu prf
+          step (δ′ , r) = ♯ solveAcc {δ′ + δ} {m} mgu prf
             where
               lem : δ′ + δ + m ≡ δ + m + δ′
               lem = trans (+-assoc δ′ δ m) (+-comm δ′ (δ + m))
@@ -155,7 +159,7 @@ module ProofSearch (RuleName : Set) (arity : RuleName → ℕ) (TermName : Set) 
                   gs′  : Vec (Goal (δ′ + δ + m)) k
                   gs′  rewrite lem = inject δ′ gs
                   prm′ : Vec (Goal (δ′ + δ + m)) (arity r)
-                  prm′ rewrite lem = Vec.map (raise (δ + m)) prm
+                  prm′ rewrite lem = Vec.map (raise (δ + m)) (Vec.fromList (premises r))
                   p′   : Vec Proof (arity r + k) → Proof
                   p′   = p ∘ con′ r
               mgu : Maybe (∃[ n ] (Subst (δ′ + δ + m) n))
@@ -164,7 +168,7 @@ module ProofSearch (RuleName : Set) (arity : RuleName → ℕ) (TermName : Set) 
                   g′   : Term (δ′ + δ + m)
                   g′   rewrite lem = inject δ′ g
                   cnc′ : Term (δ′ + δ + m)
-                  cnc′ rewrite lem = raise (δ + m) cnc
+                  cnc′ rewrite lem = raise (δ + m) (conclusion r)
                   s′   : ∃[ n ] Subst (δ′ + δ + m) n
                   s′   rewrite lem = n + δ′ , injectSubst δ′ s
 
