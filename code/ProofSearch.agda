@@ -137,12 +137,12 @@ module ProofSearch (RuleName : Set) (arity : RuleName → ℕ) (TermName : Set) 
   -- build search tree for a goal term
   {-# NO_TERMINATION_CHECK #-}
   solve : ∀ {m} → Goal m → Rules → SearchTree Proof
-  solve goal rules = {!!}
+  solve {m} g rules = solveAcc {0} {m} (just (m , nil)) (1 , g ∷ [] , Vec.head)
     where
       solveAcc : ∀ {δ m} → Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
       solveAcc nothing _ = fail
       solveAcc (just (n , s)) (0 , [] , p) = retn (p [])
-      solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = fork (List.map step rules)
+      solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = fork (map step rules)
         where
           step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
           step (δ′ , rule r cnc prm) = ♯ solveAcc {δ′ + δ} {m} mgu prf
