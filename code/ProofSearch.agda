@@ -97,7 +97,9 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
   RaiseRule   : Raise Rule
   RaiseRule   = record { raise  = λ m → λ { (rule nm c p) → rule nm (raise m c) (raise m p) } }
 
-
+  -- could rephrase inject/raise in terms of allowing modification by
+  -- a function ℕ → ℕ, but really... why would I... it makes all the
+  -- other instances much, much more obtuse
   injectSubst : ∀ {m n} (δ : ℕ) → Subst m n → Subst (m + δ) (n + δ)
   injectSubst _ nil = nil
   injectSubst δ (snoc s t x) = snoc (injectSubst δ s) (inject δ t) (inject δ x)
