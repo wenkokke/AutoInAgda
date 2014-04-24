@@ -9,7 +9,7 @@ open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _⊔_; compare; less; eq
 open import Data.Nat.Show renaming (show to showℕ)
 open import Data.List as List using (List; []; _∷_; [_]; concatMap; _++_; length; map)
 open import Data.Vec as Vec using (Vec; []; _∷_; _∷ʳ_; reverse; initLast; toList)
-open import Data.Product as Product using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
+open import Data.Product as Prod using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; maybe)
 open import Data.String using (String)
 open import Data.Sum as Sum using () renaming (_⊎_ to Either; inj₁ to left; inj₂ to right; [_,_] to fromEither)
@@ -135,7 +135,7 @@ module Auto where
   second f (x , y) = (x , f y)
 
   splitTerm : ∀ {n} → PsTerm n → ∃ (λ k → Vec (PsTerm n) (suc k))
-  splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = Product.map suc (λ ts → t₁ ∷ ts) (splitTerm t₂)
+  splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = Prod.map suc (λ ts → t₁ ∷ ts) (splitTerm t₂)
   splitTerm t = zero , t ∷ []
 
   mutual
