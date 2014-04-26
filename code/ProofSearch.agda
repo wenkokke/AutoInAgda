@@ -141,14 +141,13 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
   con′ r xs = con (name r) (Vec.toList $ Vec.take (arity r) xs) ∷ Vec.drop (arity r) xs
 
   -- build search tree for a goal term
-  {-# NO_TERMINATION_CHECK #-}
   solve : ∀ {m} → Goal m → Rules → SearchTree Proof
   solve {m} g rules = solveAcc {0} {m} (just (m , nil)) (1 , g ∷ [] , Vec.head)
     where
       solveAcc : ∀ {δ m} → Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
       solveAcc nothing _ = fail
       solveAcc (just (n , s)) (0 , [] , p) = retn (p [])
-      solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = fork (map step rules)
+      solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = fork (steps rules)
         where
           step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
           step (δ′ , r) = ♯ solveAcc {δ′ + δ} {m} mgu prf
@@ -173,6 +172,11 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
                   cnc′ rewrite lem = raise (δ + m) (conclusion r)
                   s′   : ∃[ n ] Subst (δ′ + δ + m) n
                   s′   rewrite lem = n + δ′ , injectSubst δ′ s
+
+          -- equivalent to `map step` due to termination checker
+          steps : Rules → List (∞ (SearchTree Proof))
+          steps [] = []
+          steps (r ∷ rs) = step r ∷ steps rs
 
   dfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
   dfs  zero    _        = []
