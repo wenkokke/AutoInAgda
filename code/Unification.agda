@@ -74,15 +74,14 @@ module Unification (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y)) wh
   thick {suc n} (suc x) (suc y) = suc <$> thick x y
 
   -- defining an occurs check (**check** in McBride, 2003)
-  mutual
-    check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
-    check x₁ (var x₂)   = var <$> thick x₁ x₂
-    check x₁ (con s ts) = con s <$> checkChildren x₁ ts
-
-    checkChildren : ∀ {n} (x : Fin (suc n)) (ts : List (Term (suc n))) → Maybe (List (Term n))
-    checkChildren x₁ [] = just []
-    checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
-      checkChildren x₁ ts >>= λ ts' → return (t' ∷ ts')
+  check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
+  check x₁ (var x₂)   = var <$> thick x₁ x₂
+  check x₁ (con s ts) = con s <$> checkChildren x₁ ts
+    where
+      checkChildren : ∀ {n} (x : Fin (suc n)) (ts : List (Term (suc n))) → Maybe (List (Term n))
+      checkChildren x₁ [] = just []
+      checkChildren x₁ (t ∷ ts) = check x₁ t >>= λ t' →
+        checkChildren x₁ ts >>= λ ts' → return (t' ∷ ts')
 
   -- datatype for substitutions (AList in McBride, 2003)
   data Subst : ℕ → ℕ → Set where
