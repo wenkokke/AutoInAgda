@@ -1,4 +1,4 @@
-open import Auto hiding (hintdb)
+open import Auto
 open import Algebra
 open import Data.List using (_∷_; [];_++_)
 open import Data.Nat using (ℕ; suc; zero; _+_)
