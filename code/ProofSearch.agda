@@ -128,7 +128,8 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
 
   -- lets try and keep the types readable, shall we?
   Goal   = Term
-  Rules  = List (∃ Rule)
+  HintDB = List (∃ Rule)
+
 
   data Proof : Set where
     con : (name : RuleName) (args : List Proof) → Proof
@@ -141,7 +142,7 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
   con′ r xs = con (name r) (Vec.toList $ Vec.take (arity r) xs) ∷ Vec.drop (arity r) xs
 
   -- build search tree for a goal term
-  solve : ∀ {m} → Goal m → Rules → SearchTree Proof
+  solve : ∀ {m} → Goal m → HintDB → SearchTree Proof
   solve {m} g rules = solveAcc {0} {m} (just (m , nil)) (1 , g ∷ [] , Vec.head)
     where
       solveAcc : ∀ {δ m} → Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
@@ -174,7 +175,7 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
                   s′   rewrite lem = n + δ′ , injectSubst δ′ s
 
           -- equivalent to `map step` due to termination checker
-          steps : Rules → List (∞ (SearchTree Proof))
+          steps : HintDB → List (∞ (SearchTree Proof))
           steps [] = []
           steps (r ∷ rs) = step r ∷ steps rs
 

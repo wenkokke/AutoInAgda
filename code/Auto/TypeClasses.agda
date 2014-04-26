@@ -36,8 +36,7 @@ Showℕ : Show ℕ
 Showℕ = record { show = Nat.show }
 
 ShowHints : HintDB
-ShowHints = hintdb
-  (quote ShowEither ∷ quote ShowBool ∷ quote Showℕ ∷ [])
+ShowHints = [] << quote ShowEither << quote ShowBool << quote Showℕ
 
 example₁ : String
 example₁ = show (left true) ++ show (right 4)

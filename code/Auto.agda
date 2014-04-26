@@ -1,4 +1,4 @@
-open import Level using (Level) renaming (suc to lsuc; zero to lzero)
+open import Level using (Level)
 open import Function using (_$_; _∘_; id; flip; const)
 open import Category.Applicative
 open import Data.Unit using (⊤)
@@ -9,7 +9,7 @@ open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _⊔_; compare; less; eq
 open import Data.Nat.Show renaming (show to showℕ)
 open import Data.List as List using (List; []; _∷_; [_]; concatMap; _++_; length; map)
 open import Data.Vec as Vec using (Vec; []; _∷_; _∷ʳ_; reverse; initLast; toList)
-open import Data.Product as Prod using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
+open import Data.Product as Prod using (∃; _×_; _,_; proj₁; proj₂)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; maybe)
 open import Data.String using (String)
 open import Data.Sum as Sum using () renaming (_⊎_ to Either; inj₁ to left; inj₂ to right; [_,_] to fromEither)
@@ -21,8 +21,12 @@ open import Reflection renaming (Term to AgTerm; _≟_ to _≟-AgTerm_)
 
 module Auto where
 
-  open RawApplicative {{...}} renaming (_⊛_ to _⟨*⟩_; _<$>_ to _⟨$⟩_)
   open DecSetoid {{...}} using (_≟_)
+
+  private
+    ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b Level.⊔ a)
+    ∃-syntax = ∃
+    syntax ∃-syntax (λ x → B) = ∃[ x ] B
 
 
   -- define our own instance of the error monad, based on the either
@@ -32,17 +36,13 @@ module Auto where
     searchSpaceExhausted : Message
     unsupportedSyntax    : Message
 
-  Error : ∀ {a} (A : Set a) → Set a
-  Error A = Either Message A
+  private
+    Error : ∀ {a} (A : Set a) → Set a
+    Error A = Either Message A
 
-  ErrorApplicative : ∀ {f} → RawApplicative (Error {a = f})
-  ErrorApplicative = record { pure = right ; _⊛_ = _⊛_ }
-    where
-      _⊛_ : ∀ {a b} {A : Set a} {B : Set b} → Error (A → B) → Error A → Error B
-      left  m ⊛ _        = left m
-      right f ⊛ left  m  = left m
-      right f ⊛ right x  = right (f x)
-
+    _<$>_ : ∀ {a b} {A : Set a} {B : Set b} (f : A → B) → Error A → Error B
+    f <$> left  x = left x
+    f <$> right y = right (f y)
 
   -- define term names for the term language we'll be using for proof
   -- search; we use standard Agda names, together with term-variables
@@ -104,28 +104,26 @@ module Auto where
   -- We'll need the function below later on, when we try to convert found
   -- variables to finitely indexed variables within our domain `n`.
 
-  fromDefOrCon : (s : Name) → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
+  fromDefOrCon : (s : Name) → ∃[ n ] List (PsTerm n) → ∃ PsTerm
   fromDefOrCon f (n , ts) = n , con (name f) ts
 
-  record Case : Set where
+  record FromVar : Set where
     field
-      fromVar : ℕ → ℕ → ∃  PsTerm
-      fromCon : (s : Name) → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
-      fromDef : (s : Name) → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
+      fromVar : (depth index : ℕ) → ∃ PsTerm
 
-  CaseTerm : Case
-  CaseTerm = record { fromVar = fromVar ; fromCon = fromDefOrCon ; fromDef = fromDefOrCon  }
+  FromVarTerm : FromVar
+  FromVarTerm = record { fromVar = fromVar }
     where
-      fromVar : ℕ → ℕ → ∃ PsTerm
+      fromVar : (depth index : ℕ) → ∃ PsTerm
       fromVar  d i with compare d i
       fromVar  d .(suc (d + k)) | less    .d k = (0     , con (tvar (-[1+ k ])) [])
       fromVar .i i              | equal   .i   = (1     , var zero)
       fromVar .(suc (i + k)) i  | greater .i k = (suc k , var (Fin.fromℕ k))
 
-  CaseGoal : Case
-  CaseGoal = record { fromVar = fromVar′ ; fromCon = fromDefOrCon ; fromDef = fromDefOrCon }
+  FromVarGoal : FromVar
+  FromVarGoal = record { fromVar = fromVar′ }
     where
-      fromVar′ : ℕ → ℕ → ∃ PsTerm
+      fromVar′ : (depth index : ℕ) → ∃ PsTerm
       fromVar′  d i with compare d i
       fromVar′  d .(suc (d + k)) | less    .d k = (0 , con (tvar (-[1+ k ])) [])
       fromVar′ .i i              | equal   .i   = (0 , con (tvar (+ 0)) [])
@@ -134,16 +132,16 @@ module Auto where
   second : ∀ {A B C : Set} → (B → C) → A × B → A × C
   second f (x , y) = (x , f y)
 
-  splitTerm : ∀ {n} → PsTerm n → ∃ (λ k → Vec (PsTerm n) (suc k))
-  splitTerm (con pimpl (t₁ ∷ t₂ ∷ [])) = Prod.map suc (λ ts → t₁ ∷ ts) (splitTerm t₂)
+  splitTerm : ∀ {n} → PsTerm n → ∃[ k ] Vec (PsTerm n) (suc k)
+  splitTerm (con impl (t₁ ∷ t₂ ∷ [])) = Prod.map suc (λ ts → t₁ ∷ ts) (splitTerm t₂)
   splitTerm t = zero , t ∷ []
 
   mutual
-    convertTerm : Case → ℕ → AgTerm → Error (∃ PsTerm)
-    convertTerm dict d (var i [])   = pure (Case.fromVar dict d i)
+    convertTerm : FromVar → ℕ → AgTerm → Error (∃ PsTerm)
+    convertTerm dict d (var i [])   = right (FromVar.fromVar dict d i)
     convertTerm dict d (var i args) = left unsupportedSyntax
-    convertTerm dict d (con c args) = Case.fromCon dict c ⟨$⟩ convertArgs dict d args
-    convertTerm dict d (def f args) = Case.fromDef dict f ⟨$⟩ convertArgs dict d args
+    convertTerm dict d (con c args) = fromDefOrCon c <$> convertArgs dict d args
+    convertTerm dict d (def f args) = fromDefOrCon f <$> convertArgs dict d args
     convertTerm dict d (pi (arg visible _ (el _ t₁)) (el _ t₂))
       with convertTerm dict d t₁ | convertTerm dict (suc d) t₂
     ... | left msg | _        = left msg
@@ -156,26 +154,26 @@ module Auto where
     convertTerm dict d (sort x)  = left unsupportedSyntax
     convertTerm dict d unknown   = left unsupportedSyntax
 
-    convertArgs : Case → ℕ → List (Arg AgTerm) → Error (∃ (λ n → List (PsTerm n)))
+    convertArgs : FromVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
     convertArgs dict d [] = right (0 , [])
     convertArgs dict d (arg visible _ t ∷ ts) with convertTerm dict d t | convertArgs dict d ts
     ... | left msg       | _              = left msg
     ... | _              | left msg       = left msg
     ... | right (m , p)  | right (n , ps) with match p ps
     ... | (p′ , ps′)                      = right (m ⊔ n , p′ ∷ ps′)
-    convertArgs dict d (arg _ _ _ ∷ ts) = convertArgs dict d ts
+    convertArgs dict d (arg _ _ _ ∷ ts)   = convertArgs dict d ts
 
   toTerm : AgTerm → Error (∃ PsTerm)
-  toTerm t = convertTerm CaseTerm 0 t
+  toTerm t = convertTerm FromVarTerm 0 t
 
-  toGoalAndPremises : AgTerm → Error (∃ PsTerm × Rules)
-  toGoalAndPremises t with convertTerm CaseGoal 0 t
+  toGoalAndPremises : AgTerm → Error (∃ PsTerm × HintDB)
+  toGoalAndPremises t with convertTerm FromVarGoal 0 t
   ... | left msg            = left msg
   ... | right (n , p)       with splitTerm p
   ... | (k , ts)            with initLast ts
   ... | (prems , goal , _)  = right ((n , goal) , toPremises 0 prems)
     where
-      toPremises : ∀ {k} → ℕ → Vec (PsTerm n) k → Rules
+      toPremises : ∀ {k} → ℕ → Vec (PsTerm n) k → HintDB
       toPremises i [] = []
       toPremises i (t ∷ ts) = (n , rule (rvar i) t []) ∷ toPremises (suc i) ts
 
@@ -213,25 +211,6 @@ module Auto where
   quoteError : Message → AgTerm
   quoteError (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
   quoteError (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
-
-  HintDB : Set
-  HintDB = List (∃ Rule)
-
-  all : {A : Set} {P : A -> Set} -> List A -> Set
-  all [] = ⊤
-  all {P = P} (x ∷ xs) = P x × all {P = P} xs
-
-  isRight : {A B : Set} -> Either A B -> Set
-  isRight (left _)   = ⊥
-  isRight (right _)  = ⊤
-
-  fromRight : {A : Set} -> (x : Error A) -> {p : isRight x} -> A
-  fromRight (left x) {()}
-  fromRight (right y) = y
-
-  hintdb : (nms : List Name) → {p : all {Name} {\nm -> isRight (toRule nm)} nms} -> HintDB
-  hintdb [] = []
-  hintdb (nm ∷ nms) {p , ps} = (fromRight (toRule nm) {p}) ∷ hintdb nms {ps}
 
   infixl 5 _<<_
 
