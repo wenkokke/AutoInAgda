@@ -107,12 +107,12 @@ module Auto where
   fromDefOrCon : (s : Name) → ∃[ n ] List (PsTerm n) → ∃ PsTerm
   fromDefOrCon f (n , ts) = n , con (name f) ts
 
-  record FromVar : Set where
+  record ConvertVar : Set where
     field
       fromVar : (depth index : ℕ) → ∃ PsTerm
 
-  FromVarTerm : FromVar
-  FromVarTerm = record { fromVar = fromVar }
+  ConvertVar4Term : ConvertVar
+  ConvertVar4Term = record { fromVar = fromVar }
     where
       fromVar : (depth index : ℕ) → ∃ PsTerm
       fromVar  d i with compare d i
@@ -120,8 +120,8 @@ module Auto where
       fromVar .i i              | equal   .i   = (1     , var zero)
       fromVar .(suc (i + k)) i  | greater .i k = (suc k , var (Fin.fromℕ k))
 
-  FromVarGoal : FromVar
-  FromVarGoal = record { fromVar = fromVar′ }
+  ConvertVar4Goal : ConvertVar
+  ConvertVar4Goal = record { fromVar = fromVar′ }
     where
       fromVar′ : (depth index : ℕ) → ∃ PsTerm
       fromVar′  d i with compare d i
@@ -132,44 +132,44 @@ module Auto where
   second : ∀ {A B C : Set} → (B → C) → A × B → A × C
   second f (x , y) = (x , f y)
 
-  splitTerm : ∀ {n} → PsTerm n → ∃[ k ] Vec (PsTerm n) (suc k)
-  splitTerm (con impl (t₁ ∷ t₂ ∷ [])) = Prod.map suc (λ ts → t₁ ∷ ts) (splitTerm t₂)
-  splitTerm t = zero , t ∷ []
+  split : ∀ {n} → PsTerm n → ∃[ k ] Vec (PsTerm n) (suc k)
+  split (con impl (t₁ ∷ t₂ ∷ [])) = Prod.map suc (λ ts → t₁ ∷ ts) (split t₂)
+  split t = zero , t ∷ []
 
   mutual
-    convertTerm : FromVar → ℕ → AgTerm → Error (∃ PsTerm)
-    convertTerm dict d (var i [])   = right (FromVar.fromVar dict d i)
-    convertTerm dict d (var i args) = left unsupportedSyntax
-    convertTerm dict d (con c args) = fromDefOrCon c <$> convertArgs dict d args
-    convertTerm dict d (def f args) = fromDefOrCon f <$> convertArgs dict d args
-    convertTerm dict d (pi (arg visible _ (el _ t₁)) (el _ t₂))
-      with convertTerm dict d t₁ | convertTerm dict (suc d) t₂
+    convert : ConvertVar → (depth : ℕ) → AgTerm → Error (∃ PsTerm)
+    convert dict d (var i [])   = right (ConvertVar.fromVar dict d i)
+    convert dict d (var i args) = left unsupportedSyntax
+    convert dict d (con c args) = fromDefOrCon c <$> convertChildren dict d args
+    convert dict d (def f args) = fromDefOrCon f <$> convertChildren dict d args
+    convert dict d (pi (arg visible _ (el _ t₁)) (el _ t₂))
+      with convert dict d t₁ | convert dict (suc d) t₂
     ... | left msg | _        = left msg
     ... | _        | left msg = left msg
     ... | right (n₁ , p₁) | right (n₂ , p₂)
       with match p₁ p₂
     ... | (p₁′ , p₂′) = right (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
-    convertTerm dict d (pi (arg _ _ _) (el _ t₂)) = convertTerm dict (suc d) t₂
-    convertTerm dict d (lam v t) = left unsupportedSyntax
-    convertTerm dict d (sort x)  = left unsupportedSyntax
-    convertTerm dict d unknown   = left unsupportedSyntax
+    convert dict d (pi (arg _ _ _) (el _ t₂)) = convert dict (suc d) t₂
+    convert dict d (lam v t) = left unsupportedSyntax
+    convert dict d (sort x)  = left unsupportedSyntax
+    convert dict d unknown   = left unsupportedSyntax
 
-    convertArgs : FromVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
-    convertArgs dict d [] = right (0 , [])
-    convertArgs dict d (arg visible _ t ∷ ts) with convertTerm dict d t | convertArgs dict d ts
+    convertChildren : ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
+    convertChildren dict d [] = right (0 , [])
+    convertChildren dict d (arg visible _ t ∷ ts) with convert dict d t | convertChildren dict d ts
     ... | left msg       | _              = left msg
     ... | _              | left msg       = left msg
     ... | right (m , p)  | right (n , ps) with match p ps
     ... | (p′ , ps′)                      = right (m ⊔ n , p′ ∷ ps′)
-    convertArgs dict d (arg _ _ _ ∷ ts)   = convertArgs dict d ts
+    convertChildren dict d (arg _ _ _ ∷ ts)   = convertChildren dict d ts
 
-  toTerm : AgTerm → Error (∃ PsTerm)
-  toTerm t = convertTerm FromVarTerm 0 t
+  agda2term : AgTerm → Error (∃ PsTerm)
+  agda2term t = convert ConvertVar4Term 0 t
 
-  toGoalAndPremises : AgTerm → Error (∃ PsTerm × HintDB)
-  toGoalAndPremises t with convertTerm FromVarGoal 0 t
+  agda2goal+premises : AgTerm → Error (∃ PsTerm × HintDB)
+  agda2goal+premises t with convert ConvertVar4Goal 0 t
   ... | left msg            = left msg
-  ... | right (n , p)       with splitTerm p
+  ... | right (n , p)       with split p
   ... | (k , ts)            with initLast ts
   ... | (prems , goal , _)  = right ((n , goal) , toPremises 0 prems)
     where
@@ -177,13 +177,13 @@ module Auto where
       toPremises i [] = []
       toPremises i (t ∷ ts) = (n , rule (rvar i) t []) ∷ toPremises (suc i) ts
 
-  fromName : Name → Error (∃ PsTerm)
-  fromName = toTerm ∘ unel ∘ type
+  name2term : Name → Error (∃ PsTerm)
+  name2term = agda2term ∘ unel ∘ type
 
-  toRule : Name → Error (∃ Rule)
-  toRule nm with fromName nm
+  name2rule : Name → Error (∃ Rule)
+  name2rule nm with name2term nm
   ... | left msg             = left msg
-  ... | right (n , t)        with splitTerm t
+  ... | right (n , t)        with split t
   ... | (k , ts)             with initLast ts
   ... | (prems , concl , _)  = right (n , rule (name nm) concl (toList prems))
 
@@ -215,13 +215,13 @@ module Auto where
   infixl 5 _<<_
 
   _<<_ : HintDB → Name → HintDB
-  db << n with toRule n
+  db << n with name2rule n
   db << n | left msg = db
   db << n | right r  = db ++ [ r ]
 
   auto : ℕ → HintDB → AgTerm → AgTerm
   auto depth rules type
-    with toGoalAndPremises type
+    with agda2goal+premises type
   ... | left msg = quoteError msg
   ... | right ((n , g) , args)
     with dfs depth (solve g (args ++ rules))
