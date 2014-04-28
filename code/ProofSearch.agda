@@ -15,7 +15,7 @@ open import Algebra as Alg using (CommutativeSemiring)
 open import Category.Monad as Mon using (RawMonad)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary as Rel using (StrictTotalOrder)
-open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; trans; cong; cong₂)
+open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; sym; trans; cong; cong₂)
 
 module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y)) where
 
@@ -45,11 +45,13 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
   arity : ∀ {n} (r : Rule n) → ℕ
   arity = length ∘ premises
 
-  -- compute difference from ≤
-  diff : ∀ {m n} → m ≤ n → ∃[ k ] n ≡ m + k
-  diff  z≤n    = _ , refl
-  diff (s≤s p) = Prod.map id (cong suc) (diff p)
+  Δ_ : ∀ {m n} → m ≤ n → ℕ
+  Δ z≤n {k} = k
+  Δ s≤s  p  = Δ p
 
+  Δ-correct : ∀ {m n} (p : m ≤ n) → n ≡ m + Δ p
+  Δ-correct  z≤n    = refl
+  Δ-correct (s≤s p) = cong suc (Δ-correct p)
 
   -- type class for injections in the fashion of Fin.inject+
   record Inject (T : ℕ → Set) : Set where
@@ -57,8 +59,7 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
       inject : ∀ {m} n → T m → T (m + n)
 
     inject≤ : ∀ {m n} → m ≤ n → T m → T n
-    inject≤ p t with diff p
-    ... | k , n=m+k rewrite n=m+k = inject k t
+    inject≤ {m} {n} p t = P.subst T (sym (Δ-correct p)) (inject (Δ p) t)
 
   open Inject {{...}} using (inject; inject≤)
 
@@ -69,8 +70,7 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
       raise : ∀ {m} n → T m → T (n + m)
 
     raise≤ : ∀ {m n} → m ≤ n → T m → T n
-    raise≤ {m} {n} p t with diff p
-    ... | k , n=m+k rewrite n=m+k | +-comm m k = raise k t
+    raise≤ {m} {n} p t = P.subst T (sym (trans (Δ-correct p) (+-comm m (Δ p)))) (raise (Δ p) t)
 
   open Raise {{...}} using (raise; raise≤)
 
