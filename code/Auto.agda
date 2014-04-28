@@ -24,13 +24,15 @@ module Auto where
     syntax ∃-syntax (λ x → B) = ∃[ x ] B
 
 
-  -- define our own instance of the error monad, based on the either
-  -- monad, and use it to propagate one of several error messages
-
+  -- define error messages that may occur when the `auto` function is
+  -- called.
   data Message : Set where
     searchSpaceExhausted : Message
     unsupportedSyntax    : Message
 
+
+  -- define our own instance of the error monad, based on the either
+  -- monad, and use it to propagate one of several error messages
   private
     Error : ∀ {a} (A : Set a) → Set a
     Error A = Message ⊎ A
@@ -39,10 +41,10 @@ module Auto where
     f <$> inj₁ x = inj₁ x
     f <$> inj₂ y = inj₂ (f y)
 
+
   -- define term names for the term language we'll be using for proof
   -- search; we use standard Agda names, together with term-variables
   -- and Agda implications/function types.
-
   data TermName : Set where
     name : (n : Name) → TermName
     tvar : (i : ℤ) → TermName
