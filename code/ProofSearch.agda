@@ -45,10 +45,14 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
   arity : ∀ {n} (r : Rule n) → ℕ
   arity = length ∘ premises
 
+
+  -- compute the difference between two natural numbers, given an
+  -- ordering between them.
   Δ_ : ∀ {m n} → m ≤ n → ℕ
   Δ z≤n {k} = k
   Δ s≤s  p  = Δ p
 
+  -- correctness proof of the difference operator Δ.
   Δ-correct : ∀ {m n} (p : m ≤ n) → n ≡ m + Δ p
   Δ-correct  z≤n    = refl
   Δ-correct (s≤s p) = cong suc (Δ-correct p)
