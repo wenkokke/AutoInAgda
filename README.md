@@ -1,7 +1,5 @@
 ## Auto In Agda
 
-*Note: the version submitted to ICFP 2014 is available [here](https://github.com/pepijnkokke/AutoInAgda/tree/1.0.0)*
-
 #### Abstract
 
 > As proofs in type theory become increasingly complex, there is a
