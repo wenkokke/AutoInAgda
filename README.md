@@ -21,12 +21,8 @@ The `code` sub-directory contains the Agda source code.
 
 Some notes:
 
-  - the code was written for use with [version 0.7 of the Agda standard
-    library](http://www.cse.chalmers.se/~nad/software/lib-0.7.tar.gz);
-
-  - a version for use with [the development version of the standard library] (
-    https://github.com/agda/agda-stdlib) is kept in the [devel](
-    https://github.com/pepijnkokke/AutoInAgda/tree/devel) branch;
+  - the code was written for use with [version 2.4.0 of the Agda standard
+    library](https://github.com/agda/agda-stdlib/releases/tag/v2.4.0);
 
   - the code is released under an [MIT license](code/LICENSE);
 
