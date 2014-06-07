@@ -134,26 +134,26 @@ module Auto where
     convert dict d (var i args) = inj₁ unsupportedSyntax
     convert dict d (con c args) = fromDefOrCon c <$> convertChildren dict d args
     convert dict d (def f args) = fromDefOrCon f <$> convertChildren dict d args
-    convert dict d (pi (arg visible _ (el _ t₁)) (el _ t₂))
+    convert dict d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
       with convert dict d t₁ | convert dict (suc d) t₂
     ... | inj₁ msg | _        = inj₁ msg
     ... | _        | inj₁ msg = inj₁ msg
     ... | inj₂ (n₁ , p₁) | inj₂ (n₂ , p₂)
       with match p₁ p₂
     ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
-    convert dict d (pi (arg _ _ _) (el _ t₂)) = convert dict (suc d) t₂
+    convert dict d (pi (arg _ _) (el _ t₂)) = convert dict (suc d) t₂
     convert dict d (lam v t) = inj₁ unsupportedSyntax
     convert dict d (sort x)  = inj₁ unsupportedSyntax
     convert dict d unknown   = inj₁ unsupportedSyntax
 
     convertChildren : ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
     convertChildren dict d [] = inj₂ (0 , [])
-    convertChildren dict d (arg visible _ t ∷ ts) with convert dict d t | convertChildren dict d ts
+    convertChildren dict d (arg (arg-info visible _) t ∷ ts) with convert dict d t | convertChildren dict d ts
     ... | inj₁ msg      | _              = inj₁ msg
     ... | _             | inj₁ msg       = inj₁ msg
     ... | inj₂ (m , p)  | inj₂ (n , ps) with match p ps
     ... | (p′ , ps′)                      = inj₂ (m ⊔ n , p′ ∷ ps′)
-    convertChildren dict d (arg _ _ _ ∷ ts)   = convertChildren dict d ts
+    convertChildren dict d (arg _ _ ∷ ts)   = convertChildren dict d ts
 
 
   -- convert an Agda term to a rule-term.
@@ -220,7 +220,7 @@ module Auto where
     reifyChildren (p ∷ ps) = toArg (reify p) ∷ reifyChildren ps
       where
         toArg : AgTerm → Arg AgTerm
-        toArg = arg visible relevant
+        toArg = arg (arg-info visible relevant)
 
 
   -- data-type `Exception` which is used to unquote error messages to
