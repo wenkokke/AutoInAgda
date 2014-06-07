@@ -57,23 +57,9 @@ module Auto.Example where
   -- THIS EXAMPLE BEHAVES RIDICULOUSLY!
   even+ind : ∀ {n m} → Even n → Even m → Even (n + m)
   even+ind {0} (isEven0) = quoteGoal g in unquote (auto 5 [] g)
-  even+ind {suc (suc n)} {m} (isEven+2 e) = quoteGoal g in {! unquote (auto 5 hintdb g) !}
+  even+ind {suc (suc n)} {m} (isEven+2 e) = quoteGoal g in {! unquote (auto 50 hintdb g) !}
     where
       even-n : Even n
       even-n = e
       hintdb : HintDB
       hintdb = [] << quote isEven+2 << quote even+ind << quote even-n
-
-  -- DETAILS:
-  --
-  -- C-c C-n:
-  --     λ z → isEven+2 (even+ind e z)
-  --
-  -- C-c C-SPC:
-  --
-  --     ACCEPTS DEFINITION
-  --
-  -- C-c C-l:
-  --
-  --     REJECTS DEFINITION
-  --
