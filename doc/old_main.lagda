@@ -59,7 +59,7 @@ Agda's reflection mechanism~\cite{agda-relnotes-228,van-der-walt}, developers ca
 powerful automatic decision procedures~\cite{allais}. Unfortunately,
 not all proofs are easily automated in this fashion. In that case,
 the user is forced to interact with the integrated development
-environment and manually construct a proof term step by step. 
+environment and manually construct a proof term step by step.
 
 This paper tries to combine the best of both worlds by implementing a
 library for proof search \emph{within} Agda itself. More specifically,
@@ -514,7 +514,7 @@ abstract search space.
           → SearchSpace m
 \end{code}
 Ignoring the indices for the moment, the |SearchSpace| type has three
-constructors: |fail|, |retn| and |step|. 
+constructors: |fail|, |retn| and |step|.
 The |fail| constructor is used to mark branches of the search space
 that fail, i.e.,\ where the selected rule is not unifiable with the
 current goal.
@@ -564,7 +564,7 @@ next open sub-goal -- and thus the accumulating parameter has become
 |nothing| -- the search will fail. The interesting case is the third
 one. If there are remaining goals to resolve, we recursively construct
 a new |SearchSpace|. To do so, we use the |step| constructor and
-branch over the choice of rule. The locally defined |next| function 
+branch over the choice of rule. The locally defined |next| function
 computes the remainder of the |SearchSpace| after trying to apply a
 given rule:
 \begin{code}
@@ -595,7 +595,7 @@ For the moment, try to ignore the various calls to |raise| and
 function computes most general unifier of the conclusion of |rule| and
 our current |goal|. The resulting substitution is passed to
 |resolveAcc|, which continues the construction of the
-|SearchSpace|. 
+|SearchSpace|.
 The prefix operator |♯| creates a coinductive suspension, that may
 later be forced.
 The premises of the |rule| are added to the list of
@@ -677,7 +677,7 @@ parameter:
     go fail      _    = fail
     go (retn s)  acc  = retn ((_ , (_ , s)) , acc)
     go (step f)  acc  =
-      fork (map (λ r → ♯ go (♭ f r) (acc ∷ʳ r)) rules)
+R      fork (map (λ r → ♯ go (♭ f r) (acc ∷ʳ r)) rules)
 \end{code}
 Note that we accumulate the trace of rules applied in the order in
 which they are applied: new rules are added to the end of the list
@@ -847,7 +847,7 @@ The |pvar| constructor describes locally bound variables, represented by
 their De Bruijn index. Note that the |pvar| constructor has nothing to
 do with |PrologTerm|'s |var| constructor: it is not used to construct
 a Prolog variable, but rather to be able to refer to a local variable
-as a Prolog constant. 
+as a Prolog constant.
 Finally, |pimpl| explicitly represents the Agda
 function space.
 
