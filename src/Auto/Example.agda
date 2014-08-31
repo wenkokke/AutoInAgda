@@ -54,12 +54,10 @@ module Auto.Example where
   fail₂ : unquote (auto 5 hints goal₂) ≡ throw unsupportedSyntax
   fail₂ = refl
 
-  -- THIS EXAMPLE BEHAVES RIDICULOUSLY!
+  -- An internal error has occurred. Please report this as a bug.
+  -- Location of the error:
+  -- src/full/Agda/TypeChecking/Reduce/Monad.hs:158
   even+ind : ∀ {n m} → Even n → Even m → Even (n + m)
   even+ind {0} (isEven0) = quoteGoal g in unquote (auto 5 [] g)
-  even+ind {suc (suc n)} {m} (isEven+2 e) = quoteGoal g in {! unquote (auto 50 hintdb g) !}
-    where
-      even-n : Even n
-      even-n = e
-      hintdb : HintDB
-      hintdb = [] << quote isEven+2 << quote even+ind << quote even-n
+  even+ind {suc (suc n)} {m} (isEven+2 e) =
+    quoteGoal g in quoteContext c in {!unquote (auto 5 (compile c << quote isEven+2) g)!}

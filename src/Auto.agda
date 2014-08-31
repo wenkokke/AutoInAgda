@@ -1,5 +1,5 @@
 open import Level using (Level)
-open import Function using (_∘_; id)
+open import Function using (_∘_; id; flip)
 open import Data.Fin as Fin using (fromℕ)
 open import Data.Nat as Nat using (ℕ; suc; zero; _+_; _⊔_; decTotalOrder)
 open import Data.List as List using (List; []; _∷_; [_]; concatMap; _++_; length; map)
@@ -242,6 +242,9 @@ module Auto where
   db << n with name2rule n
   db << n | inj₁ msg = db
   db << n | inj₂ r   = db ++ [ r ]
+
+  compile : List Name → HintDB
+  compile = List.foldr (flip _<<_) []
 
 
   -- embedded `auto` tactic for computing Agda functions.
