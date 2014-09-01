@@ -1,7 +1,7 @@
 open import Function using (_∘_)
 open import Data.Nat as Nat using (ℕ; suc; zero)
 open import Data.Fin as Fin using (Fin; suc; zero)
-open import Data.Fin.Props as FinProps renaming (_≟_ to _≟-Fin_)
+open import Data.Fin.Properties as FinProps renaming (_≟_ to _≟-Fin_)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; monad)
 open import Data.List as List using (List; _∷_; []; monad)
 open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)

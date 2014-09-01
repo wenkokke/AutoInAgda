@@ -298,8 +298,8 @@
 
 \begin{document}
 
-\conferenceinfo{ICFP'14} {September 1--3, 2014, G\"oteborg, Sweden}
-\titlebanner{Under preparation for ICFP 2014}
+\conferenceinfo{CPP'15} {January 12--14, 2015, Mumbai, India}
+\titlebanner{Under preparation for CPP 2015}
 
 \title{Auto in Agda}
 \subtitle{Programming proof search}
@@ -322,6 +322,7 @@
   Agda's instance arguments to implement type classes in the style of
   Haskell. As a result, writing proof automation tactics need not be
   different from writing any other program.
+
 \end{abstract}
 
 \section{Introduction}
@@ -381,7 +382,7 @@ this paper makes the several novel contributions.
 \item %
   Finally, we show how we can use our proof search together with
   Agda's \emph{instance arguments}~\cite{instance-args} to implement
-  lightweight type classes in Agda (Section~\ref{sec:type-classes}).
+  lightweight type classes in Agda (Section~\ref{sec:typeclasses}).
   This resolves one of the major restrictions of instance arguments:
   the lack of a recursive search procedure for their construction.
 \end{itemize}
@@ -401,7 +402,11 @@ is written in the safe fragment of Agda: it does not depend on any
 postulates or foreign functions; all definitions pass Agda's
 termination checker; and all metavariables are resolved.
 
-
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-command-default: "rake"
+%%% End:
 \section{Motivation}
 \label{sec:motivation}
 
@@ -640,8 +645,11 @@ diagnosing why no proof could be found.
 The remainder of this paper will explain how this \ensuremath{\Varid{auto}} function is
 implemented.
 
-
-
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-command-default: "rake"
+%%% End:
 \section{Proof search in Agda}
 \label{sec:prolog}
 
@@ -652,8 +660,8 @@ types will be referred to as \ensuremath{\Conid{RuleName}} and \ensuremath{\Coni
 instantiated with types (with the same names) in
 section~\ref{sec:reflection}.
 
-\subsection*{Terms and unification}
 
+\subsection*{Terms and unification}
 The heart of our proof search implementation is the structurally
 recursive unification algorithm described by~\citet{unification}. Here
 the type of terms is indexed by the number of variables a given term
@@ -774,15 +782,25 @@ substitution to \ensuremath{\Varid{t₁}} and \ensuremath{\Varid{t₂}} before a
 \end{hscode}\resethooks
 
 
+\subsection*{Inference rules}
+\subsection*{Constructing the search tree}
+\subsection*{Searching for proofs}
 
-
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-command-default: "rake"
+%%% End:
 \section{Adding reflection}
 \label{sec:reflection}
 
-
-
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-command-default: "rake"
+%%% End:
 \section{Type classes}
-\label{sec:type-classes}
+\label{sec:typeclasses}
 
 As a final application of our proof search algorithm, we show how it
 can be used to implement a \emph{type classes} in the style of
@@ -935,6 +953,11 @@ desire.
 While deceptively simple, this example illustrates how \emph{useful}
 it can be to have even a little automation.
 
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-command-default: "rake"
+%%% End:
 \section{Discussion}
 \label{sec:discussion}
 
@@ -1150,6 +1173,13 @@ distinguish the discipline of \emph{programming} from the
 % of automation, and if that fails try something else.
 
 % This is the way forward for proof automation.
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% TeX-command-default: "rake"
+%%% End:
 
 \paragraph{Acknowledgements}
 We would like to thank the Software Technology Reading Club at the

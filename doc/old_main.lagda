@@ -89,7 +89,7 @@ this paper makes the several novel contributions.
 \item %
   Finally, we show how we can use our proof search together with
   Agda's \emph{instance arguments}~\cite{instance-args} to implement
-  lightweight type classes in Agda (Section~\ref{sec:type-classes}).
+  lightweight type classes in Agda (Section~\ref{sec:typeclasses}).
   This resolves one of the major restrictions of instance arguments:
   the lack of a recursive search procedure for their construction.
 \end{itemize}
@@ -1255,7 +1255,7 @@ search.
 
 
 \section{Type classes}
-\label{sec:type-classes}
+\label{sec:typeclasses}
 
 As a final application of our proof search algorithm, we show how it
 can be used to implement a \emph{type classes} in the style of
