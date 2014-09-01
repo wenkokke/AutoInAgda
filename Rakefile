@@ -1,21 +1,26 @@
 require 'rake/clean'
 
+PaperDir = 'doc'
 PaperFiles = FileList[
-  'paper/main.tex'     ,
-  'paper/main.bib'     ,
-  'paper/preamble.tex' ]
+  "#{PaperDir}/main.tex"     ,
+  "#{PaperDir}/intro.tex"    ,
+  "#{PaperDir}/main.bib"     ,
+  "#{PaperDir}/preamble.tex" ]
+
 
 desc "Compile and open the paper"
 task :default => :build do
-  system "open paper/main.pdf"
+  system "open #{PaperDir}/main.pdf"
 end
 
-desc "Compile the paper"
-task :build => 'paper/main.pdf'
 
 desc "Compile the paper"
-file 'paper/main.pdf' => PaperFiles do
-  Dir.chdir('paper') do
+task :build => "#{PaperDir}/main.pdf"
+
+
+desc "Compile the paper"
+file "#{PaperDir}/main.pdf" => PaperFiles do
+  Dir.chdir(PaperDir) do
 
     system "pdflatex main.tex"
     if $?.success?
@@ -28,6 +33,7 @@ file 'paper/main.pdf' => PaperFiles do
 
   end
 end
+
 
 desc "Compile literate Agda to TeX (and remove implicits)"
 rule '.tex' => [ '.lagda' , '.fmt' ] do |t|
@@ -56,4 +62,4 @@ TempCodePats   = ['*.agdai']
 TempCodeFiles  = FileList.new(TempCodePats.map { |fn| File.join('code',fn) })
 
 CLEAN.include(TempPaperFiles,TempCodeFiles)
-CLOBBER.include('paper/main.pdf')
+CLOBBER.include('#{PaperDir}/main.pdf')
