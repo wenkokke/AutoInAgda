@@ -4,7 +4,7 @@ open import Coinduction using (∞; ♯_; ♭)
 open import Data.Nat as Nat using (ℕ; suc; zero; _≤_; z≤n; s≤s; decTotalOrder)
 open import Data.Nat.Properties as NatProps using (commutativeSemiring; distributiveLattice)
 open import Data.Fin as Fin using (Fin; suc; zero)
-open import Data.Fin.Props as FinProps renaming (_≟_ to _≟-Fin_)
+open import Data.Fin.Properties as FinProps renaming (_≟_ to _≟-Fin_)
 open import Data.Maybe as Maybe using (Maybe; just; nothing; monad)
 open import Data.List as List using (List; _∷_; []; _++_; length; concat; map; foldr; concatMap; monad)
 open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)
@@ -17,19 +17,25 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary as Rel using (StrictTotalOrder)
 open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; sym; trans; cong; cong₂)
 
-module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y)) where
+module ProofSearch
+  (RuleName : Set)
+  (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y))
+  (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y))
+  where
 
-  open Alg.CommutativeSemiring {{...}} using (_+_; +-comm; +-assoc)
-  open Alg.DistributiveLattice {{...}} using (_∧_; ∧-comm)
-  open Rel.DecTotalOrder {{...}} using (total)
+  open Alg.CommutativeSemiring NatProps.commutativeSemiring using (_+_; +-comm; +-assoc)
+  open Alg.DistributiveLattice NatProps.distributiveLattice using (_∧_; ∧-comm)
+  open Rel.DecTotalOrder Nat.decTotalOrder using (total)
   open Mon.RawMonad {{...}} using (return; _>>=_)
-  open import Unification TermName _≟-TermName_ public hiding (_++_)
+  open import Unification TermName _≟-TermName_ Literal _≟-Literal_ public hiding (_++_)
 
   private
     ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b ⊔ a)
     ∃-syntax = ∃
     syntax ∃-syntax (λ x → B) = ∃[ x ] B
 
+    instance
+      ListMonad = List.monad
 
   -- introduce rules
   record Rule (n : ℕ) : Set where
@@ -80,26 +86,27 @@ module ProofSearch (RuleName : Set) (TermName : Set) (_≟-TermName_ : (x y : Te
 
 
   -- instances for inject/raise for all used data types
-  InjectFin   : Inject Fin
-  InjectFin   = record { inject = Fin.inject+ }
-  RaiseFin    : Raise  Fin
-  RaiseFin    = record { raise  = Fin.raise }
-  InjectTerm  : Inject Term
-  InjectTerm  = record { inject = λ n → replace (var ∘ inject n) }
-  RaiseTerm   : Raise  Term
-  RaiseTerm   = record { raise  = λ m → replace (var ∘ raise m) }
-  InjectTerms : Inject (List ∘ Term)
-  InjectTerms = record { inject = λ n → List.map (inject n) }
-  RaiseTerms  : Raise  (List ∘ Term)
-  RaiseTerms  = record { raise  = λ m → List.map (raise m) }
-  InjectGoals : ∀ {k} → Inject (λ n → Vec (Term n) k)
-  InjectGoals = record { inject = λ n → Vec.map (inject n) }
-  RaiseGoals  : ∀ {k} → Raise (λ n → Vec (Term n) k)
-  RaiseGoals  = record { raise  = λ m → Vec.map (raise m) }
-  InjectRule  : Inject Rule
-  InjectRule  = record { inject = λ n → λ { (rule nm c p) → rule nm (inject n c) (inject n p) } }
-  RaiseRule   : Raise Rule
-  RaiseRule   = record { raise  = λ m → λ { (rule nm c p) → rule nm (raise m c) (raise m p) } }
+  instance
+    InjectFin   : Inject Fin
+    InjectFin   = record { inject = Fin.inject+ }
+    RaiseFin    : Raise  Fin
+    RaiseFin    = record { raise  = Fin.raise }
+    InjectTerm  : Inject Term
+    InjectTerm  = record { inject = λ n → replace (var ∘ inject n) }
+    RaiseTerm   : Raise  Term
+    RaiseTerm   = record { raise  = λ m → replace (var ∘ raise m) }
+    InjectTerms : Inject (List ∘ Term)
+    InjectTerms = record { inject = λ n → List.map (inject n) }
+    RaiseTerms  : Raise  (List ∘ Term)
+    RaiseTerms  = record { raise  = λ m → List.map (raise m) }
+    InjectGoals : ∀ {k} → Inject (λ n → Vec (Term n) k)
+    InjectGoals = record { inject = λ n → Vec.map (inject n) }
+    RaiseGoals  : ∀ {k} → Raise (λ n → Vec (Term n) k)
+    RaiseGoals  = record { raise  = λ m → Vec.map (raise m) }
+    InjectRule  : Inject Rule
+    InjectRule  = record { inject = λ n → λ { (rule nm c p) → rule nm (inject n c) (inject n p) } }
+    RaiseRule   : Raise Rule
+    RaiseRule   = record { raise  = λ m → λ { (rule nm c p) → rule nm (raise m c) (raise m p) } }
 
   -- could rephrase inject/raise in terms of allowing modification by
   -- a function ℕ → ℕ, but really... why would I... it makes all the

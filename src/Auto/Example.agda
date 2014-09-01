@@ -31,16 +31,16 @@ module Auto.Example where
   hints = [] << quote isEven0 << quote isEven+2 << quote even+
 
   test₁ : Even 4
-  test₁ = quoteGoal g in unquote (auto 5 hints g)
+  test₁ = tactic (auto 5 hints)
 
   test₂ : ∀ {n} → Even n → Even (n + 2)
-  test₂ = quoteGoal g in unquote (auto 5 hints g)
+  test₂ = tactic (auto 5 hints)
 
   test₃ : ∀ {n} → Even n → Even (suc (suc (suc (suc n))))
-  test₃ = quoteGoal g in unquote (auto 5 hints g)
+  test₃ = tactic (auto 5 hints)
 
   test₄ : ∀ {n} → Even n → Even (n + 2)
-  test₄ = quoteGoal g in unquote (auto 5 hints g)
+  test₄ = tactic (auto 5 hints)
 
   -- attempting to prove an impossible goal (e.g. evenness of n + 3 for all n)
   -- will result in searchSpaceExhausted

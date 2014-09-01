@@ -15,8 +15,7 @@ open import Reflection renaming (Term to AgTerm; _≟_ to _≟-AgTerm_)
 
 module Auto where
 
-  open Rel.DecTotalOrder {{...}} using (total)
-  open Rel.DecSetoid {{...}} using (_≟_)
+  open Rel.DecTotalOrder Nat.decTotalOrder using (total)
 
   private
     ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b Level.⊔ a)
@@ -31,7 +30,7 @@ module Auto where
     unsupportedSyntax    : Message
 
 
-  -- define our own instance of the error monad, based on the either
+  -- define our own instance of the error functor based on the either
   -- monad, and use it to propagate one of several error messages
   private
     Error : ∀ {a} (A : Set a) → Set a
@@ -45,27 +44,27 @@ module Auto where
   -- define term names for the term language we'll be using for proof
   -- search; we use standard Agda names, together with term-variables
   -- and Agda implications/function types.
-  data TermName : Set where
+  data TermName : Set₀ where
     name : (n : Name) → TermName
-    tvar : (i : ℤ) → TermName
+    tvar : (i : ℤ)    → TermName
     impl : TermName
 
-  pname-inj : ∀ {x y} → name x ≡ name y → x ≡ y
-  pname-inj refl = refl
+  name-inj : ∀ {x y} → TermName.name x ≡ TermName.name y → x ≡ y
+  name-inj refl = refl
 
-  pvar-inj : ∀ {i j} → tvar i ≡ tvar j → i ≡ j
-  pvar-inj refl = refl
+  tvar-inj : ∀ {i j} → tvar i ≡ tvar j → i ≡ j
+  tvar-inj refl = refl
 
   _≟-TermName_ : (x y : TermName) → Dec (x ≡ y)
   _≟-TermName_ (name x) (name  y) with x ≟-Name y
   _≟-TermName_ (name x) (name .x) | yes refl = yes refl
-  _≟-TermName_ (name x) (name  y) | no  x≠y  = no (x≠y ∘ pname-inj)
+  _≟-TermName_ (name x) (name  y) | no  x≠y  = no (x≠y ∘ name-inj)
   _≟-TermName_ (name _) (tvar _)  = no (λ ())
   _≟-TermName_ (name _)  impl     = no (λ ())
   _≟-TermName_ (tvar _) (name _)  = no (λ ())
   _≟-TermName_ (tvar i) (tvar  j) with i ≟-Int j
   _≟-TermName_ (tvar i) (tvar .i) | yes refl = yes refl
-  _≟-TermName_ (tvar i) (tvar  j) | no i≠j = no (i≠j ∘ pvar-inj)
+  _≟-TermName_ (tvar i) (tvar  j) | no i≠j = no (i≠j ∘ tvar-inj)
   _≟-TermName_ (tvar _)  impl     = no (λ ())
   _≟-TermName_  impl    (name _)  = no (λ ())
   _≟-TermName_  impl    (tvar _)  = no (λ ())
@@ -76,12 +75,12 @@ module Auto where
   -- return/use; we'll use standard Agda names, together with rule-variables.
   data RuleName : Set where
     name : Name → RuleName
-    rvar : ℕ → RuleName
+    rvar : ℕ    → RuleName
 
 
   -- now we can load the definitions from proof search
-  open import ProofSearch RuleName TermName _≟-TermName_ as PS public
-       renaming (Term to PsTerm)
+  open import ProofSearch RuleName TermName _≟-TermName_ Literal _≟-Lit_
+       as PS public renaming (Term to PsTerm)
 
 
   -- next up, converting the terms returned by Agda's reflection
@@ -124,16 +123,25 @@ module Auto where
   fromDefOrCon f (n , ts) = n , con (name f) ts
 
 
+  -- specialised function to convert literals of natural numbers
+  -- (since they have a representation using Agda names)
+  convertℕ : ℕ → PsTerm 0
+  convertℕ  zero   = con (name (quote zero)) []
+  convertℕ (suc n) = con (name (quote suc)) (convertℕ n ∷ [])
+
+
   -- convert an Agda term to a term, abstracting over the treatment of
   -- variables with an explicit dictionary of the type `ConvertVar`---
   -- passing in `ConvertVar4Term` or `ConvertVar4Goal` will result in
   -- rule-terms or goal-terms, respectively.
   mutual
     convert : ConvertVar → (depth : ℕ) → AgTerm → Error (∃ PsTerm)
-    convert dict d (var i [])   = inj₂ (ConvertVar.fromVar dict d i)
-    convert dict d (var i args) = inj₁ unsupportedSyntax
-    convert dict d (con c args) = fromDefOrCon c <$> convertChildren dict d args
-    convert dict d (def f args) = fromDefOrCon f <$> convertChildren dict d args
+    convert dict d (lit (nat n)) = inj₂ (0 , convertℕ n)
+    convert dict d (lit l)       = inj₂ (0 , lit l)
+    convert dict d (var i [])    = inj₂ (ConvertVar.fromVar dict d i)
+    convert dict d (var i args)  = inj₁ unsupportedSyntax
+    convert dict d (con c args)  = fromDefOrCon c <$> convertChildren dict d args
+    convert dict d (def f args)  = fromDefOrCon f <$> convertChildren dict d args
     convert dict d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
       with convert dict d t₁ | convert dict (suc d) t₂
     ... | inj₁ msg | _        = inj₁ msg
@@ -142,9 +150,10 @@ module Auto where
       with match p₁ p₂
     ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
     convert dict d (pi (arg _ _) (el _ t₂)) = convert dict (suc d) t₂
-    convert dict d (lam v t) = inj₁ unsupportedSyntax
-    convert dict d (sort x)  = inj₁ unsupportedSyntax
-    convert dict d unknown   = inj₁ unsupportedSyntax
+    convert dict d (lam _ _)     = inj₁ unsupportedSyntax
+    convert dict d (pat-lam _ _) = inj₁ unsupportedSyntax
+    convert dict d (sort _)      = inj₁ unsupportedSyntax
+    convert dict d unknown       = inj₁ unsupportedSyntax
 
     convertChildren : ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
     convertChildren dict d [] = inj₂ (0 , [])
