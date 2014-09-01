@@ -33,12 +33,12 @@
 
 \end{abstract}
 
-%include intro.lagda
-%include motivation.lagda
+%%include intro.lagda
+%%include motivation.lagda
 %include prolog.lagda
-%include reflection.lagda
-%include typeclasses.lagda
-%include discussion.lagda
+%%include reflection.lagda
+%%include typeclasses.lagda
+%%include discussion.lagda
 
 \paragraph{Acknowledgements}
 We would like to thank the Software Technology Reading Club at the

@@ -1,26 +1,27 @@
 require 'rake/clean'
 
-PaperDir = 'doc'
-PaperFiles = FileList[
-  "#{PaperDir}/main.tex"     ,
-  "#{PaperDir}/intro.tex"    ,
-  "#{PaperDir}/main.bib"     ,
-  "#{PaperDir}/preamble.tex" ]
+
+DocDir = 'doc'
+DocFiles = FileList["#{DocDir}/*.lagda",
+                    "#{DocDir}/*.fmt"]
+TeXFiles = FileList["#{DocDir}/main.tex",
+                    "#{DocDir}/main.bib",
+                    "#{DocDir}/preamble.tex" ]
 
 
 desc "Compile and open the paper"
 task :default => :build do
-  system "open #{PaperDir}/main.pdf"
+  system "open #{DocDir}/main.pdf"
 end
 
 
 desc "Compile the paper"
-task :build => "#{PaperDir}/main.pdf"
+task :build => "#{DocDir}/main.pdf"
 
 
 desc "Compile the paper"
-file "#{PaperDir}/main.pdf" => PaperFiles do
-  Dir.chdir(PaperDir) do
+file "#{DocDir}/main.pdf" => TeXFiles do
+  Dir.chdir(DocDir) do
 
     system "pdflatex main.tex"
     if $?.success?
@@ -36,7 +37,7 @@ end
 
 
 desc "Compile literate Agda to TeX (and remove implicits)"
-rule '.tex' => [ '.lagda' , '.fmt' ] do |t|
+file "#{DocDir}/main.tex" => DocFiles do |t|
 
   f_abs   = File.absolute_path(t.name)
   f_lagda = f_abs.ext('.lagda')
@@ -57,9 +58,9 @@ end
 
 TempPaperPats  = ['*.log','*.ptb','*.blg','*.bbl','*.aux','*.snm',
                   '*.toc','*.nav','*.out','auto','main.tex']
-TempPaperFiles = FileList.new(TempPaperPats.map {|fn| File.join('paper',fn) })
+TempTeXFiles = FileList.new(TempPaperPats.map {|fn| File.join('paper',fn) })
 TempCodePats   = ['*.agdai']
 TempCodeFiles  = FileList.new(TempCodePats.map { |fn| File.join('code',fn) })
 
-CLEAN.include(TempPaperFiles,TempCodeFiles)
-CLOBBER.include('#{PaperDir}/main.pdf')
+CLEAN.include(TempTeXFiles,TempCodeFiles)
+CLOBBER.include('#{DocDir}/main.pdf')

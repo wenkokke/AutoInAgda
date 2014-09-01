@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.15 (TeX Live 2014) (preloaded format=pdflatex 2014.7.22)  1 SEP 2014 12:29
+This is pdfTeX, Version 3.14159265-2.6-1.40.15 (TeX Live 2014) (preloaded format=pdflatex 2014.7.22)  1 SEP 2014 22:06
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -775,87 +775,38 @@ File: t1cmss.fd 1999/05/25 v2.5h Standard LaTeX font definitions
 )
 LaTeX Font Info:    Font shape `T1/ptm/bx/n' in size <11> not available
 (Font)              Font shape `T1/ptm/b/n' tried instead on input line 313.
-LaTeX Font Info:    Try loading font information for OMS+ptm on input line 363.
 
-
-(/usr/local/texlive/2014/texmf-dist/tex/latex/psnfss/omsptm.fd
-File: omsptm.fd 
+(/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-0.def
+File: uni-0.def 2013/05/13 UCS: Unicode data U+0000..U+00FF
 )
-LaTeX Font Info:    Font shape `OMS/ptm/m/n' in size <8> not available
-(Font)              Font shape `OMS/cmsy/m/n' tried instead on input line 363.
+LaTeX Font Info:    Try loading font information for U+msa on input line 336.
 
-Underfull \vbox (badness 2735) has occurred while \output is active []
-
-
-
-LaTeX Warning: Reference `sec:proofs' on page 1 undefined on input line 374.
-
-LaTeX Font Info:    Try loading font information for U+msa on input line 398.
 (/usr/local/texlive/2014/texmf-dist/tex/latex/amsfonts/umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Try loading font information for U+msb on input line 398.
+LaTeX Font Info:    Try loading font information for U+msb on input line 336.
 
 (/usr/local/texlive/2014/texmf-dist/tex/latex/amsfonts/umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-LaTeX Font Info:    Try loading font information for U+stmry on input line 398.
+LaTeX Font Info:    Try loading font information for U+stmry on input line 336.
 
 
 (/usr/local/texlive/2014/texmf-dist/tex/latex/stmaryrd/Ustmry.fd)
-LaTeX Font Info:    Try loading font information for U+wasy on input line 398.
+LaTeX Font Info:    Try loading font information for U+wasy on input line 336.
 
 (/usr/local/texlive/2014/texmf-dist/tex/latex/wasysym/uwasy.fd
 File: uwasy.fd 2003/10/30 v2.0 Wasy-2 symbol font definitions
 )
-LaTeX Font Info:    Try loading font information for T1+cmtt on input line 400.
 
+LaTeX Warning: Reference `sec:reflection' on page 1 undefined on input line 338
+.
 
-(/usr/local/texlive/2014/texmf-dist/tex/latex/base/t1cmtt.fd
-File: t1cmtt.fd 1999/05/25 v2.5h Standard LaTeX font definitions
-) [1{/usr/local/texlive/2014/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
-
-
-
-
-]
 \openout3 = `main.ptb'.
-
 
 (/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-33.def
 File: uni-33.def 2013/05/13 UCS: Unicode data U+2100..U+21FF
 )
-\openout3 = `main.ptb'.
-
-\openout3 = `main.ptb'.
-
-
-(/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-34.def
-File: uni-34.def 2013/05/13 UCS: Unicode data U+2200..U+22FF
-)
-\openout3 = `main.ptb'.
-
-\openout3 = `main.ptb'.
-
-\openout3 = `main.ptb'.
-
-\openout3 = `main.ptb'.
-
-\openout3 = `main.ptb'.
-
-
-
-LaTeX Warning: Reference `sec:hintdbs' on page 2 undefined on input line 604.
-
-\openout3 = `main.ptb'.
-
-\openout3 = `main.ptb'.
-
-(/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-0.def
-File: uni-0.def 2013/05/13 UCS: Unicode data U+0000..U+00FF
-) [2]
-\openout3 = `main.ptb'.
-
 \openout3 = `main.ptb'.
 
 \openout3 = `main.ptb'.
@@ -868,6 +819,25 @@ File: uni-0.def 2013/05/13 UCS: Unicode data U+0000..U+00FF
 (/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-32.def
 File: uni-32.def 2013/05/13 UCS: Unicode data U+2000..U+20FF
 )
+(/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-34.def
+File: uni-34.def 2013/05/13 UCS: Unicode data U+2200..U+22FF
+)
+\openout3 = `main.ptb'.
+
+\openout3 = `main.ptb'.
+
+ [1{/usr/local/texlive/2014/texmf-var/fonts/map/pdftex/updmap/pdftex.map}
+
+
+
+
+]
+LaTeX Font Info:    Try loading font information for T1+cmtt on input line 498.
+
+
+(/usr/local/texlive/2014/texmf-dist/tex/latex/base/t1cmtt.fd
+File: t1cmtt.fd 1999/05/25 v2.5h Standard LaTeX font definitions
+)
 \openout3 = `main.ptb'.
 
 \openout3 = `main.ptb'.
@@ -880,107 +850,215 @@ File: uni-32.def 2013/05/13 UCS: Unicode data U+2000..U+20FF
 
 \openout3 = `main.ptb'.
 
+
+Overfull \hbox (4.84047pt too wide) in paragraph at lines 721--729
+ [][] 
+ []
+
+
+Overfull \hbox (4.84047pt too wide) in paragraph at lines 721--729
+ [][] 
+ []
+
 \openout3 = `main.ptb'.
 
- [3]
+
+Overfull \hbox (12.14166pt too wide) in paragraph at lines 731--746
+ [][] 
+ []
+
+
+Overfull \hbox (12.14166pt too wide) in paragraph at lines 731--746
+ [][][][] 
+ []
+
+
+Overfull \hbox (12.14166pt too wide) in paragraph at lines 731--746
+ [][] 
+ []
+
+
+Overfull \hbox (12.14166pt too wide) in paragraph at lines 731--746
+ [][][][] 
+ []
+
 \openout3 = `main.ptb'.
 
+\openout3 = `main.ptb'.
+
+
+Overfull \hbox (14.7117pt too wide) in paragraph at lines 758--774
+ [][] 
+ []
+
+
+Overfull \hbox (14.7117pt too wide) in paragraph at lines 758--774
+ [][][][] 
+ []
+
+
+Overfull \hbox (14.7117pt too wide) in paragraph at lines 758--774
+ [][] 
+ []
+
+
+Overfull \hbox (14.7117pt too wide) in paragraph at lines 758--774
+ [][] 
+ []
+
+
+Overfull \hbox (14.7117pt too wide) in paragraph at lines 758--774
+ [][] 
+ []
+
+\openout3 = `main.ptb'.
+
+(/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-38.def
+File: uni-38.def 2013/05/13 UCS: Unicode data U+2600..U+26FF
+)
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+
+Overfull \hbox (11.75244pt too wide) in paragraph at lines 776--854
+ [][][][][][] 
+ []
+
+[2]
 LaTeX Font Info:    Font shape `T1/ptm/bx/it' in size <9> not available
-(Font)              Font shape `T1/ptm/b/it' tried instead on input line 969.
-\openout3 = `main.ptb'.
+(Font)              Font shape `T1/ptm/b/it' tried instead on input line 870.
+ (./main.bbl) [3
 
-
-(/usr/local/texlive/2014/texmf-dist/tex/latex/ucs/data/uni-3.def
-File: uni-3.def 2013/05/13 UCS: Unicode data U+0300..U+03FF
-)
-LaTeX Font Info:    Try loading font information for LGR+cmss on input line 998
-.
-
-(/usr/local/texlive/2014/texmf-dist/tex/latex/cbfonts-fd/lgrcmss.fd
-File: lgrcmss.fd 2013/09/01 v1.0 Greek European Computer Sans Serif
-)
-\openout3 = `main.ptb'.
-
-\openout3 = `main.ptb'.
-
- [4]
-(./main.bbl
-Underfull \hbox (badness 2617) in paragraph at lines 10--17
-\T1/ptm/m/n/8 Wiki: $\T1/cmtt/m/n/8 http : / / wiki . portal . chalmers . se / 
-agda / agda . php ? n =
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 10--17
-\T1/cmtt/m/n/8 Main . Version-[]2-[]2-[]8$ \T1/ptm/m/n/8 and $\T1/cmtt/m/n/8 ht
-tp : / / wiki . portal . chalmers .
- []
-
-
-Underfull \hbox (badness 1681) in paragraph at lines 10--17
-\T1/cmtt/m/n/8 se / agda / agda . php ? n = Main . Version-[]2-[]3-[]0$\T1/ptm/
-m/n/8 , 2013.  [On-line;
- []
-
-
-Underfull \hbox (badness 1077) in paragraph at lines 24--30
-[]\T1/ptm/m/n/8 Edwin Brady.  Idris, a general-purpose de-pen-dently typed pro-
-
- []
-
-
-Underfull \hbox (badness 2538) in paragraph at lines 24--30
-\T1/ptm/m/n/8 gram-ming lan-guage: De-sign and im-ple-men-ta-tion.  \T1/ptm/m/i
-t/8 Jour-nal of
- []
-
-
-Underfull \hbox (badness 1831) in paragraph at lines 24--30
-\T1/ptm/m/it/8 Func-tional Pro-gram-ming\T1/ptm/m/n/8 , 23:552--593, 9 2013.  d
-oi: $10 . 1017 /
- []
-
-
-Underfull \hbox (badness 10000) in paragraph at lines 38--42
-\T1/cmtt/m/n/8 http : / / gallium . inria . fr / blog / your-[]first-[]coq-[]pl
-ugin/$\T1/ptm/m/n/8 ,
- []
-
-) [5] (./main.aux)
+] (./main.aux)
 
 LaTeX Warning: There were undefined references.
 
  ) 
 Here is how much of TeX's memory you used:
- 19299 strings out of 493108
- 347899 string characters out of 6134847
- 376162 words of memory out of 5000000
- 22347 multiletter control sequences out of 15000+600000
- 59577 words of font info for 86 fonts, out of 8000000 for 9000
+ 18969 strings out of 493108
+ 343772 string characters out of 6134847
+ 402135 words of memory out of 5000000
+ 22026 multiletter control sequences out of 15000+600000
+ 57330 words of font info for 83 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 59i,9n,56p,466b,603s stack positions out of 5000i,500n,10000p,200000b,80000s
-{/usr/local/texlive/2014/texmf-dist/fonts/enc/dvips/base/8r.enc}{/usr/local/t
-exlive/2014/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc}</usr/local/tex
+ 59i,10n,57p,567b,733s stack positions out of 5000i,500n,10000p,200000b,80000s
+{/usr/local/texlive/2014/texmf-dist/fonts/enc/dvips/cm-super/cm-super-t1.enc}
+{/usr/local/texlive/2014/texmf-dist/fonts/enc/dvips/base/8r.enc}</usr/local/tex
 live/2014/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></usr/local/texli
 ve/2014/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></usr/local/texlive/
 2014/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></usr/local/texlive/201
-4/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2014/
+4/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></usr/local/texlive/2014/
 texmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></usr/local/texlive/2014/te
-xmf-dist/fonts/type1/public/cbfonts/gsmn0900.pfb></usr/local/texlive/2014/texmf
--dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb></usr/local/texlive/2014/t
-exmf-dist/fonts/type1/public/cm-super/sfss0800.pfb></usr/local/texlive/2014/tex
-mf-dist/fonts/type1/public/cm-super/sfss0900.pfb></usr/local/texlive/2014/texmf
--dist/fonts/type1/public/cm-super/sfsx0900.pfb></usr/local/texlive/2014/texmf-d
-ist/fonts/type1/public/cm-super/sftt0800.pfb></usr/local/texlive/2014/texmf-dis
-t/fonts/type1/public/cm-super/sftt0900.pfb></usr/local/texlive/2014/texmf-dist/
-fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive/2014/texmf-dist/fonts/type
-1/urw/times/utmbi8a.pfb></usr/local/texlive/2014/texmf-dist/fonts/type1/urw/tim
-es/utmr8a.pfb></usr/local/texlive/2014/texmf-dist/fonts/type1/urw/times/utmri8a
-.pfb>
-Output written on main.pdf (5 pages, 243756 bytes).
+xmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb></usr/local/texlive/201
+4/texmf-dist/fonts/type1/public/cm-super/sfss0800.pfb></usr/local/texlive/2014/
+texmf-dist/fonts/type1/public/cm-super/sfss0900.pfb></usr/local/texlive/2014/te
+xmf-dist/fonts/type1/public/cm-super/sfsx0900.pfb></usr/local/texlive/2014/texm
+f-dist/fonts/type1/public/cm-super/sftt0800.pfb></usr/local/texlive/2014/texmf-
+dist/fonts/type1/public/cm-super/sftt0900.pfb></usr/local/texlive/2014/texmf-di
+st/fonts/type1/urw/times/utmb8a.pfb></usr/local/texlive/2014/texmf-dist/fonts/t
+ype1/urw/times/utmbi8a.pfb></usr/local/texlive/2014/texmf-dist/fonts/type1/urw/
+times/utmr8a.pfb></usr/local/texlive/2014/texmf-dist/fonts/type1/urw/times/utmr
+i8a.pfb>
+Output written on main.pdf (3 pages, 200744 bytes).
 PDF statistics:
- 89 PDF objects out of 1000 (max. 8388607)
- 65 compressed objects within 1 object stream
+ 79 PDF objects out of 1000 (max. 8388607)
+ 58 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  13 words of extra memory for PDF output out of 10000 (max. 10000000)
 

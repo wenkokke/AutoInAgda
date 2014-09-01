@@ -325,343 +325,21 @@
 
 \end{abstract}
 
-\section{Introduction}
-\label{sec:intro}
-
-Writing proof terms in type theory is hard and often tedious.
-Interactive proof assistants based on type theory, such as
-Agda~\cite{agda} or Coq~\cite{coq}, take very different approaches to
-facilitating this process.
-
-The Coq proof assistant has two distinct language fragments. Besides
-the programming language Gallina, there is a separate tactic language
-for writing and programming proof scripts. Together with several
-highly customizable tactics, the tactic language Ltac can provide
-powerful proof automation~\cite{chlipala}. Having to introduce a
-separate tactic language, however, seems at odds with the spirit of
-type theory, where a single language is used for both proof and
-computation.  Having a separate language for programming proofs has
-its drawbacks. Programmers need to learn another language to automate
-proofs. Debugging Ltac programs can be difficult and the resulting
-proof automation may be inefficient~\cite{brabaint}.
-
-Agda does not have Coq's segregation of proof and programming
-language.  Instead, programmers are encouraged to automate proofs by
-writing their own solvers~\cite{ulf-tphols}. In combination with
-Agda's reflection mechanism~\cite{agda-relnotes-228,van-der-walt}, developers can write
-powerful automatic decision procedures~\cite{allais}. Unfortunately,
-not all proofs are easily automated in this fashion. In that case,
-the user is forced to interact with the integrated development
-environment and manually construct a proof term step by step.
-
-This paper tries to combine the best of both worlds by implementing a
-library for proof search \emph{within} Agda itself. More specifically,
-this paper makes the several novel contributions.
-
-\begin{itemize}
-\item %
-  We show how to implement a Prolog interpreter in the style of
-  \citet{stutterheim} in Agda (Section~\ref{sec:prolog}). Note that,
-  in contrast to Agda, resolving a Prolog query need not terminate.
-  Using coinduction, however, we can write an interpreter for Prolog
-  that is \emph{total}.
-\item %
-  Resolving a Prolog query results in a substitution that, when applied
-  to the goal, produces a solution in the form of a term that can be
-  derived from the given rules.
-  We extend our interpreter to also produce a trace of the applied
-  rules, which allow us to produce a proof term that is a witness to
-  the validity of the resulting substitution (Section~\ref{sec:proofs}).
-\item %
-  We integrate this proof search algorithm with Agda's
-  \emph{reflection} mechanism (Section~\ref{sec:reflection}). This
-  enables us to \emph{quote} the type of a lemma we would like to
-  prove, pass this term as the goal of our proof search algorithm, and
-  finally, \emph{unquote} the resulting proof term, thereby proving
-  the desired lemma.
-\item %
-  Finally, we show how we can use our proof search together with
-  Agda's \emph{instance arguments}~\cite{instance-args} to implement
-  lightweight type classes in Agda (Section~\ref{sec:typeclasses}).
-  This resolves one of the major restrictions of instance arguments:
-  the lack of a recursive search procedure for their construction.
-\end{itemize}
-
-Although Agda already has built-in proof search
-functionality~\cite{lindblad}, we believe that exploring the
-first-class proof automation defined in this paper is still
-worthwhile. For the moment, however, we would like to defer discussing
-the various forms of proof automation until after we have
-presented our work (Section~\ref{sec:discussion}).
-
-All the code described in this paper is freely available from
-GitHub.\footnote{
-  See \url{https://github.com/pepijnkokke/AutoInAgda}.
-} It is important to emphasize that all our code
-is written in the safe fragment of Agda: it does not depend on any
-postulates or foreign functions; all definitions pass Agda's
-termination checker; and all metavariables are resolved.
-
-%%% Local Variables:
-%%% mode: latex
-%%% TeX-master: t
-%%% TeX-command-default: "rake"
-%%% End:
-\section{Motivation}
-\label{sec:motivation}
-
-Before describing the \emph{implementation} of our library, we will
-provide a brief introduction to Agda's reflection mechanism and
-illustrate how the proof automation described in this paper may be
-used.
-
-\subsection*{Reflection in Agda}
-
-Agda has a \emph{reflection} mechanism\footnote{Note that Agda's
-  reflection mechanism should not be confused with `proof by
-  reflection' -- the technique of writing a verified decision
-  procedure for some class of problems.} for compile time
-metaprogramming in the style of Lisp~\cite{lisp-macros},
-MetaML~\cite{metaml}, and Template
-Haskell~\cite{template-haskell}. This reflection mechanisms make it
-possible to convert a program fragment into its corresponding abstract
-syntax tree and vice versa. We will introduce Agda's reflection
-mechanism here with several short examples, based on the explanation
-in previous work~\cite{van-der-walt}. A more complete overview can be
-found in the Agda release notes~\cite{agda-relnotes-228} and Van der
-Walt's thesis~\cite{vdWalt:Thesis:2012}.
-
-The type \ensuremath{\Conid{Term}\;\mathbin{:}\;\Conid{Set}} is the central type provided by the reflection mechanism.
-It defines an abstract syntax tree for Agda terms. There are several
-language constructs for quoting and unquoting program fragments. The simplest
-example of the reflection mechanism is the quotation of a single
-term. In the definition of \ensuremath{\Varid{idTerm}} below, we quote the identity
-function on Boolean values.
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{idTerm}\;\mathbin{:}\;\Conid{Term}{}\<[E]%
-\\
-\>[3]{}\Varid{idTerm}\;\mathrel{=}\;\textsf{\textbf{quoteTerm}}\;(\Varid{λ}\;(\Varid{x}\;\mathbin{:}\;\Conid{Bool})\;\Varid{→}\;\Varid{x}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-When evaluated, the \ensuremath{\Varid{idTerm}} yields the following value:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{lam}\;\Varid{visible}\;(\Varid{var}\;\Varid{0}\;[\mskip1.5mu \mskip1.5mu]){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-On the outermost level, the \ensuremath{\Varid{lam}} constructor produces a lambda
-abstraction. It has a single argument that is passed explicitly (as
-opposed to Agda's implicit arguments). The body of the lambda consists
-of the variable identified by the De Bruijn index 0, applied to an
-empty list of arguments.
-
-More generally, the \ensuremath{\textsf{\textbf{quote}}} language construct allows users to access
-the internal representation of an identifier, a value of a built-in
-type \ensuremath{\Conid{Name}}. Users can subsequently request the type or definition of
-such names.
-
-Dual to quotation, the \ensuremath{\textsf{\textbf{unquote}}} mechanism allows users to splice in a
-\ensuremath{\Conid{Term}}, replacing it with a its concrete syntax. For example, we could
-give a convoluted definition of the \ensuremath{\Conid{K}} combinator as follows:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{24}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{const}\;\mathbin{:}\;\Varid{∀}\;\{\mskip1.5mu \Conid{A}\;\Conid{B}\mskip1.5mu\}\;\Varid{→}\;\Conid{A}\;{}\<[24]%
-\>[24]{}\Varid{→}\;\Conid{B}\;\Varid{→}\;\Conid{A}{}\<[E]%
-\\
-\>[3]{}\Varid{const}\;\mathrel{=}\;\textsf{\textbf{unquote}}\;(\Varid{lam}\;\Varid{visible}\;(\Varid{lam}\;\Varid{visible}\;(\Varid{var}\;\Varid{1}\;[\mskip1.5mu \mskip1.5mu]))){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-The language construct \ensuremath{\textsf{\textbf{unquote}}} is followed by a value of type
-\ensuremath{\Conid{Term}}. In this example, we manually construct a \ensuremath{\Conid{Term}} representing
-the \ensuremath{\Conid{K}} combinator and splice it in the definition of \ensuremath{\Varid{const}}.
-
-The final piece of the reflection mechanism that we will use is the
-\ensuremath{\textsf{\textbf{quoteGoal}}} construct. The usage of \ensuremath{\textsf{\textbf{quoteGoal}}} is best illustrated
-with an example:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{goalInHole}\;\mathbin{:}\;\Conid{ℕ}{}\<[E]%
-\\
-\>[3]{}\Varid{goalInHole}\;\mathrel{=}\;\textsf{\textbf{quoteGoal}}\;\Varid{g}\;\Keyword{in}\;\{\ \}0{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-In this example, the construct \ensuremath{\textsf{\textbf{quoteGoal}}\;\Varid{g}} binds the \ensuremath{\Conid{Term}}
-representing the \emph{type} of the current goal, \ensuremath{\Conid{ℕ}}, to the variable
-\ensuremath{\Varid{g}}. When completing this definition by filling in the hole labeled
-\ensuremath{\Varid{0}}, we may now refer to the variable \ensuremath{\Varid{g}}. This variable is bound to
-to \ensuremath{\Varid{def}\;\Conid{ℕ}\;[\mskip1.5mu \mskip1.5mu]}, the \ensuremath{\Conid{Term}} representing the type \ensuremath{\Conid{ℕ}}.
-
-\subsection*{Using proof automation}
-
-To illustrate the usage of our proof automation, we begin by defining a
-predicate \ensuremath{\Conid{Even}} on natural numbers as follows:
-
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{15}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Keyword{data}\;\Conid{Even}\;\mathbin{:}\;\Conid{ℕ}\;\Varid{→}\;\Conid{Set}\;\Keyword{where}{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}\Varid{isEven0}\;{}\<[15]%
-\>[15]{}\mathbin{:}\;\Conid{Even}\;\Varid{0}{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}\Varid{isEven+2}\;{}\<[15]%
-\>[15]{}\mathbin{:}\;\Varid{∀}\;\{\mskip1.5mu \Varid{n}\mskip1.5mu\}\;\Varid{→}\;\Conid{Even}\;\Varid{n}\;\Varid{→}\;\Conid{Even}\;(\Varid{suc}\;(\Varid{suc}\;\Varid{n})){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-%
-Next we may want to prove properties of this definition:
-%
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{12}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{26}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{30}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{even+}\;\mathbin{:}\;\Conid{Even}\;\Varid{n}\;\Varid{→}\;\Conid{Even}\;\Varid{m}\;\Varid{→}\;\Conid{Even}\;(\Varid{n}\;\Varid{+}\;\Varid{m}){}\<[E]%
-\\
-\>[3]{}\Varid{even+}\;{}\<[12]%
-\>[12]{}\Varid{isEven0}\;{}\<[26]%
-\>[26]{}\Varid{e2}\;{}\<[30]%
-\>[30]{}\mathrel{=}\;\Varid{e2}{}\<[E]%
-\\
-\>[3]{}\Varid{even+}\;({}\<[12]%
-\>[12]{}\Varid{isEven+2}\;\Varid{e1})\;{}\<[26]%
-\>[26]{}\Varid{e2}\;{}\<[30]%
-\>[30]{}\mathrel{=}\;\Varid{isEven+2}\;(\Varid{even+}\;\Varid{e1}\;\Varid{e2}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-%
-Note that we omit universally quantified implicit arguments from the
-typeset version of this paper, in accordance with convention used by
-Haskell~\cite{haskell-report} and Idris~\cite{idris}.
-
-As shown by Van der Walt and Swierstra~\cite{van-der-walt}, it is easy
-to decide the \ensuremath{\Conid{Even}} property for closed terms using proof by
-reflection. The interesting terms, however, are seldom closed.  For
-instance, if we would like to use the \ensuremath{\Varid{even+}} lemma in the proof
-below, we need to call it explicitly.
-
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{simple}\;\mathbin{:}\;\Conid{Even}\;\Varid{n}\;\Varid{→}\;\Conid{Even}\;(\Varid{n}\;\Varid{+}\;\Varid{2}){}\<[E]%
-\\
-\>[3]{}\Varid{simple}\;\Varid{e}\;\mathrel{=}\;\Varid{even+}\;\Varid{e}\;(\Varid{isEven+2}\;\Varid{isEven0}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Manually constructing explicit proof objects
-in this fashion is not easy. The proof is brittle. We cannot easily
-reuse it to prove similar statements such as \ensuremath{\Conid{Even}\;(\Varid{n}\;\Varid{+}\;\Varid{4})}. If we
-need to reformulate our statement slightly, proving \ensuremath{\Conid{Even}\;(\Varid{2}\;\Varid{+}\;\Varid{n})}
-instead, we need to rewrite our proof. Proof automation can make
-propositions more robust against such changes.
-
-Coq's proof search tactics, such as \ensuremath{\Varid{auto}}, can be customized with a
-\emph{hint database}, a collection of related lemmas. In our
-example, \ensuremath{\Varid{auto}} would be able to prove the \ensuremath{\Varid{simple}} lemma, provided it
-the hint database contains at least the constructors of the \ensuremath{\Conid{Even}}
-data type and the \ensuremath{\Varid{even+}} lemma.
-In
-contrast to the construction of explicit proof terms, changes to the
-theorem statement need not break the proof. This paper shows how to
-implement a similar tactic as an ordinary function in Agda.
-
-Before we can use our \ensuremath{\Varid{auto}} function, we need to construct a hint
-database:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{hints}\;\mathbin{:}\;\Conid{HintDB}{}\<[E]%
-\\
-\>[3]{}\Varid{hints}\;\mathrel{=}\;{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}[\mskip1.5mu \mskip1.5mu]\;\Varid{<<}\;\textsf{\textbf{quote}}\;\Varid{isEven0}\;\Varid{<<}\;\textsf{\textbf{quote}}\;\Varid{isEven+2}\;\Varid{<<}\;\textsf{\textbf{quote}}\;\Varid{even+}{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-To construct such a database, we \ensuremath{\textsf{\textbf{quote}}} any terms that we wish to
-include in it and pass them to the \ensuremath{\Varid{hintdb}} function.  We
-defer any discussion about the \ensuremath{\Varid{hintdb}} function
-to Section~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
-data base is a \emph{first-class} value that can be manipulated,
-inspected, or passed as an argument to a function.
-
-We now give an alternative proof of the \ensuremath{\Varid{simple}} lemma, using this
-hint database:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{simple}\;\mathbin{:}\;\Conid{Even}\;\Varid{n}\;\Varid{→}\;\Conid{Even}\;(\Varid{n}\;\Varid{+}\;\Varid{2}){}\<[E]%
-\\
-\>[3]{}\Varid{simple}\;\mathrel{=}\;\textsf{\textbf{quoteGoal}}\;\Varid{g}\;\Keyword{in}\;\textsf{\textbf{unquote}}\;(\Varid{auto}\;\Varid{5}\;\Varid{hints}\;\Varid{g}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-The central ingredient is a \emph{function} \ensuremath{\Varid{auto}} with the following
-type:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{auto}\;\mathbin{:}\;(\Varid{depth}\;\mathbin{:}\;\Conid{ℕ})\;\Varid{→}\;\Conid{HintDB}\;\Varid{→}\;\Conid{Term}\;\Varid{→}\;\Conid{Term}{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Given a maximum depth, hint database, and goal, it searches for a
-proof \ensuremath{\Conid{Term}} that witnesses our goal. If this term can be found, it is
-spliced back into our program using the \ensuremath{\textsf{\textbf{unquote}}} statement.
-
-Of course, such invocations of the \ensuremath{\Varid{auto}} function may fail. What
-happens if no proof exists? For example, trying to prove \ensuremath{\Conid{Even}\;\Varid{n}\;\Varid{→}\;\Conid{Even}\;(\Varid{n}\;\Varid{+}\;\Varid{3})} in this style gives the following error:
-\begin{tabbing}\tt
-~~~Exception~searchSpaceExhausted~\char33{}\char61{}\char60{}\\
-\tt ~~~~~Even~\char46{}n~\char45{}\char62{}~Even~\char40{}\char46{}n~\char43{}~3\char41{}~of~type~Set
-\end{tabbing}
-When no proof can be found, the \ensuremath{\Varid{auto}} function generates a dummy
-term whose type explains the reason why the search has failed. In
-this example, the search space has been exhausted. Unquoting this
-term, then gives the type error message above. It is up to the
-programmer to fix this, either by providing a manual proof or
-diagnosing why no proof could be found.
-
-The remainder of this paper will explain how this \ensuremath{\Varid{auto}} function is
-implemented.
-
-%%% Local Variables:
-%%% mode: latex
-%%% TeX-master: t
-%%% TeX-command-default: "rake"
-%%% End:
+%%include intro.lagda
+%%include motivation.lagda
 \section{Proof search in Agda}
 \label{sec:prolog}
 
 The following section describes our implementation of proof search
 à la Prolog in Agda. This implementation abstracts over two data types
-for names---one for inference rules and term constructors. These data
-types will be referred to as \ensuremath{\Conid{RuleName}} and \ensuremath{\Conid{TermName}}, and will be
-instantiated with types (with the same names) in
+for names---one for inference rules and one for term constructors.
+These data types will be referred to as \ensuremath{\Conid{RuleName}} and \ensuremath{\Conid{TermName}}, and
+will be instantiated with types (with the same names) in
 section~\ref{sec:reflection}.
 
 
 \subsection*{Terms and unification}
+
 The heart of our proof search implementation is the structurally
 recursive unification algorithm described by~\citet{unification}. Here
 the type of terms is indexed by the number of variables a given term
@@ -783,7 +461,400 @@ substitution to \ensuremath{\Varid{t₁}} and \ensuremath{\Varid{t₂}} before a
 
 
 \subsection*{Inference rules}
+
+We encode inference rules as records containing a rule name, a list of
+terms for its premises, and a term for its conclusion:
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{7}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{19}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Keyword{record}\;\Conid{Rule}\;(\Varid{n}\;\mathbin{:}\;\Conid{ℕ})\;\mathbin{:}\;\Conid{Set}\;\Keyword{where}{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}\Keyword{field}{}\<[E]%
+\\
+\>[5]{}\hsindent{2}{}\<[7]%
+\>[7]{}\Varid{name}\;{}\<[19]%
+\>[19]{}\mathbin{:}\;\Conid{RuleName}{}\<[E]%
+\\
+\>[5]{}\hsindent{2}{}\<[7]%
+\>[7]{}\Varid{premises}\;{}\<[19]%
+\>[19]{}\mathbin{:}\;\Conid{List}\;(\Conid{PsTerm}\;\Varid{n}){}\<[E]%
+\\
+\>[5]{}\hsindent{2}{}\<[7]%
+\>[7]{}\Varid{conclusion}\;{}\<[19]%
+\>[19]{}\mathbin{:}\;\Conid{PsTerm}\;\Varid{n}{}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+Once again the data-type is quantified over the number of variables
+used in the rule. Note that the variables are shared between the
+premises and the conclusion.
+
+Using our newly defined \ensuremath{\Conid{Rule}} we can give a simple definition of
+addition. In Prolog, this would be written as follows.
+\begin{tabbing}\tt
+~~~add\char40{}0\char44{}~X\char44{}~X\char41{}\char46{}\\
+\tt ~~~add\char40{}suc\char40{}X\char41{}\char44{}~Y\char44{}~suc\char40{}Z\char41{}\char41{}~\char58{}\char45{}~add\char40{}X\char44{}~Y\char44{}~Z\char41{}\char46{}
+\end{tabbing}
+Unfortunately, the named equivalents in our Agda implementation are a
+bit more verbose. Note that we have, for the sake of this example,
+instantiated the \ensuremath{\Conid{RuleName}} and \ensuremath{\Conid{TermName}} to \ensuremath{\Conid{String}} and \ensuremath{\Conid{Arith}}
+respectively.
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{15}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{26}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{29}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[B]{}\Conid{AddBase}\;\mathbin{:}\;\Conid{Rule}\;\Varid{1}{}\<[E]%
+\\
+\>[B]{}\Conid{AddBase}\;\mathrel{=}\;\Keyword{record}\;\{\mskip1.5mu {}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\Varid{name}\;{}\<[15]%
+\>[15]{}\mathrel{=}\;\text{\tt \char34 AddBase\char34}{}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\Varid{conclusion}\;{}\<[15]%
+\>[15]{}\mathrel{=}\;\Varid{con}\;\Conid{Add}\;{}\<[26]%
+\>[26]{}({}\<[29]%
+\>[29]{}\Varid{con}\;\Conid{Zero}\;[\mskip1.5mu \mskip1.5mu]{}\<[E]%
+\\
+\>[26]{}\Varid{∷}\;{}\<[29]%
+\>[29]{}\Varid{var}\;(\Varid{\#}\;\Varid{0}){}\<[E]%
+\\
+\>[26]{}\Varid{∷}\;{}\<[29]%
+\>[29]{}\Varid{var}\;(\Varid{\#}\;\Varid{0}){}\<[E]%
+\\
+\>[26]{}\Varid{∷}\;[\mskip1.5mu \mskip1.5mu]){}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\Varid{premises}\;{}\<[15]%
+\>[15]{}\mathrel{=}\;[\mskip1.5mu \mskip1.5mu]{}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\mskip1.5mu\}{}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+%
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{15}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{18}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{27}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{30}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[B]{}\Conid{AddStep}\;\mathbin{:}\;\Conid{Rule}\;\Varid{3}{}\<[E]%
+\\
+\>[B]{}\Conid{AddStep}\;\mathrel{=}\;\Keyword{record}\;\{\mskip1.5mu {}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\Varid{name}\;{}\<[15]%
+\>[15]{}\mathrel{=}\;\text{\tt \char34 AddStep\char34}{}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\Varid{conclusion}\;{}\<[15]%
+\>[15]{}\mathrel{=}\;{}\<[18]%
+\>[18]{}\Varid{con}\;\Conid{Add}\;{}\<[27]%
+\>[27]{}({}\<[30]%
+\>[30]{}\Varid{con}\;\Conid{Suc}\;(\Varid{var}\;(\Varid{\#}\;\Varid{0})\;\Varid{∷}\;[\mskip1.5mu \mskip1.5mu]){}\<[E]%
+\\
+\>[27]{}\Varid{∷}\;{}\<[30]%
+\>[30]{}\Varid{var}\;(\Varid{\#}\;\Varid{1}){}\<[E]%
+\\
+\>[27]{}\Varid{∷}\;{}\<[30]%
+\>[30]{}\Varid{con}\;\Conid{Suc}\;(\Varid{var}\;(\Varid{\#}\;\Varid{2})\;\Varid{∷}\;[\mskip1.5mu \mskip1.5mu]){}\<[E]%
+\\
+\>[27]{}\Varid{∷}\;[\mskip1.5mu \mskip1.5mu]){}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\Varid{premises}\;{}\<[15]%
+\>[15]{}\mathrel{=}\;{}\<[18]%
+\>[18]{}\Varid{con}\;\Conid{Add}\;{}\<[27]%
+\>[27]{}({}\<[30]%
+\>[30]{}\Varid{var}\;(\Varid{\#}\;\Varid{0}){}\<[E]%
+\\
+\>[27]{}\Varid{∷}\;{}\<[30]%
+\>[30]{}\Varid{var}\;(\Varid{\#}\;\Varid{1}){}\<[E]%
+\\
+\>[27]{}\Varid{∷}\;{}\<[30]%
+\>[30]{}\Varid{var}\;(\Varid{\#}\;\Varid{2}){}\<[E]%
+\\
+\>[27]{}\Varid{∷}\;[\mskip1.5mu \mskip1.5mu])\;{}\<[E]%
+\\
+\>[18]{}\Varid{∷}\;[\mskip1.5mu \mskip1.5mu]{}\<[E]%
+\\
+\>[B]{}\hsindent{3}{}\<[3]%
+\>[3]{}\mskip1.5mu\}{}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+
+\subsection*{Generalised injection and raising}
+
+Before we can implement some form of proof search, we define a pair of
+auxiliary functions. During proof resolution, we will need to work
+with terms and rules containing a different number of variables. We
+will use the following pair of functions, \ensuremath{\Varid{inject}} and \ensuremath{\Varid{raise}}, to
+weaken bound variables, that is, map values of type \ensuremath{\Conid{Fin}\;\Varid{n}} to some
+larger finite type.
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{10}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{13}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{18}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{21}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Varid{inject}\;\mathbin{:}\;\Varid{∀}\;\{\mskip1.5mu \Varid{m}\mskip1.5mu\}\;\Varid{n}\;\Varid{→}\;\Conid{Fin}\;\Varid{m}\;\Varid{→}\;\Conid{Fin}\;(\Varid{m}\;\Varid{+}\;\Varid{n}){}\<[E]%
+\\
+\>[3]{}\Varid{inject}\;\Varid{n}\;{}\<[13]%
+\>[13]{}\Varid{zero}\;{}\<[21]%
+\>[21]{}\mathrel{=}\;\Varid{zero}{}\<[E]%
+\\
+\>[3]{}\Varid{inject}\;\Varid{n}\;(\Varid{suc}\;\Varid{i})\;{}\<[21]%
+\>[21]{}\mathrel{=}\;\Varid{suc}\;(\Varid{inject}\;\Varid{n}\;\Varid{i}){}\<[E]%
+\\[\blanklineskip]%
+\>[3]{}\Varid{raise}\;\mathbin{:}\;\Varid{∀}\;\Varid{m}\;\{\mskip1.5mu \Varid{n}\mskip1.5mu\}\;\Varid{→}\;\Conid{Fin}\;\Varid{n}\;\Varid{→}\;\Conid{Fin}\;(\Varid{m}\;\Varid{+}\;\Varid{n}){}\<[E]%
+\\
+\>[3]{}\Varid{raise}\;{}\<[10]%
+\>[10]{}\Varid{zero}\;{}\<[18]%
+\>[18]{}\Varid{i}\;{}\<[21]%
+\>[21]{}\mathrel{=}\;\Varid{i}{}\<[E]%
+\\
+\>[3]{}\Varid{raise}\;(\Varid{suc}\;\Varid{m})\;{}\<[18]%
+\>[18]{}\Varid{i}\;{}\<[21]%
+\>[21]{}\mathrel{=}\;\Varid{suc}\;(\Varid{raise}\;\Varid{m}\;\Varid{i}){}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+We have tried to visualize the behaviour of \ensuremath{\Varid{inject}} and \ensuremath{\Varid{raise}},
+embedding \ensuremath{\Conid{Fin}\;\Varid{3}} into \ensuremath{\Conid{Fin}\;(\Varid{3}\;\Varid{+}\;\Varid{1})} in Figure~\ref{fig:fins}. On the
+surface, the \ensuremath{\Varid{inject}} function appears to be the identity. When you
+make all the implicit arguments explicit, however, you will see that
+it sends the \ensuremath{\Varid{zero}} constructor in \ensuremath{\Conid{Fin}\;\Varid{m}} to the \ensuremath{\Varid{zero}} constructor
+of type \ensuremath{\Conid{Fin}\;(\Varid{m}\;\Varid{+}\;\Varid{n})}. Hence, the \ensuremath{\Varid{inject}} function maps \ensuremath{\Conid{Fin}\;\Varid{m}} into the
+\emph{first} \ensuremath{\Varid{m}} elements of the type \ensuremath{\Conid{Fin}\;(\Varid{m}\;\Varid{+}\;\Varid{n})}. Dually, the
+\ensuremath{\Varid{raise}} function maps \ensuremath{\Conid{Fin}\;\Varid{n}} into the \emph{last} \ensuremath{\Varid{n}} elements of the
+type \ensuremath{\Conid{Fin}\;(\Varid{m}\;\Varid{+}\;\Varid{n})} by repeatedly applying the \ensuremath{\Varid{suc}} constructor.
+
+\begin{figure}
+  \centering
+  \subfigure[]{ \label{fig:injFig}
+    \begin{tikzpicture}[place/.style={circle,draw=darkgray!50,fill=gray!20,thick}]
+       \node[place,label=left:1] (one3) {};
+       \node[place,label=left:2] (two3) [below=of one3] {};
+       \node[place,label=left:3] (three3) [below=of two3] {};
+
+       \node[place,label=right:1] (one4) [right=of one3] {};
+       \node[place,label=right:2] (two4) [below=of one4] {};
+       \node[place,label=right:3] (three4) [below=of two4] {};
+       \node[place,label=right:4] (four4) [below=of three4] {};
+
+       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (one4);
+       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (two4);
+       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (three4);
+    \end{tikzpicture}}
+\hspace{7.5em}
+  \subfigure[]{
+  \begin{tikzpicture} [place/.style={circle,draw=darkgray!50,fill=gray!20,thick}]
+       \node[place,label=left:1] (one3) {};
+       \node[place,label=left:2] (two3) [below=of one3] {};
+       \node[place,label=left:3] (three3) [below=of two3] {};
+
+       \node[place,label=right:1] (one4) [right=of one3] {};
+       \node[place,label=right:2] (two4) [below=of one4] {};
+       \node[place,label=right:3] (three4) [below=of two4] {};
+       \node[place,label=right:4] (four4) [below=of three4] {};
+
+       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (two4);
+       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (three4);
+       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (four4);
+  \end{tikzpicture}}
+
+\vspace{4ex}
+\caption{The graph of the \ensuremath{\Varid{inject}} function (a) and the \ensuremath{\Varid{raise}}
+  function (b) embedding \ensuremath{\Conid{Fin}\;\Varid{3}} in \ensuremath{\Conid{Fin}\;(\Varid{3}\;\Varid{+}\;\Varid{1})}}
+  \label{fig:fins}
+\end{figure}
+We can use these \ensuremath{\Varid{inject}} and \ensuremath{\Varid{raise}} to define similar functions
+that work on our \ensuremath{\Conid{Rule}} and \ensuremath{\Conid{Term}} data types, by mapping them over
+all the variables that they contain.
+
+
 \subsection*{Constructing the search tree}
+
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Keyword{data}\;\Conid{SearchTree}\;(\Conid{A}\;\mathbin{:}\;\Conid{Set})\;\mathbin{:}\;\Conid{Set}\;\Keyword{where}{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}\Varid{fail}\;\mathbin{:}\;\Conid{SearchTree}\;\Conid{A}{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}\Varid{retn}\;\mathbin{:}\;\Conid{A}\;\Varid{→}\;\Conid{SearchTree}\;\Conid{A}{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}\Varid{fork}\;\mathbin{:}\;\Conid{List}\;(\Varid{∞}\;(\Conid{SearchTree}\;\Conid{A}))\;\Varid{→}\;\Conid{SearchTree}\;\Conid{A}{}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Keyword{data}\;\Conid{Proof}\;\mathbin{:}\;\Conid{Set}\;\Keyword{where}{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}\Varid{con}\;\mathbin{:}\;(\Varid{name}\;\mathbin{:}\;\Conid{RuleName})\;(\Varid{args}\;\mathbin{:}\;\Conid{List}\;\Conid{Proof})\;\Varid{→}\;\Conid{Proof}{}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Conid{Proof′}\;\mathbin{:}\;\Conid{ℕ}\;\Varid{→}\;\Conid{Set}{}\<[E]%
+\\
+\>[3]{}\Conid{Proof′}\;\Varid{m}\;\mathrel{=}\;\Varid{∃}\;[\mskip1.5mu \Varid{k}\mskip1.5mu]\;\Conid{Vec}\;(\Conid{Goal}\;\Varid{m})\;\Varid{k}\;\Varid{×}\;(\Conid{Vec}\;\Conid{Proof}\;\Varid{k}\;\Varid{→}\;\Conid{Proof}){}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Varid{con′}\;\mathbin{:}\;{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}(\Varid{r}\;\mathbin{:}\;\Conid{Rule}\;\Varid{n})\;\Varid{→}\;\Conid{Vec}\;\Conid{Proof}\;(\Varid{arity}\;\Varid{r}\;\Varid{+}\;\Varid{k})\;\Varid{→}\;\Conid{Vec}\;\Conid{Proof}\;(\Varid{suc}\;\Varid{k}){}\<[E]%
+\\
+\>[3]{}\Varid{con′}\;\Varid{r}\;\Varid{xs}\;\mathrel{=}\;{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}\Varid{con}\;(\Varid{name}\;\Varid{r})\;(\Varid{toList}\;\mathbin{\$}\;\Varid{take}\;(\Varid{arity}\;\Varid{r})\;\Varid{xs})\;\Varid{∷}\;\Varid{drop}\;(\Varid{arity}\;\Varid{r})\;\Varid{xs}{}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Varid{solve}\;\mathbin{:}\;\Conid{Goal}\;\Varid{m}\;\Varid{→}\;\Conid{HintDB}\;\Varid{→}\;\Conid{SearchTree}\;\Conid{Proof}{}\<[E]%
+\\
+\>[3]{}\Varid{solve}\;\Varid{g}\;\Varid{rules}\;\mathrel{=}\;\Varid{solveAcc}\;(\Varid{just}\;(\Varid{m},\Varid{nil}))\;(\Varid{1},\Varid{g}\;\Varid{∷}\;[\mskip1.5mu \mskip1.5mu],\Varid{head}){}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{12}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Varid{solveAcc}\;\mathbin{:}\;\Conid{Maybe}\;(\Varid{∃}\;[\mskip1.5mu \Varid{n}\mskip1.5mu]\;\Conid{Subst}\;(\Varid{δ}\;\Varid{+}\;\Varid{m})\;\Varid{n})\;{}\<[E]%
+\\
+\>[3]{}\hsindent{9}{}\<[12]%
+\>[12]{}\Varid{→}\;\Conid{Proof′}\;(\Varid{δ}\;\Varid{+}\;\Varid{m})\;\Varid{→}\;\Conid{SearchTree}\;\Conid{Proof}{}\<[E]%
+\\
+\>[3]{}\Varid{solveAcc}\;\Varid{nothing}\;\anonymous \;\mathrel{=}\;\Varid{fail}{}\<[E]%
+\\
+\>[3]{}\Varid{solveAcc}\;(\Varid{just}\;(\Varid{n},\Varid{s}))\;(\Varid{0},[\mskip1.5mu \mskip1.5mu],\Varid{p})\;\mathrel{=}\;\Varid{retn}\;(\Varid{p}\;[\mskip1.5mu \mskip1.5mu]){}\<[E]%
+\\
+\>[3]{}\Varid{solveAcc}\;(\Varid{just}\;(\Varid{n},\Varid{s}))\;(\Varid{suc}\;\Varid{k},\Varid{g}\;\Varid{∷}\;\Varid{gs},\Varid{p})\;\mathrel{=}\;\Varid{fork}\;(\Varid{map}\;\Varid{step}\;\Varid{rules}){}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+\begin{hscode}\SaveRestoreHook
+\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{7}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{9}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{11}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{16}{@{}>{\hspre}l<{\hspost}@{}}%
+\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
+\>[3]{}\Varid{step}\;\mathbin{:}\;\Varid{∃}\;[\mskip1.5mu \Varid{δ′}\mskip1.5mu]\;\Conid{Rule}\;\Varid{δ′}\;\Varid{→}\;\Varid{∞}\;(\Conid{SearchTree}\;\Conid{Proof}){}\<[E]%
+\\
+\>[3]{}\Varid{step}\;(\Varid{δ′},\Varid{r})\;\mathrel{=}\;\Varid{♯}\;\Varid{solveAcc}\;\Varid{mgu}\;\Varid{prf}{}\<[E]%
+\\
+\>[3]{}\hsindent{2}{}\<[5]%
+\>[5]{}\Keyword{where}{}\<[E]%
+\\
+\>[5]{}\hsindent{2}{}\<[7]%
+\>[7]{}\Varid{prf}\;\mathbin{:}\;\Conid{Proof′}\;(\Varid{δ′}\;\Varid{+}\;\Varid{δ}\;\Varid{+}\;\Varid{m}){}\<[E]%
+\\
+\>[5]{}\hsindent{2}{}\<[7]%
+\>[7]{}\Varid{prf}\;\mathrel{=}\;\Varid{arity}\;\Varid{r}\;\Varid{+}\;\Varid{k},\Varid{prm′}\;\plus \;\Varid{gs′},\Varid{p′}{}\<[E]%
+\\
+\>[7]{}\hsindent{2}{}\<[9]%
+\>[9]{}\Keyword{where}{}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{gs′}\;{}\<[16]%
+\>[16]{}\mathbin{:}\;\Conid{Vec}\;(\Conid{Goal}\;(\Varid{δ′}\;\Varid{+}\;\Varid{δ}\;\Varid{+}\;\Varid{m}))\;\Varid{k}{}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{gs′}\;{}\<[16]%
+\>[16]{}\mathrel{=}\;\Varid{inject}\;\Varid{δ′}\;\Varid{gs}{}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{prm′}\;\mathbin{:}\;\Conid{Vec}\;(\Conid{Goal}\;(\Varid{δ′}\;\Varid{+}\;\Varid{δ}\;\Varid{+}\;\Varid{m}))\;(\Varid{arity}\;\Varid{r}){}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{prm′}\;\mathrel{=}\;\Varid{map}\;(\Varid{raise}\;(\Varid{δ}\;\Varid{+}\;\Varid{m}))\;(\Varid{fromList}\;(\Varid{premises}\;\Varid{r})){}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{p′}\;{}\<[16]%
+\>[16]{}\mathbin{:}\;\Conid{Vec}\;\Conid{Proof}\;(\Varid{arity}\;\Varid{r}\;\Varid{+}\;\Varid{k})\;\Varid{→}\;\Conid{Proof}{}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{p′}\;{}\<[16]%
+\>[16]{}\mathrel{=}\;\Varid{p}\;\Varid{∘}\;\Varid{con′}\;\Varid{r}{}\<[E]%
+\\[\blanklineskip]%
+\>[5]{}\hsindent{2}{}\<[7]%
+\>[7]{}\Varid{mgu}\;\mathbin{:}\;\Conid{Maybe}\;(\Varid{∃}\;[\mskip1.5mu \Varid{n}\mskip1.5mu]\;(\Conid{Subst}\;(\Varid{δ′}\;\Varid{+}\;\Varid{δ}\;\Varid{+}\;\Varid{m})\;\Varid{n})){}\<[E]%
+\\
+\>[5]{}\hsindent{2}{}\<[7]%
+\>[7]{}\Varid{mgu}\;\mathrel{=}\;\Varid{unifyAcc}\;\Varid{g′}\;\Varid{cnc′}\;\Varid{s′}{}\<[E]%
+\\
+\>[7]{}\hsindent{2}{}\<[9]%
+\>[9]{}\Keyword{where}{}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{g′}\;{}\<[16]%
+\>[16]{}\mathbin{:}\;\Conid{Term}\;(\Varid{δ′}\;\Varid{+}\;\Varid{δ}\;\Varid{+}\;\Varid{m}){}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{g′}\;{}\<[16]%
+\>[16]{}\mathrel{=}\;\Varid{inject}\;\Varid{δ′}\;\Varid{g}{}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{cnc′}\;\mathbin{:}\;\Conid{Term}\;(\Varid{δ′}\;\Varid{+}\;\Varid{δ}\;\Varid{+}\;\Varid{m}){}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{cnc′}\;\mathrel{=}\;\Varid{raise}\;(\Varid{δ}\;\Varid{+}\;\Varid{m})\;(\Varid{conclusion}\;\Varid{r}){}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{s′}\;{}\<[16]%
+\>[16]{}\mathbin{:}\;\Varid{∃}\;[\mskip1.5mu \Varid{n}\mskip1.5mu]\;\Conid{Subst}\;(\Varid{δ′}\;\Varid{+}\;\Varid{δ}\;\Varid{+}\;\Varid{m})\;\Varid{n}{}\<[E]%
+\\
+\>[9]{}\hsindent{2}{}\<[11]%
+\>[11]{}\Varid{s′}\;{}\<[16]%
+\>[16]{}\mathrel{=}\;\Varid{n}\;\Varid{+}\;\Varid{δ′},\Varid{injectSubst}\;\Varid{δ′}\;\Varid{s}{}\<[E]%
+\ColumnHook
+\end{hscode}\resethooks
+
+
+
 \subsection*{Searching for proofs}
 
 %%% Local Variables:
@@ -791,395 +862,9 @@ substitution to \ensuremath{\Varid{t₁}} and \ensuremath{\Varid{t₂}} before a
 %%% TeX-master: t
 %%% TeX-command-default: "rake"
 %%% End:
-\section{Adding reflection}
-\label{sec:reflection}
-
-%%% Local Variables:
-%%% mode: latex
-%%% TeX-master: t
-%%% TeX-command-default: "rake"
-%%% End:
-\section{Type classes}
-\label{sec:typeclasses}
-
-As a final application of our proof search algorithm, we show how it
-can be used to implement a \emph{type classes} in the style of
-Haskell. Souzeau and Oury~\cite{coq-type-classes} have already shown
-how to use Coq's proof search mechanism to construct
-dictionaries. Using Agda's \emph{instance
-  arguments}~\cite{instance-args} and the proof search presented in
-this paper, we mimic their results.
-
-We begin by declaring our `type class' as a record containing the
-desired function:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Keyword{record}\;\Conid{Show}\;(\Conid{A}\;\mathbin{:}\;\Conid{Set})\;\mathbin{:}\;\Conid{Set}\;\Keyword{where}{}\<[E]%
-\\
-\>[B]{}\hsindent{3}{}\<[3]%
-\>[3]{}\Keyword{field}{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}\Varid{show}\;\mathbin{:}\;\Conid{A}\;\Varid{→}\;\Conid{String}{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-
-We can write instances for the \ensuremath{\Conid{Show}} `class' by constructing explicit
-dictionary objects:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{11}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Conid{ShowBool}\;{}\<[11]%
-\>[11]{}\mathbin{:}\;\Conid{Show}\;\Conid{Bool}{}\<[E]%
-\\
-\>[B]{}\Conid{ShowBool}\;\mathrel{=}\;\Keyword{record}\;\{\mskip1.5mu \Varid{show}\;\mathrel{=}\;\Varid{...}\mskip1.5mu\}{}\<[E]%
-\\[\blanklineskip]%
-\>[B]{}\Conid{Showℕ}\;\mathbin{:}\;\Conid{Show}\;\Conid{ℕ}{}\<[E]%
-\\
-\>[B]{}\Conid{Showℕ}\;\mathrel{=}\;\Keyword{record}\;\{\mskip1.5mu \Varid{show}\;\mathrel{=}\;\Varid{...}\mskip1.5mu\}{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Using instance arguments, we can now call our \ensuremath{\Varid{show}} function without
-having to pass the required dictionary explicitly:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Keyword{open}\;\Conid{Show}\;\{\mskip1.5mu \{\mskip1.5mu \Varid{...}\mskip1.5mu\}\mskip1.5mu\}{}\<[E]%
-\\[\blanklineskip]%
-\>[B]{}\Varid{example}\;\mathbin{:}\;\Conid{String}{}\<[E]%
-\\
-\>[B]{}\Varid{example}\;\mathrel{=}\;\Varid{show}\;\Varid{3}{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-The instance argument mechanism infers that the \ensuremath{\Varid{show}} function is
-being called on a natural number, hence a dictionary of type \ensuremath{\Conid{Show}\;\Conid{ℕ}}
-is required. As there is only a single value of type \ensuremath{\Conid{Show}\;\Conid{ℕ}}, the
-required dictionary is inserted automatically. If we have multiple
-instance definitions for the same type or omit the required instance
-altogether, the Agda type checker would have given an error.
-
-It is more interesting to consider parametrized instances, such as
-the \ensuremath{\Conid{Either}} instance given below.
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{22}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Conid{ShowEither}\;\mathbin{:}\;\Conid{Show}\;\Conid{A}\;\Varid{→}\;\Conid{Show}\;\Conid{B}\;\Varid{→}\;\Conid{Show}\;(\Conid{Either}\;\Conid{A}\;\Conid{B}){}\<[E]%
-\\
-\>[B]{}\Conid{ShowEither}\;\Conid{ShowA}\;\Conid{ShowB}\;\mathrel{=}\;\Keyword{record}\;\{\mskip1.5mu \Varid{show}\;\mathrel{=}\;\Varid{showE}\mskip1.5mu\}{}\<[E]%
-\\
-\>[B]{}\hsindent{3}{}\<[3]%
-\>[3]{}\Keyword{where}{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}\Varid{showE}\;\mathbin{:}\;\Conid{Either}\;\Conid{A}\;\Conid{B}\;\to \;\Conid{String}{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}\Varid{showE}\;(\Varid{left}\;\Varid{x})\;{}\<[22]%
-\>[22]{}\mathrel{=}\;\text{\tt \char34 left~\char34}\;\plus \;\Varid{show}\;\Varid{x}{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}\Varid{showE}\;(\Varid{right}\;\Varid{y})\;{}\<[22]%
-\>[22]{}\mathrel{=}\;\text{\tt \char34 right~\char34}\;\plus \;\Varid{show}\;\Varid{y}{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Unfortunately, instance arguments do not do any recursive search for
-suitable instances. Trying to call \ensuremath{\Varid{show}} on a value of type \ensuremath{\Conid{Either}\;\Conid{ℕ}\;\Conid{Bool}}, for example, will not succeed: the Agda type checker will
-complain that it cannot find a suitable instance argument. At the
-moment, the only way to resolve this is to construct the required
-instances manually:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Conid{ShowEitherBoolℕ}\;\mathbin{:}\;\Conid{Show}\;(\Conid{Either}\;\Conid{Bool}\;\Conid{ℕ}){}\<[E]%
-\\
-\>[3]{}\Conid{ShowEitherBoolℕ}\;\mathrel{=}\;\Conid{ShowEither}\;\Conid{ShowBool}\;\Conid{Showℕ}{}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Writing out such dictionaries is rather tedious.
-
-We can, however, use the \ensuremath{\Varid{auto}} function to construct the desired
-instance argument automatically. We start by putting the desired
-instances in a hint database:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{21}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Conid{ShowHints}\;\mathbin{:}\;\Conid{HintDB}{}\<[E]%
-\\
-\>[B]{}\Conid{ShowHints}\;\mathrel{=}\;\Varid{hintdb}\;{}\<[21]%
-\>[21]{}(\textsf{\textbf{quote}}\;\Conid{ShowEither}{}\<[E]%
-\\
-\>[21]{}\Varid{∷}\;\textsf{\textbf{quote}}\;\Conid{ShowBool}{}\<[E]%
-\\
-\>[21]{}\Varid{∷}\;\textsf{\textbf{quote}}\;\Conid{Showℕ}\;\Varid{∷}\;[\mskip1.5mu \mskip1.5mu]){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-
-The desired dictionary can now be assembled for us by calling the
-\ensuremath{\Varid{auto}} function:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{5}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{17}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Varid{example}\;\mathbin{:}\;\Conid{String}{}\<[E]%
-\\
-\>[B]{}\Varid{example}\;\mathrel{=}\;\Varid{show}\;(\Varid{left}\;\Varid{4})\;\plus \;\Varid{show}\;(\Varid{right}\;\Varid{true}){}\<[E]%
-\\
-\>[B]{}\hsindent{3}{}\<[3]%
-\>[3]{}\Keyword{where}{}\<[E]%
-\\
-\>[3]{}\hsindent{2}{}\<[5]%
-\>[5]{}\Varid{instance}\;\mathrel{=}\;{}\<[17]%
-\>[17]{}\textsf{\textbf{quoteGoal}}\;\Varid{g}{}\<[E]%
-\\
-\>[17]{}\Keyword{in}\;\textsf{\textbf{unquote}}\;(\Varid{auto}\;\Varid{5}\;\Conid{ShowHints}\;\Varid{g}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Note that the type of the locally bound \ensuremath{\Varid{instance}} record is inferred
-in this example. Using this type, the \ensuremath{\Varid{auto}} function assembles the
-desired dictionary. When \ensuremath{\Varid{show}} is called on different types, however,
-we may still need to provide the type signatures of the instances we
-desire.
-While deceptively simple, this example illustrates how \emph{useful}
-it can be to have even a little automation.
-
-%%% Local Variables:
-%%% mode: latex
-%%% TeX-master: t
-%%% TeX-command-default: "rake"
-%%% End:
-\section{Discussion}
-\label{sec:discussion}
-
-The \ensuremath{\Varid{auto}} function presented here is far from perfect. This section
-not only discusses its limitations, but compares it to existing proof
-automation techniques in interactive proof assistants.
-
-\paragraph{Performance}
-First of all, the performance of the \ensuremath{\Varid{auto}} function is terrible. Any
-proofs that require a depth greater than ten are intractable in
-practice. This is an immediate consequence of Agda's poor compile-time
-evaluation. The current implementation is call-by-name and does no
-optimization whatsoever. While a mature evaluator is beyond the scope
-of this project, we believe that it is essential for Agda proofs to
-scale beyond toy examples. Simple optimizations, such as the erasure
-of the natural number indexes used in unification~\cite{brady-opt},
-would certainly help speed up the proof search.
-
-\paragraph{Restrictions}
-The \ensuremath{\Varid{auto}} function can only handle first-order terms. Even though
-higher-order unification is not decidable in general, we believe that it
-should be possible to adapt our algorithm to work on second-order
-goals.
-Furthermore, there are plenty of Agda features that are not
-supported or ignored by our quotation functions, such as universe
-polymorphism, instance arguments, and primitive functions.
-
-Even for definitions that seem completely first-order, our \ensuremath{\Varid{auto}}
-function can fail unexpectedly. Consider the following definition of
-the product type, taken from Agda's standard library:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Varid{\char95 ×\char95 }\;\mathbin{:}\;(\Conid{A}\;\Conid{B}\;\mathbin{:}\;\Conid{Set})\;\Varid{→}\;\Conid{Set}{}\<[E]%
-\\
-\>[B]{}\Conid{A}\;\Varid{×}\;\Conid{B}\;\mathrel{=}\;\Conid{Σ}\;\Conid{A}\;(\Varid{λ}\;\anonymous \;\Varid{→}\;\Conid{B}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Here a (non-dependent) pair is defined as a special case of the
-type \ensuremath{\Conid{Σ}}, representing dependent pairs. We can define the obvious \ensuremath{\Conid{Show}}
-instance for such pairs:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[B]{}\Conid{Show×}\;\mathbin{:}\;\Conid{Show}\;\Conid{A}\;\to \;\Conid{Show}\;\Conid{B}\;\to \;\Conid{Show}\;(\Conid{A}\;\Varid{×}\;\Conid{B}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-Somewhat surprisingly, trying to use this rule to create an instance
-of the \ensuremath{\Conid{Show}} `class' fails. The \ensuremath{\textsf{\textbf{quoteGoal}}} construct always returns
-the goal in normal form, which exposes the higher-order nature of
-\ensuremath{\Conid{A}\;\Varid{×}\;\Conid{B}}.  Converting the goal \ensuremath{\Conid{Show}\;(\Conid{A}\;\Varid{×}\;(\Varid{λ}\;\anonymous \;\Varid{→}\;\Conid{B}))} to a \ensuremath{\Conid{PrologTerm}}
-will raises the `exception' \ensuremath{\Varid{unsupportedSyntax}}; the goal type
-contains a lambda which we cannot handle.
-
-Furthermore, there are some limitations on the hints that may be
-stored in the hint database. At the moment, we construct every hint by
-quoting an Agda \ensuremath{\Conid{Name}}. Not all useful hints, however, have a such a
-\ensuremath{\Conid{Name}}, such as any variables locally bound in the context by pattern
-matching or function arguments. For example, the following call to the
-\ensuremath{\Varid{auto}} function fails to produce the desired proof:
-\begin{hscode}\SaveRestoreHook
-\column{B}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{3}{@{}>{\hspre}l<{\hspost}@{}}%
-\column{E}{@{}>{\hspre}l<{\hspost}@{}}%
-\>[3]{}\Varid{simple}\;\mathbin{:}\;\Conid{Even}\;\Varid{n}\;\Varid{→}\;\Conid{Even}\;(\Varid{n}\;\Varid{+}\;\Varid{2}){}\<[E]%
-\\
-\>[3]{}\Varid{simple}\;\Varid{e}\;\mathrel{=}\;\textsf{\textbf{quoteGoal}}\;\Varid{g}\;\Keyword{in}\;\textsf{\textbf{unquote}}\;(\Varid{auto}\;\Varid{5}\;\Varid{hints}\;\Varid{g}){}\<[E]%
-\ColumnHook
-\end{hscode}\resethooks
-The variable \ensuremath{\Varid{e}}, necessary to complete the proof is not part of the
-hint database. We hope that this could be easily fixed by providing a
-variation of the \ensuremath{\textsf{\textbf{quoteGoal}}} construct that returns both the term
-representing to the current goal and a list of the terms bound in the
-local context.
-
-% Another restriction is that it is not currently possible to pass
-% arguments to a hint database manually. For instance, see the following
-% definition of |even+|:
-% \begin{code}
-% even+ : Even n → Even m → Even (n + m)
-% even+ (isEven0) = quoteGoal g in unquote (auto 5 [] g)
-% even+ (isEven+2 e) = quoteGoal g in unquote hole
-% \end{code}
-% Directly trying to add |e| to a hint database results in the error
-% message ``\textbf{quote}: not a defined name''.
-% Using |quoteTerm| on |e| returns |var 0 []|, which we could
-% potentially use to construct a rule for the usage of |e|. However,
-% there is currently no function in the Reflection API that enables us
-% to obtain the type corresponding to a |Term|, and thus no way of
-% constructing a rule based on |e|.
-% A last resort, binding the variable |e| to a name in a where-clause,
-% gives quite unexpected results: the invocation of |auto| is accepted
-% through Agda's interactive interface, and can be shown to reduce to
-% the correct definition:
-% \begin{code}
-%   λ z → isEven+2 (even+ind e z)
-% \end{code}
-% However, when recompiling the code using Agda's batch type-checker, it
-% is rejected. \pepijn{Batch type-checker?}
-
-\paragraph{Refinement}
-The \ensuremath{\Varid{auto}} function returns a complete proof term or fails
-entirely. This is not always desirable. We may want to return an
-incomplete proof, that still has open holes that the user must
-complete. This difficult with the current implementation of Agda's
-reflection mechanism: it cannot generate an incomplete \ensuremath{\Conid{Term}}.
-
-In the future, it may be interesting to explore how to integrate proof
-automation, as described in this paper, better with Agda's IDE. If the
-call to \ensuremath{\Varid{auto}} were to generate the concrete syntax for a (possibly
-incomplete) proof term, this could be replaced with the current goal
-quite easily. An additional advantage of this approach would be that
-reloading the file does no longer needs to recompute the proof terms.
-
-\paragraph{Metatheory}
-The \ensuremath{\Varid{auto}} function is necessarily untyped because the interface of
-Agda's reflection mechanism is untyped. Defining a well-typed
-representation of dependent types in a dependently typed language
-remains an open problem, despite various efforts in this
-direction~\cite{james-phd,nisse,devriese,kipling}. If we had such a
-representation, however, we might be able to use the type information
-to prove that when the \ensuremath{\Varid{auto}} function succeeds, the resulting term
-has the correct type. As it stands, proving soundness of the
-\ensuremath{\Varid{auto}} function is non-trivial: we would need to define the typing
-rules of Agda's \ensuremath{\Conid{Term}} data type and prove that the \ensuremath{\Conid{Term}} we produce
-witnesses the validity of our goal \ensuremath{\Conid{Term}}.
-It may be slightly easier
-to ignore Agda's reflection mechanism and instead verify the
-metatheory of the Prolog interpreter: if a proof exists at some given
-depth, \ensuremath{\Varid{searchToDepth}} should find it; any \ensuremath{\Conid{Result}} returned by
-\ensuremath{\Varid{searchToDepth}} should correspond to a valid derivation.
-
-\subsection*{Related work}
-
-There are several other interactive proof assistants, dependently
-typed programming languages, and alternative forms of proof
-automation in Agda. In the remainder of this section, we will briefly compare
-the approach taken in this paper to these existing systems.
-
-\paragraph{Coq}
-Coq has rich support for proof automation. The Ltac language
-and the many primitive, customizable tactics are extremely
-powerful~\cite{chlipala}. Despite Coq's success, it is still
-worthwhile to explore better methods for proof automation. Recent work
-on Mtac~\cite{mtac} shows how to add a typed language for proof
-automation on top of Ltac. Furthermore, Ltac itself is not designed to
-be a general purpose programming language. It can be difficult to
-abstract over certain patterns and debugging
-proof automation is not easy. The programmable proof automation,
-written using reflection, presented here may not be as mature as Coq's
-Ltac language, but addresses  these issues.
-
-\paragraph{Idris}
-The dependently typed programming language Idris also has a collection
-of tactics, inspired by some of the more simple Coq tactics, such as
-\ensuremath{\Varid{rewrite}}, \ensuremath{\Varid{intros}}, or \ensuremath{\Varid{exact}}. Each of these tactics is built-in and
-implemented as part of the Idris system. There is a small Haskell
-library for tactic writers to use that exposes common commands, such
-as unification, evaluation, or type checking. Furthermore, there are
-library functions to help handle the construction of proof terms,
-generation of fresh names, and splitting sub-goals. This approach is
-reminiscent of the HOL family of theorem provers~\cite{hol} or Coq's
-plug-in mechanism. An important drawback is that tactic writers need
-to write their tactics in a different language to the rest of their
-Idris code; furthermore, any changes to tactics requires a
-recompilation of the entire Idris system.
-
-\paragraph{Agsy}
-
-Agda already has a built-in `auto' tactic that outperforms the \ensuremath{\Varid{auto}}
-function we have defined here~\cite{lindblad}. It is nicely integrated
-with the IDE and does not require the users to provide an explicit
-hint database. It is, however, implemented in Haskell and shipped as
-part of the Agda system. As a result, users have very few
-opportunities for customization: there is limited control over which
-hints may (or may not) be used; there is no way to assign priorities
-to certain hints; and there is a single fixed search strategy. In
-contrast to the proof search presented here, where we have much more
-fine grained control over all these issues.
-
-\subsection*{Closure}
-
-The proof automation presented in this paper is not as mature as some
-of these alternative systems. Yet we strongly believe that this style
-of proof automation is worth pursuing further.
-
-The advantages of using reflection to program proof tactics should be
-clear: we do not need to learn a new programming language to write new
-tactics; we can use existing language technology to debug and test our
-tactics; and we can use all of Agda's expressive power in the design
-and implementation of our tactics. If a particular problem domain
-requires a different search strategy, this can be implemented by
-writing a new traversal over a \ensuremath{\Conid{SearchTree}}. Hint databases are
-first-class values. There is never any built-in magic; there are no
-compiler primitives beyond Agda's reflection mechanism.
-
-The central philosophy of Martin-L\"of type theory is that the
-construction of programs and proofs is the same activity. Any
-external language for proof automation renounces this philosophy. This
-paper demonstrates that proof automation is not inherently at odds
-with the philosophy of type theory. Paraphrasing
-Martin-L\"of~\cite{martin-lof}, it no longer seems possible to
-distinguish the discipline of \emph{programming} from the
-\emph{construction} of mathematics.
-
-% This is super useful: consider the problem of having |trans| in a hint
-% database.
-
-
-% Using the techniques described in this paper, it is possible to write
-% many other pieces of proof automation. Automated rewriting, for
-% example. Or a high-level, first-class tactic language: try this piece
-% of automation, and if that fails try something else.
-
-% This is the way forward for proof automation.
-
-
-%%% Local Variables:
-%%% mode: latex
-%%% TeX-master: t
-%%% TeX-command-default: "rake"
-%%% End:
+%%include reflection.lagda
+%%include typeclasses.lagda
+%%include discussion.lagda
 
 \paragraph{Acknowledgements}
 We would like to thank the Software Technology Reading Club at the

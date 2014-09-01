@@ -10,13 +10,21 @@ open import Category.Monad as Mon using (RawMonad)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; cong; cong₂)
 
-module Unification (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y)) where
+module Unification
+  (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y))
+  (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y))
+  where
 
   open Mon.RawMonad {{...}} using (_<$>_; _>>=_; return)
+
+  private
+    instance
+      MaybeMonad = Maybe.monad
 
   data Term (n : ℕ) : Set where
     var : (x : Fin n) → Term n
     con : (s : Name) (ts : List (Term n)) → Term n
+    lit : (l : Literal) → Term n
 
   var-inj : ∀ {n x₁ x₂} → var {n} x₁ ≡ var {n} x₂ → x₁ ≡ x₂
   var-inj refl = refl
@@ -24,13 +32,23 @@ module Unification (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y)) wh
   con-inj : ∀ {n s₁ s₂ ts₁ ts₂} → con {n} s₁ ts₁ ≡ con {n} s₂ ts₂ → s₁ ≡ s₂ × ts₁ ≡ ts₂
   con-inj refl = (refl , refl)
 
+  lit-inj : ∀ {n x₁ x₂} → lit {n} x₁ ≡ lit {n} x₂ → x₁ ≡ x₂
+  lit-inj refl = refl
+
   mutual
     _≟-Term_ : ∀ {n} → (t₁ t₂ : Term n) → Dec (t₁ ≡ t₂)
+    _≟-Term_ (var _)   (lit _)   = no (λ ())
+    _≟-Term_ (con _ _) (lit _)   = no (λ ())
+    _≟-Term_ (lit _)   (var _)   = no (λ ())
+    _≟-Term_ (lit _)   (con _ _) = no (λ ())
+    _≟-Term_ (var _)   (con _ _) = no (λ ())
+    _≟-Term_ (con _ _) (var _)   = no (λ ())
+    _≟-Term_ (lit x₁) (lit x₂) with x₁ ≟-Literal x₂
+    ... | yes x₁=x₂ = yes (cong lit x₁=x₂)
+    ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ lit-inj)
     _≟-Term_ (var x₁) (var x₂) with x₁ ≟-Fin x₂
     ... | yes x₁=x₂ = yes (cong var x₁=x₂)
     ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ var-inj)
-    _≟-Term_ (var _) (con _ _) = no (λ ())
-    _≟-Term_ (con _ _) (var _) = no (λ ())
     _≟-Term_ (con s₁ ts₁) (con s₂ ts₂) with s₁ ≟-Name s₂
     ... | no  s₁≠s₂ = no (s₁≠s₂ ∘ proj₁ ∘ con-inj)
     ... | yes s₁=s₂ rewrite s₁=s₂ with ts₁ ≟-Terms ts₂
@@ -49,7 +67,8 @@ module Unification (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y)) wh
 
   -- defining replacement function (written _◂ in McBride, 2003)
   replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
-  replace f (var i)  = f i
+  replace _ (lit l) = lit l
+  replace f (var i) = f i
   replace f (con s ts) = con s (replaceChildren f ts)
     where
       replaceChildren : ∀ {n m} → (Fin n → Term m) → (List (Term n) → List (Term m))
@@ -75,6 +94,7 @@ module Unification (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y)) wh
 
   -- defining an occurs check (**check** in McBride, 2003)
   check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
+  check _  (lit l)    = just (lit l)
   check x₁ (var x₂)   = var <$> thick x₁ x₂
   check x₁ (con s ts) = con s <$> checkChildren x₁ ts
     where
@@ -116,11 +136,20 @@ module Unification (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y)) wh
   flexFlex {suc n} x y | nothing = (suc n , nil)
   flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
 
+  -- TODO ask Wouter/Ulf about problems with new notation...
+  -- why are naturals represented as literals in the agda abstract syntax?
+  -- for floats, chars and strings it makes sense since they HAVE NO agda
+  -- representation
   mutual
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
+    unifyAcc (lit x₁) (lit x₂) (n , nil) with x₁ ≟-Literal x₂
+    ... | yes x₁=x₂ rewrite x₁=x₂ = just (n , nil)
+    ... | no  x₁≠x₂ = nothing
+    unifyAcc (con s ts) (lit x) (n , nil) = nothing
+    unifyAcc (lit x) (con s ts) (n , nil) = nothing
     unifyAcc (con s₁ ts₁) (con  s₂ ts₂) acc with s₁ ≟-Name s₂
-    unifyAcc (con s₁ ts₁) (con .s₁ ts₂) acc | yes refl = unifyAccChildren ts₁ ts₂ acc
-    unifyAcc (con s₁ ts₁) (con  s₂ ts₂) acc | no s₁≢s₂ = nothing
+    ... | yes s₁=s₂ rewrite s₁=s₂ = unifyAccChildren ts₁ ts₂ acc
+    ... | no  s₁≠s₂ = nothing
     unifyAcc (var x₁) (var x₂) (n , nil) = just (flexFlex x₁ x₂)
     unifyAcc t (var x) (n , nil) = flexRigid x t
     unifyAcc (var x) t (n , nil) = flexRigid x t
