@@ -42,14 +42,14 @@ module Auto.Example where
   test₄ : ∀ {n} → Even n → Even (n + 2)
   test₄ = tactic (auto 5 hints)
 
-  -- attempting to prove an impossible goal (e.g. evenness of n + 3 for all n)
-  -- will result in searchSpaceExhausted
+  -- attempting to prove an impossible goal (e.g. evenness of n + 3
+  -- for all n) will result in searchSpaceExhausted
   goal₁ = quoteTerm (∀ {n} → Even n → Even (n + 3))
   fail₁ : unquote (auto 5 hints goal₁) ≡ throw searchSpaceExhausted
   fail₁ = refl
 
-  -- attempting to convert an unsupported expression (e.g. a lambda term)
-  -- will result in unsupportedSyntax
+  -- attempting to convert an unsupported expression (e.g. a lambda
+  -- term) will result in unsupportedSyntax
   goal₂ = quoteTerm (∃₂ λ m n → Even (m + n))
   fail₂ : unquote (auto 5 hints goal₂) ≡ throw unsupportedSyntax
   fail₂ = refl
@@ -57,7 +57,9 @@ module Auto.Example where
   -- An internal error has occurred. Please report this as a bug.
   -- Location of the error:
   -- src/full/Agda/TypeChecking/Reduce/Monad.hs:158
+  {-
   even+ind : ∀ {n m} → Even n → Even m → Even (n + m)
   even+ind {0} (isEven0) = quoteGoal g in unquote (auto 5 [] g)
   even+ind {suc (suc n)} {m} (isEven+2 e) =
-    quoteGoal g in quoteContext c in {!unquote (auto 5 (compile c << quote isEven+2) g)!}
+     quoteContext c in tactic auto 5 (compile c << quote isEven+2)
+  -}
