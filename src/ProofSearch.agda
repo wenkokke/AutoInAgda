@@ -11,10 +11,10 @@ open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj
 open import Data.Vec as Vec using (Vec; _∷_; [])
 open import Data.Sum as Sum using (_⊎_; inj₁; inj₂)
 open import Data.Product as Prod using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
-open import Algebra as Alg using (CommutativeSemiring)
-open import Category.Monad as Mon using (RawMonad)
+open import Algebra using (module CommutativeSemiring; module DistributiveLattice)
+open import Category.Monad using (module RawMonad)
 open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary as Rel using (StrictTotalOrder)
+open import Relation.Binary as Rel using (module DecTotalOrder)
 open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; sym; trans; cong; cong₂)
 
 module ProofSearch
@@ -23,10 +23,10 @@ module ProofSearch
   (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y))
   where
 
-  open Alg.CommutativeSemiring NatProps.commutativeSemiring using (_+_; +-comm; +-assoc)
-  open Alg.DistributiveLattice NatProps.distributiveLattice using (_∧_; ∧-comm)
-  open Rel.DecTotalOrder Nat.decTotalOrder using (total)
-  open Mon.RawMonad {{...}} using (return; _>>=_)
+  open CommutativeSemiring NatProps.commutativeSemiring using (_+_; +-comm; +-assoc)
+  open DistributiveLattice NatProps.distributiveLattice using (_∧_; ∧-comm)
+  open DecTotalOrder Nat.decTotalOrder using (total)
+  open RawMonad {{...}} using (return; _>>=_)
   open import Unification TermName _≟-TermName_ Literal _≟-Literal_ public hiding (_++_)
 
   private
@@ -46,6 +46,7 @@ module ProofSearch
       premises    : List (Term n)
 
   open Rule using (name; conclusion; premises)
+
 
   -- compute the arity of a rule
   arity : ∀ {n} (r : Rule n) → ℕ

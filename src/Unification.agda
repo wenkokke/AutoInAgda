@@ -6,7 +6,7 @@ open import Data.Maybe as Maybe using (Maybe; just; nothing; monad)
 open import Data.List as List using (List; _∷_; []; monad)
 open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)
 open import Data.Product as Prod using (∃; _×_; _,_; proj₁; proj₂)
-open import Category.Monad as Mon using (RawMonad)
+open import Category.Monad using (module RawMonad)
 open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; cong; cong₂)
 
@@ -15,7 +15,7 @@ module Unification
   (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y))
   where
 
-  open Mon.RawMonad {{...}} using (_<$>_; _>>=_; return)
+  open RawMonad {{...}} using (_<$>_; _>>=_; return)
 
   private
     instance
