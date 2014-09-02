@@ -1,6 +1,7 @@
 require 'rake/clean'
 
 
+SrcDir = 'src'
 DocDir = 'doc'
 DocFiles = FileList["#{DocDir}/*.lagda",
                     "#{DocDir}/*.fmt"]
@@ -56,11 +57,11 @@ file "#{DocDir}/main.tex" => DocFiles do |t|
 end
 
 
-TempPaperPats  = ['*.log','*.ptb','*.blg','*.bbl','*.aux','*.snm',
-                  '*.toc','*.nav','*.out','auto','main.tex']
-TempTeXFiles = FileList.new(TempPaperPats.map {|fn| File.join('paper',fn) })
-TempCodePats   = ['*.agdai']
-TempCodeFiles  = FileList.new(TempCodePats.map { |fn| File.join('code',fn) })
+TempDocPats  = ['*.log','*.ptb','*.blg','*.bbl','*.aux','*.snm',
+                '*.toc','*.nav','*.out','auto','main.tex']
+TempDocFiles = FileList.new(TempDocPats.map {|fn| File.join(DocDir,fn) })
+TempSrcPats   = ['*.agdai']
+TempSrcFiles  = FileList.new(TempSrcPats.map { |fn| File.join(SrcDir,fn) })
 
-CLEAN.include(TempTeXFiles,TempCodeFiles)
+CLEAN.include(TempDocFiles,TempSrcFiles)
 CLOBBER.include('#{DocDir}/main.pdf')

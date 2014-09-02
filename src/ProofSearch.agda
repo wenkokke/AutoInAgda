@@ -133,9 +133,9 @@ module ProofSearch
 
   -- search trees
   data SearchTree (A : Set) : Set where
-    fail : SearchTree A
-    retn : A → SearchTree A
-    fork : List (∞ (SearchTree A)) → SearchTree A
+    leaf : A → SearchTree A
+    node : List (∞ (SearchTree A)) → SearchTree A
+
 
   -- lets try and keep the types readable, shall we?
   Goal   = Term
@@ -150,16 +150,21 @@ module ProofSearch
   Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
 
   con′ : ∀ {n k} (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
-  con′ r xs = con (name r) (Vec.toList $ Vec.take (arity r) xs) ∷ Vec.drop (arity r) xs
+  con′ {n} {k} r xs = head ∷ rest
+    where
+      head : Proof
+      head = con (name r) (Vec.toList $ Vec.take (arity r) xs)
+      rest : Vec Proof k
+      rest = Vec.drop (arity r) xs
 
   -- build search tree for a goal term
   solve : ∀ {m} → Goal m → HintDB → SearchTree Proof
   solve {m} g rules = solveAcc {0} {m} (just (m , nil)) (1 , g ∷ [] , Vec.head)
     where
       solveAcc : ∀ {δ m} → Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
-      solveAcc nothing _ = fail
-      solveAcc (just (n , s)) (0 , [] , p) = retn (p [])
-      solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = fork (steps rules)
+      solveAcc nothing _ = node [] -- fail
+      solveAcc (just (n , s)) (0 , [] , p) = leaf (p [])
+      solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = node (steps rules)
         where
           step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
           step (δ′ , r) = ♯ solveAcc {δ′ + δ} {m} mgu prf
@@ -192,9 +197,8 @@ module ProofSearch
 
   dfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
   dfs  zero    _        = []
-  dfs (suc k)  fail     = []
-  dfs (suc k) (retn x)  = return x
-  dfs (suc k) (fork xs) = concatMap (λ x → dfs k (♭ x)) xs
+  dfs (suc k) (leaf x)  = return x
+  dfs (suc k) (node xs) = concatMap (λ x → dfs k (♭ x)) xs
 
   bfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
   bfs depth t = concat (Vec.toList (bfsAcc depth t))
@@ -209,6 +213,5 @@ module ProofSearch
 
       bfsAcc : ∀ {A} (depth : ℕ) → SearchTree A → Vec (List A) depth
       bfsAcc  zero   _         = []
-      bfsAcc (suc k)  fail     = empty
-      bfsAcc (suc k) (retn x)  = (x ∷ []) ∷ empty
-      bfsAcc (suc k) (fork xs) = [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
+      bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
+      bfsAcc (suc k) (node xs) = [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
