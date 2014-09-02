@@ -89,17 +89,16 @@ module Auto where
 
   -- dictionary for the treatment of variables in conversion from Agda
   -- terms to terms to be used in proof search.
-  record ConvertVar : Set where
-    field
-      fromVar : (depth index : ℕ) → ∃ PsTerm
+  ConvertVar : Set
+  ConvertVar = (depth index : ℕ) → ∃ PsTerm
 
   -- conversion dictionary for rule-terms, which turns every variable
   -- that is within the scope of the term (i.e. is defined within the
   -- term by lambda abstraction) into a variable, and every variable
   -- which is defined out of scope into a Skolem constant (which
   -- blocks unification).
-  ConvertVar4Term : ConvertVar
-  ConvertVar4Term = record { fromVar = fromVar }
+  convertVar4Term : ConvertVar
+  convertVar4Term = fromVar
     where
       fromVar : (depth index : ℕ) → ∃ PsTerm
       fromVar d i with total i d
@@ -108,13 +107,13 @@ module Auto where
 
   -- conversion dictionary for goal-terms, which turns all variables
   -- into Skolem constants which blocks all unification.
-  ConvertVar4Goal : ConvertVar
-  ConvertVar4Goal = record { fromVar = fromVar′ }
+  convertVar4Goal : ConvertVar
+  convertVar4Goal = fromVar
     where
-      fromVar′ : (depth index : ℕ) → ∃ PsTerm
-      fromVar′ d i with total i d
-      fromVar′ d i | inj₁ i≤d = (0 , con (tvar (+ Δ i≤d)) [])
-      fromVar′ d i | inj₂ i>d = (0 , con (tvar (-[1+ Δ i>d ])) [])
+      fromVar : (depth index : ℕ) → ∃ PsTerm
+      fromVar d i with total i d
+      fromVar d i | inj₁ i≤d = (0 , con (tvar (+ Δ i≤d)) [])
+      fromVar d i | inj₂ i>d = (0 , con (tvar (-[1+ Δ i>d ])) [])
 
 
   -- helper function for converting definitions or constructors to
@@ -136,38 +135,40 @@ module Auto where
   -- rule-terms or goal-terms, respectively.
   mutual
     convert : ConvertVar → (depth : ℕ) → AgTerm → Error (∃ PsTerm)
-    convert dict d (lit (nat n)) = inj₂ (0 , convertℕ n)
-    convert dict d (lit l)       = inj₂ (0 , lit l)
-    convert dict d (var i [])    = inj₂ (ConvertVar.fromVar dict d i)
-    convert dict d (var i args)  = inj₁ unsupportedSyntax
-    convert dict d (con c args)  = fromDefOrCon c <$> convertChildren dict d args
-    convert dict d (def f args)  = fromDefOrCon f <$> convertChildren dict d args
-    convert dict d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
-      with convert dict d t₁ | convert dict (suc d) t₂
+    convert cv d (lit (nat n)) = inj₂ (0 , convertℕ n)
+    convert cv d (lit l)       = inj₂ (0 , lit l)
+    convert cv d (var i [])    = inj₂ (cv d i)
+    convert cv d (var i args)  = inj₁ unsupportedSyntax
+    convert cv d (con c args)  = fromDefOrCon c <$> convertChildren cv d args
+    convert cv d (def f args)  = fromDefOrCon f <$> convertChildren cv d args
+    convert cv d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
+      with convert cv d t₁ | convert cv (suc d) t₂
     ... | inj₁ msg | _        = inj₁ msg
     ... | _        | inj₁ msg = inj₁ msg
     ... | inj₂ (n₁ , p₁) | inj₂ (n₂ , p₂)
       with match p₁ p₂
     ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
-    convert dict d (pi (arg _ _) (el _ t₂)) = convert dict (suc d) t₂
-    convert dict d (lam _ _)     = inj₁ unsupportedSyntax
-    convert dict d (pat-lam _ _) = inj₁ unsupportedSyntax
-    convert dict d (sort _)      = inj₁ unsupportedSyntax
-    convert dict d unknown       = inj₁ unsupportedSyntax
+    convert cv d (pi (arg _ _) (el _ t₂)) = convert cv (suc d) t₂
+    convert cv d (lam _ _)     = inj₁ unsupportedSyntax
+    convert cv d (pat-lam _ _) = inj₁ unsupportedSyntax
+    convert cv d (sort _)      = inj₁ unsupportedSyntax
+    convert cv d unknown       = inj₁ unsupportedSyntax
 
-    convertChildren : ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
-    convertChildren dict d [] = inj₂ (0 , [])
-    convertChildren dict d (arg (arg-info visible _) t ∷ ts) with convert dict d t | convertChildren dict d ts
+    convertChildren :
+      ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
+    convertChildren cv d [] = inj₂ (0 , [])
+    convertChildren cv d (arg (arg-info visible _) t ∷ ts)
+      with convert cv d t | convertChildren cv d ts
     ... | inj₁ msg      | _              = inj₁ msg
     ... | _             | inj₁ msg       = inj₁ msg
     ... | inj₂ (m , p)  | inj₂ (n , ps) with match p ps
     ... | (p′ , ps′)                      = inj₂ (m ⊔ n , p′ ∷ ps′)
-    convertChildren dict d (arg _ _ ∷ ts)   = convertChildren dict d ts
+    convertChildren cv d (arg _ _ ∷ ts)   = convertChildren cv d ts
 
 
   -- convert an Agda term to a rule-term.
   agda2term : AgTerm → Error (∃ PsTerm)
-  agda2term t = convert ConvertVar4Term 0 t
+  agda2term t = convert convertVar4Term 0 t
 
 
   -- split a term at every occurrence of the `impl` constructor---
@@ -183,7 +184,7 @@ module Auto where
   -- term of the type `A → B` this function will generate a goal of
   -- type `B` and a premise of type `A`.
   agda2goal×premises : AgTerm → Error (∃ PsTerm × HintDB)
-  agda2goal×premises t with convert ConvertVar4Goal 0 t
+  agda2goal×premises t with convert convertVar4Goal 0 t
   ... | inj₁ msg            = inj₁ msg
   ... | inj₂ (n , p)        with split p
   ... | (k , ts)            with initLast ts
