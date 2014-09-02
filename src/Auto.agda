@@ -9,13 +9,13 @@ open import Data.Maybe as Maybe using (Maybe; just; nothing; maybe)
 open import Data.Sum as Sum using (_⊎_; inj₁; inj₂)
 open import Data.Integer as Int using (ℤ; -[1+_]; +_) renaming (_≟_ to _≟-Int_)
 open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary as Rel
+open import Relation.Binary using (module DecTotalOrder)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 open import Reflection renaming (Term to AgTerm; _≟_ to _≟-AgTerm_)
 
 module Auto where
 
-  open Rel.DecTotalOrder Nat.decTotalOrder using (total)
+  open DecTotalOrder Nat.decTotalOrder using (total)
 
   private
     ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b Level.⊔ a)
@@ -36,9 +36,9 @@ module Auto where
     Error : ∀ {a} (A : Set a) → Set a
     Error A = Message ⊎ A
 
-    _<$>_ : ∀ {a b} {A : Set a} {B : Set b} (f : A → B) → Error A → Error B
-    f <$> inj₁ x = inj₁ x
-    f <$> inj₂ y = inj₂ (f y)
+    _⟨$⟩_ : ∀ {a b} {A : Set a} {B : Set b} (f : A → B) → Error A → Error B
+    f ⟨$⟩ inj₁ x = inj₁ x
+    f ⟨$⟩ inj₂ y = inj₂ (f y)
 
 
   -- define term names for the term language we'll be using for proof
@@ -139,8 +139,8 @@ module Auto where
     convert cv d (lit l)       = inj₂ (0 , lit l)
     convert cv d (var i [])    = inj₂ (cv d i)
     convert cv d (var i args)  = inj₁ unsupportedSyntax
-    convert cv d (con c args)  = fromDefOrCon c <$> convertChildren cv d args
-    convert cv d (def f args)  = fromDefOrCon f <$> convertChildren cv d args
+    convert cv d (con c args)  = fromDefOrCon c ⟨$⟩ convertChildren cv d args
+    convert cv d (def f args)  = fromDefOrCon f ⟨$⟩ convertChildren cv d args
     convert cv d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
       with convert cv d t₁ | convert cv (suc d) t₂
     ... | inj₁ msg | _        = inj₁ msg
