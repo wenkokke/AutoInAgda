@@ -211,11 +211,15 @@ all the variables that they contain.
 
 \subsection*{Constructing the search tree}
 
+Our search tree is a potentially infinite rose tree.
 \begin{code}
   data SearchTree (A : Set) : Set where
-    fail : SearchTree A
-    retn : A → SearchTree A
-    fork : List (∞ (SearchTree A)) → SearchTree A
+    leaf : A → SearchTree A
+    node : List (∞ (SearchTree A)) → SearchTree A
+\end{code}
+
+\begin{code}
+
 \end{code}
 
 \begin{code}
@@ -230,9 +234,10 @@ all the variables that they contain.
 
 \begin{code}
   con′ : (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
-  con′ r xs = con (name r) (toList $ take (arity r) xs) ∷ drop (arity r) xs
+  con′ r xs = new ∷ rest
     where
-      prf :
+      new  = con (name r) (toList $ take (arity r) xs)
+      rest = drop (arity r) xs
 \end{code}
 
 \begin{code}
@@ -243,9 +248,9 @@ all the variables that they contain.
 \begin{code}
   solveAcc : Maybe (∃[ n ] Subst (δ + m) n)
            → Proof′ (δ + m) → SearchTree Proof
-  solveAcc nothing _ = fail
-  solveAcc (just (n , s)) (0 , [] , p) = retn (p [])
-  solveAcc (just (n , s)) (suc k , g ∷ gs , p) = fork (map step rules)
+  solveAcc nothing _ = node [] -- fail
+  solveAcc (just (n , s)) (0 , [] , p) = leaf (p [])
+  solveAcc (just (n , s)) (suc k , g ∷ gs , p) = node (map step rules)
 \end{code}
 
 \begin{code}
@@ -272,7 +277,6 @@ all the variables that they contain.
           s′   : ∃[ n ] Subst (δ′ + δ + m) n
           s′   = n + δ′ , injectSubst δ′ s
 \end{code}
-
 
 
 \subsection*{Searching for proofs}
