@@ -5,16 +5,22 @@ The |auto| function presented here is far from perfect. This section
 not only discusses its limitations, but compares it to existing proof
 automation techniques in interactive proof assistants.
 
-\paragraph{Performance}
-First of all, the performance of the |auto| function is terrible. Any
-proofs that require a depth greater than ten are intractable in
-practice. This is an immediate consequence of Agda's poor compile-time
-evaluation. The current implementation is call-by-name and does no
-optimization whatsoever. While a mature evaluator is beyond the scope
-of this project, we believe that it is essential for Agda proofs to
-scale beyond toy examples. Simple optimizations, such as the erasure
-of the natural number indexes used in unification~\cite{brady-opt},
-would certainly help speed up the proof search.
+%% REASON:
+%%  I removed the section on performance here, since we can and
+%%  should tone it down a whole bunch. My rewrites and possibly Agda's
+%%  new treatment of natural numbers as Haskell integers (if addition is
+%%  treated as a Haskell operation) sped our tactic up a WHOLE bunch.
+%%
+%%\paragraph{Performance}
+%%First of all, the performance of the |auto| function is terrible. Any
+%%proofs that require a depth greater than ten are intractable in
+%%practice. This is an immediate consequence of Agda's poor compile-time
+%%evaluation. The current implementation is call-by-name and does no
+%%optimisation whatsoever. While a mature evaluator is beyond the scope
+%%of this project, we believe that it is essential for Agda proofs to
+%%scale beyond toy examples. Simple optimizations, such as the erasure
+%%of the natural number indexes used in unification~\cite{brady-opt},
+%%would certainly help speed up the proof search.
 
 \paragraph{Restrictions}
 The |auto| function can only handle first-order terms. Even though
@@ -29,14 +35,14 @@ Even for definitions that seem completely first-order, our |auto|
 function can fail unexpectedly. Consider the following definition of
 the product type, taken from Agda's standard library:
 \begin{code}
-_×_ : (A B : Set) → Set
-A × B = Σ A (λ _ → B)
+  _×_ : (A B : Set) → Set
+  A × B = Σ A (λ _ → B)
 \end{code}
 Here a (non-dependent) pair is defined as a special case of the
 type |Σ|, representing dependent pairs. We can define the obvious |Show|
 instance for such pairs:
 \begin{code}
-Show× : Show A -> Show B -> Show (A × B)
+  Show× : Show A -> Show B -> Show (A × B)
 \end{code}
 Somewhat surprisingly, trying to use this rule to create an instance
 of the |Show| `class' fails. The |quoteGoal| construct always returns
@@ -61,30 +67,34 @@ variation of the |quoteGoal| construct that returns both the term
 representing to the current goal and a list of the terms bound in the
 local context.
 
-% Another restriction is that it is not currently possible to pass
-% arguments to a hint database manually. For instance, see the following
-% definition of |even+|:
-% \begin{code}
-% even+ : Even n → Even m → Even (n + m)
-% even+ (isEven0) = quoteGoal g in unquote (auto 5 [] g)
-% even+ (isEven+2 e) = quoteGoal g in unquote hole
-% \end{code}
-% Directly trying to add |e| to a hint database results in the error
-% message ``\textbf{quote}: not a defined name''.
-% Using |quoteTerm| on |e| returns |var 0 []|, which we could
-% potentially use to construct a rule for the usage of |e|. However,
-% there is currently no function in the Reflection API that enables us
-% to obtain the type corresponding to a |Term|, and thus no way of
-% constructing a rule based on |e|.
-% A last resort, binding the variable |e| to a name in a where-clause,
-% gives quite unexpected results: the invocation of |auto| is accepted
-% through Agda's interactive interface, and can be shown to reduce to
-% the correct definition:
-% \begin{code}
-%   λ z → isEven+2 (even+ind e z)
-% \end{code}
-% However, when recompiling the code using Agda's batch type-checker, it
-% is rejected. \pepijn{Batch type-checker?}
+%% REASON:
+%%  This section was removed because it is no longer a restriction,
+%%  since quoteContext was implemented.
+%%
+%%Another restriction is that it is not currently possible to pass
+%%arguments to a hint database manually. For instance, see the following
+%%definition of |even+|:
+%%\begin{code}
+%%even+ : Even n → Even m → Even (n + m)
+%%even+ (isEven0) = quoteGoal g in unquote (auto 5 [] g)
+%%even+ (isEven+2 e) = quoteGoal g in unquote hole
+%%\end{code}
+%%Directly trying to add |e| to a hint database results in the error
+%%message ``\textbf{quote}: not a defined name''.
+%%Using |quoteTerm| on |e| returns |var 0 []|, which we could
+%%potentially use to construct a rule for the usage of |e|. However,
+%%there is currently no function in the Reflection API that enables us
+%%to obtain the type corresponding to a |Term|, and thus no way of
+%%constructing a rule based on |e|.
+%%A last resort, binding the variable |e| to a name in a where-clause,
+%%gives quite unexpected results: the invocation of |auto| is accepted
+%%through Agda's interactive interface, and can be shown to reduce to
+%%the correct definition:
+%%\begin{code}
+%%  λ z → isEven+2 (even+ind e z)
+%%\end{code}
+%%However, when recompiling the code using Agda's batch type-checker, it
+%%is rejected. \pepijn{Batch type-checker?}
 
 \paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
@@ -118,8 +128,8 @@ metatheory of the Prolog interpreter: if a proof exists at some given
 depth, |searchToDepth| should find it; any |Result| returned by
 |searchToDepth| should correspond to a valid derivation.
 
-\subsection*{Related work}
 
+\subsection*{Related work}
 There are several other interactive proof assistants, dependently
 typed programming languages, and alternative forms of proof
 automation in Agda. In the remainder of this section, we will briefly compare

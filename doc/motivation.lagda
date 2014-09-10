@@ -141,6 +141,13 @@ hint database:
   simple : Even n → Even (n + 2)
   simple = quoteGoal g in unquote (auto 5 hints g)
 \end{code}
+Or, using the newly added Agda tactic syntax\footnote{
+  Syntax for Agda tactics was added in Agda 2.4.2.
+}:
+\begin{code}
+  simple : Even n → Even (n + 2)
+  simple = tactic (auto 5 hints)
+\end{code}
 The central ingredient is a \emph{function} |auto| with the following
 type:
 \begin{code}

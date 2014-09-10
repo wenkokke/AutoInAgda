@@ -5,11 +5,12 @@ The following section describes our implementation of proof search
 à la Prolog in Agda. This implementation abstracts over two data types
 for names---one for inference rules and one for term constructors.
 These data types will be referred to as |RuleName| and |TermName|, and
-will be instantiated with types (with the same names) in
+will be instantiated with concrete types (with the same names) in
 section~\ref{sec:reflection}.
 
 
 \subsection*{Terms and unification}
+\label{subsec:terms}
 
 The heart of our proof search implementation is the structurally
 recursive unification algorithm described by~\citet{unification}. Here
@@ -86,6 +87,7 @@ substitution to |t₁| and |t₂| before attempting to unify.
 
 
 \subsection*{Inference rules}
+\label{subsec:rules}
 
 We encode inference rules as records containing a rule name, a list of
 terms for its premises, and a term for its conclusion:
@@ -139,6 +141,7 @@ AddStep = record {
 
 
 \subsection*{Generalised injection and raising}
+\label{subsec:injectandraise}
 
 Before we can implement some form of proof search, we define a pair of
 auxiliary functions. During proof resolution, we will need to work
@@ -202,7 +205,7 @@ type |Fin (m + n)| by repeatedly applying the |suc| constructor.
 \vspace{4ex}
 \caption{The graph of the |inject| function (a) and the |raise|
   function (b) embedding |Fin 3| in |Fin (3 + 1)|}
-  \label{fig:fins}
+\label{fig:fins}
 \end{figure}
 We can use these |inject| and |raise| to define similar functions
 that work on our |Rule| and |PsTerm| data types, by mapping them over
@@ -210,41 +213,98 @@ all the variables that they contain.
 
 
 \subsection*{Constructing the search tree}
+\label{subsec:searchtrees}
 
-Our search tree is a potentially infinite rose tree.
+Our search tree is simply a potentially infinite rose tree.
 \begin{code}
   data SearchTree (A : Set) : Set where
-    leaf : A → SearchTree A
-    node : List (∞ (SearchTree A)) → SearchTree A
+    leaf  : A → SearchTree A
+    node  : List (∞ (SearchTree A)) → SearchTree A
 \end{code}
-
-\begin{code}
-
-\end{code}
-
+For our purposes, the type parameter |A| will be instantiated with a
+type representing proof terms: a type which exists of applications of
+rules, with a sub-proof for every parameter.
 \begin{code}
   data Proof : Set where
     con : (name : RuleName) (args : List Proof) → Proof
 \end{code}
+We construct our search trees as follows:
+\begin{enumerate}
+\item \label{step:base}
+  We begin with a partial proof term which consists of a single hole,
+  representing a proof obligation for our top-level goal. We represent
+  this as a function from a single proof object to the resulting proof
+  object.
 
+\item \label{step:recurse}
+  Next, for each rule |r| in our hint database, we attempt to unify
+  the conclusion of |r| with the goal. If this succeeds, we add the
+  premises of |r| to the list of sub-goals. In addition, we update the
+  structure of the partial proof, instantiating the hole with our rule
+  |r|, and creating new holes for the premises of |r|.
+
+\item
+  Last, we recursively apply step~\ref{step:recurse} until we have
+  emptied the list of sub-goals---which may never happen. If this is
+  the case, then we will provably also have a complete proof term,
+  which we can return.
+\end{enumerate}
+A sample search-tree can be seen in figure~\ref{fig:searchtree}.
+
+\begin{figure}[ht]
+  \begin{tikzpicture}[thick, scale=0.8]
+    \Tree [.{\ldots} {|isEven0|}
+      [.{(|isEven+2| \, \ldots)}
+        [.{(|isEven+2| \, |isEven0|)} ]
+        [.{(|isEven+2| \, |isEven+2| \, {\vdots})} {\vdots} ]
+        [.{\vdots} ]
+      ]
+      [.{(|even+| \, \ldots \, \ldots)} {\vdots} ]
+    ]
+  \end{tikzpicture}
+  \caption{Sample search tree during construction.}
+  \label{fig:searchtree}
+\end{figure}
+
+Partial proofs are represented by the |Proof′| type, which is a pair
+containing our list of sub-goals (of length |k|) combined with a
+function from |k| proof terms to a proof term.
 \begin{code}
   Proof′ : ℕ → Set
   Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
 \end{code}
+This means that the initial partial proof for a goal |g| is
+represented as the triple |(1 , g ∷ [] , head)|.
 
+In order to simplify working with these partial proof terms, we define
+a smart constructor for proof terms based on vectors of proofs. More
+specifically, |con′| will, given a rule |r| and a vector of proof
+terms, take |arity r| proofs off of the proof vector apply the proof
+constructor |con|, and cons the resulting term back into the proof
+vector.
 \begin{code}
   con′ : (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
   con′ r xs = new ∷ rest
     where
-      new  = con (name r) (toList $ take (arity r) xs)
+      new  = con (name r) (toList (take (arity r) xs))
       rest = drop (arity r) xs
 \end{code}
-
+Finally, we define a function |solve| which builds up the tree, given
+a hint database. This function is implemented with two accumulating
+parameters, representing the current substitution and the current
+partial proof, respectively.
+In the base case, these are instantiated to the empty substitution and
+a single proof obligation---as described above.
 \begin{code}
   solve : Goal m → HintDB → SearchTree Proof
   solve g rules = solveAcc (just (m , nil)) (1 , g ∷ [] , head)
 \end{code}
-
+In the recursive construction, there are three important cases: if
+unification is impossible, and therefore the current substitution
+|nothing|, we fail; if the partial proof is complete, i.e. has no more
+holes, we can stop the search and construct a |leaf|; otherwise, we
+continue the proof search by constructing a node with one child for
+every possible node, by applying the stepping function.
 \begin{code}
   solveAcc : Maybe (∃[ n ] Subst (δ + m) n)
            → Proof′ (δ + m) → SearchTree Proof
@@ -252,7 +312,25 @@ Our search tree is a potentially infinite rose tree.
   solveAcc (just (n , s)) (0 , [] , p) = leaf (p [])
   solveAcc (just (n , s)) (suc k , g ∷ gs , p) = node (map step rules)
 \end{code}
-
+The stepping function itself looks daunting, but what it does is
+relatively simple.\footnote{
+  Note that it is defined within a where clause of |solveAcc| and
+  therefore has access to all its variables.
+}
+First, it is given a rule to try and apply. Because this rule has a
+number of free variables of its own, all terms---the rule's premises
+and conclusion, the current goals, the current substitution---have to
+be injected into a larger domain which includes all the current
+variables \emph{and} the new rule's variables. This alone accounts for
+most of the code in the where clauses.
+Second, now that the terms are compatible, we attempt to find a most
+general unifier (|mgu|) for the current goal and the rule's
+conclusion. Note that if this fails, |unifyAcc| will return |nothing|
+and cause |solveAcc| to fail on the next recursive call.
+Finally, we build up a new partial proof, updating the previous one
+with a new constructor for the given rule.
+All these values in hand, we recursively call |solveAcc| to (lazily)
+generate the rest of the search tree.
 \begin{code}
   step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
   step (δ′ , r) = ♯ solveAcc mgu prf
@@ -280,6 +358,54 @@ Our search tree is a potentially infinite rose tree.
 
 
 \subsection*{Searching for proofs}
+
+After all this construction, we are left with a simple tree structure,
+which we can traverse in search of solutions. For instance, we can
+define a simple bounded depth-first traversal as follows:
+\begin{code}
+  dfs : (depth : ℕ) → SearchTree A → List A
+  dfs zero     _          = []
+  dfs (suc k)  fail       = []
+  dfs (suc k)  (retn x)   = return x
+  dfs (suc k)  (fork xs)  = concatMap (λ x → dfs k (♭ x)) xs
+\end{code}
+It is fairly straightforward to define other traversal strategies,
+such as a breadth-first search, which traverses the search tree in
+layers.
+\begin{code}
+  bfs : (depth : ℕ) → SearchTree A → List A
+  bfs depth t = concat (Vec.toList (bfsAcc depth t))
+    where
+      merge : (xs ys : Vec (List A) k) → Vec (List A) k
+      merge [] [] = []
+      merge (x ∷ xs) (y ∷ ys) = (x ++ y) ∷ merge xs ys
+
+      empty : Vec (List A) k
+      empty {k = zero}  = []
+      empty {k = suc k} = [] ∷ empty
+
+      bfsAcc
+        : (depth : ℕ) → SearchTree A → Vec (List A) depth
+      bfsAcc  zero   _         = []
+      bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
+      bfsAcc (suc k) (node xs) =
+        [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
+\end{code}
+Similarly, we could define a function which traverses the search tree
+aided by several heuristics.
+
+
+
+If we are willing to make further changes, we could also represent a
+hint database as a list of \emph{pairs} of rules and functions of the
+type |HintDB → HintDB|, such that after a rule |r| is selected in the
+construction phase, it can update the hint database that is passed
+down the tree.
+
+This would make it relatively easy to implement, for instance, a
+linear proof search, where every rule is applied at most once---we
+would only have to pass in a function which deleted the selected rule
+from the hint database.
 
 %%% Local Variables:
 %%% mode: latex

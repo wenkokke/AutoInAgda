@@ -12,27 +12,27 @@ this paper, we mimic their results.
 We begin by declaring our `type class' as a record containing the
 desired function:
 \begin{code}
-record Show (A : Set) : Set where
-  field
-    show : A → String
+  record Show (A : Set) : Set where
+    field
+      show : A → String
 \end{code}
 
 We can write instances for the |Show| `class' by constructing explicit
 dictionary objects:
 \begin{code}
-ShowBool  : Show Bool
-ShowBool = record { show = ... }
+  ShowBool  : Show Bool
+  ShowBool = record { show = ... }
 
-Showℕ : Show ℕ
-Showℕ = record { show = ... }
+  Showℕ : Show ℕ
+  Showℕ = record { show = ... }
 \end{code}
 Using instance arguments, we can now call our |show| function without
 having to pass the required dictionary explicitly:
 \begin{code}
-open Show {{...}}
+  open Show {{...}}
 
-example : String
-example = show 3
+  example : String
+  example = show 3
 \end{code}
 The instance argument mechanism infers that the |show| function is
 being called on a natural number, hence a dictionary of type |Show ℕ|
@@ -44,12 +44,12 @@ altogether, the Agda type checker would have given an error.
 It is more interesting to consider parametrized instances, such as
 the |Either| instance given below.
 \begin{code}
-ShowEither : Show A → Show B → Show (Either A B)
-ShowEither ShowA ShowB = record { show = showE }
-  where
-    showE : Either A B -> String
-    showE (left x)   = "left " ++ show x
-    showE (right y)  = "right " ++ show y
+  ShowEither : Show A → Show B → Show (Either A B)
+  ShowEither ShowA ShowB = record { show = showE }
+    where
+      showE : Either A B -> String
+      showE (left x)   = "left " ++ show x
+      showE (right y)  = "right " ++ show y
 \end{code}
 Unfortunately, instance arguments do not do any recursive search for
 suitable instances. Trying to call |show| on a value of type |Either ℕ
@@ -67,20 +67,19 @@ We can, however, use the |auto| function to construct the desired
 instance argument automatically. We start by putting the desired
 instances in a hint database:
 \begin{code}
-ShowHints : HintDB
-ShowHints = hintdb  (quote ShowEither
-                    ∷ quote ShowBool
-                    ∷ quote Showℕ ∷ [])
+  ShowHints : HintDB
+  ShowHints = hintdb  (quote ShowEither
+                      ∷ quote ShowBool
+                      ∷ quote Showℕ ∷ [])
 \end{code}
 
 The desired dictionary can now be assembled for us by calling the
 |auto| function:
 \begin{code}
-example : String
-example = show (left 4) ++ show (right true)
-  where
-    instance =  quoteGoal g
-                in unquote (auto 5 ShowHints g)
+  example : String
+  example = show (left 4) ++ show (right true)
+    where
+      instance = tactic (auto 5 ShowHints)
 \end{code}
 Note that the type of the locally bound |instance| record is inferred
 in this example. Using this type, the |auto| function assembles the
