@@ -138,10 +138,9 @@ module ProofSearch
     node : List (∞ (SearchTree A)) → SearchTree A
 
 
-  -- lets try and keep the types readable, shall we?
+  -- let's try and keep the types readable, shall we?
   Goal   = Term
   HintDB = List (∃ Rule)
-
 
   data Proof : Set where
     con : (name : RuleName) (args : List Proof) → Proof

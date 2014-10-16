@@ -52,17 +52,6 @@ this paper makes the several novel contributions.
   prove, pass this term as the goal of our proof search algorithm, and
   finally, \emph{unquote} the resulting proof term, thereby proving
   the desired lemma.
-\item %
-  \pepijn{We don't do this anymore, nor should we. So we have to come
-    up with a better example. However, I'd say it's still possible to
-    include this section (since it's short) and claim it gives a more
-    fine-grained control over instance search. It is, however, a poor
-    main example by now.}
-  Finally, we show how we can use our proof search together with
-  Agda's \emph{instance arguments}~\cite{instance-args} to implement
-  lightweight type classes in Agda (Section~\ref{sec:typeclasses}).
-  This resolves one of the major restrictions of instance arguments:
-  the lack of a recursive search procedure for their construction.
 \end{itemize}
 
 Although Agda already has built-in proof search
