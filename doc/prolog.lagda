@@ -252,14 +252,19 @@ We construct our search trees as follows:
 A sample search-tree can be seen in figure~\ref{fig:searchtree}.
 
 \begin{figure}[ht]
+  \centering
   \begin{tikzpicture}[thick, scale=0.8]
-    \Tree [.{\ldots} {|isEven0|}
+    \Tree
+    [.{\ldots}
+      {|isEven0|}
       [.{(|isEven+2| \, \ldots)}
         [.{(|isEven+2| \, |isEven0|)} ]
         [.{(|isEven+2| \, |isEven+2| \, {\vdots})} {\vdots} ]
         [.{\vdots} ]
       ]
-      [.{(|even+| \, \ldots \, \ldots)} {\vdots} ]
+      [.{(|even+| \, \ldots \, \ldots)}
+        {\vdots}
+      ]
     ]
   \end{tikzpicture}
   \caption{Sample search tree during construction.}
@@ -286,8 +291,8 @@ vector.
   con′ : (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
   con′ r xs = new ∷ rest
     where
-      new  = con (name r) (toList (take (arity r) xs))
-      rest = drop (arity r) xs
+      new   = con (name r) (toList (take (arity r) xs))
+      rest  = drop (arity r) xs
 \end{code}
 Finally, we define a function |solve| which builds up the tree, given
 a hint database. This function is implemented with two accumulating
@@ -306,8 +311,7 @@ holes, we can stop the search and construct a |leaf|; otherwise, we
 continue the proof search by constructing a node with one child for
 every possible node, by applying the stepping function.
 \begin{code}
-  solveAcc : Maybe (∃[ n ] Subst (δ + m) n)
-           → Proof′ (δ + m) → SearchTree Proof
+  solveAcc : Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
   solveAcc nothing _ = node [] -- fail
   solveAcc (just (n , s)) (0 , [] , p) = leaf (p [])
   solveAcc (just (n , s)) (suc k , g ∷ gs , p) = node (map step rules)
@@ -338,22 +342,22 @@ generate the rest of the search tree.
       prf : Proof′ (δ′ + δ + m)
       prf = arity r + k , prm′ ++ gs′ , p′
         where
-          gs′  : Vec (Goal (δ′ + δ + m)) k
-          gs′  = inject δ′ gs
-          prm′ : Vec (Goal (δ′ + δ + m)) (arity r)
-          prm′ = map (raise (δ + m)) (fromList (premises r))
-          p′   : Vec Proof (arity r + k) → Proof
-          p′   = p ∘ con′ r
+          gs′   : Vec (Goal (δ′ + δ + m)) k
+          gs′   = inject δ′ gs
+          prm′  : Vec (Goal (δ′ + δ + m)) (arity r)
+          prm′  = map (raise (δ + m)) (fromList (premises r))
+          p′    : Vec Proof (arity r + k) → Proof
+          p′    = p ∘ con′ r
 
       mgu : Maybe (∃[ n ] (Subst (δ′ + δ + m) n))
       mgu = unifyAcc g′ cnc′ s′
         where
-          g′   : PsTerm (δ′ + δ + m)
-          g′   = inject δ′ g
-          cnc′ : PsTerm (δ′ + δ + m)
-          cnc′ = raise (δ + m) (conclusion r)
-          s′   : ∃[ n ] Subst (δ′ + δ + m) n
-          s′   = n + δ′ , injectSubst δ′ s
+          g′    : PsTerm (δ′ + δ + m)
+          g′    = inject δ′ g
+          cnc′  : PsTerm (δ′ + δ + m)
+          cnc′  = raise (δ + m) (conclusion r)
+          s′    : ∃[ n ] Subst (δ′ + δ + m) n
+          s′    = n + δ′ , injectSubst δ′ s
 \end{code}
 \todo{We should try to clean up this code a bit. Introducing a
   separate name for |δ′ + δ + m| would really help keep the type
@@ -366,31 +370,30 @@ which we can traverse in search of solutions. For instance, we can
 define a simple bounded depth-first traversal as follows:
 \begin{code}
   dfs : (depth : ℕ) → SearchTree A → List A
-  dfs zero     _          = []
-  dfs (suc k)  fail       = []
-  dfs (suc k)  (retn x)   = return x
-  dfs (suc k)  (fork xs)  = concatMap (λ x → dfs k (♭ x)) xs
+  dfs    zero       _         = []
+  dfs (  suc k)     fail      = []
+  dfs (  suc k)  (  retn x)   = return x
+  dfs (  suc k)  (  fork xs)  = concatMap (λ x → dfs k (♭ x)) xs
 \end{code}
 It is fairly straightforward to define other traversal strategies,
 such as a breadth-first search, which traverses the search tree in
 layers.
 \begin{code}
   bfs : (depth : ℕ) → SearchTree A → List A
-  bfs depth t = concat (Vec.toList (bfsAcc depth t))
+  bfs depth t = concat (toList (bfsAcc depth t))
     where
       merge : (xs ys : Vec (List A) k) → Vec (List A) k
-      merge [] [] = []
-      merge (x ∷ xs) (y ∷ ys) = (x ++ y) ∷ merge xs ys
+      merge  []        []        = []
+      merge  (x ∷ xs)  (y ∷ ys)  = (x ++ y) ∷ merge xs ys
 
       empty : Vec (List A) k
-      empty {k = zero}  = []
-      empty {k = suc k} = [] ∷ empty
+      empty {k = zero}   = []
+      empty {k = suc k}  = [] ∷ empty
 
-      bfsAcc
-        : (depth : ℕ) → SearchTree A → Vec (List A) depth
-      bfsAcc  zero   _         = []
-      bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
-      bfsAcc (suc k) (node xs) =
+      bfsAcc : (depth : ℕ) → SearchTree A → Vec (List A) depth
+      bfsAcc  zero   _          = []
+      bfsAcc (suc k) (leaf x)   = (x ∷ []) ∷ empty
+      bfsAcc (suc k) (node xs)  =
         [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
 \end{code}
 Similarly, we could define a function which traverses the search tree

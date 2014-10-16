@@ -1,6 +1,7 @@
-%format hole      = "\{\ \}0"
-%format quoteGoal = "\textsf{\textbf{quoteGoal}}"
-%format quote     = "\textsf{\textbf{quote}}"
-%format quoteTerm = "\textsf{\textbf{quoteTerm}}"
-%format unquote   = "\textsf{\textbf{unquote}}"
-%format tactic    = "\textsf{\textbf{tactic}}"
+%format hole       = "\{\ \}0"
+%format quoteGoal  = "\textsf{\textbf{quoteGoal}}"
+%format quote      = "\textsf{\textbf{quote}}"
+%format quoteTerm  = "\textsf{\textbf{quoteTerm}}"
+%format unquote    = "\textsf{\textbf{unquote}}"
+%format tactic     = "\textsf{\textbf{tactic}}"
+
