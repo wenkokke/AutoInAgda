@@ -115,7 +115,7 @@ The |auto| function is necessarily untyped because the interface of
 Agda's reflection mechanism is untyped. Defining a well-typed
 representation of dependent types in a dependently typed language
 remains an open problem, despite various efforts in this
-direction~\cite{james-phd,nisse,devriese,kipling}. If we had such a
+direction~\citep{james-phd,nisse,devriese,kipling}. If we had such a
 representation, however, we might be able to use the type information
 to prove that when the |auto| function succeeds, the resulting term
 has the correct type. As it stands, proving soundness of the
@@ -138,9 +138,9 @@ the approach taken in this paper to these existing systems.
 \paragraph{Coq}
 Coq has rich support for proof automation. The Ltac language
 and the many primitive, customizable tactics are extremely
-powerful~\cite{chlipala}. Despite Coq's success, it is still
+powerful~\citep{chlipala}. Despite Coq's success, it is still
 worthwhile to explore better methods for proof automation. Recent work
-on Mtac~\cite{mtac} shows how to add a typed language for proof
+on Mtac~\citep{mtac} shows how to add a typed language for proof
 automation on top of Ltac. Furthermore, Ltac itself is not designed to
 be a general purpose programming language. It can be difficult to
 abstract over certain patterns and debugging
@@ -157,7 +157,7 @@ library for tactic writers to use that exposes common commands, such
 as unification, evaluation, or type checking. Furthermore, there are
 library functions to help handle the construction of proof terms,
 generation of fresh names, and splitting sub-goals. This approach is
-reminiscent of the HOL family of theorem provers~\cite{hol} or Coq's
+reminiscent of the HOL family of theorem provers~\citep{hol} or Coq's
 plug-in mechanism. An important drawback is that tactic writers need
 to write their tactics in a different language to the rest of their
 Idris code; furthermore, any changes to tactics requires a
@@ -166,7 +166,7 @@ recompilation of the entire Idris system.
 \paragraph{Agsy}
 
 Agda already has a built-in `auto' tactic that outperforms the |auto|
-function we have defined here~\cite{lindblad}. It is nicely integrated
+function we have defined here~\citep{lindblad}. It is nicely integrated
 with the IDE and does not require the users to provide an explicit
 hint database. It is, however, implemented in Haskell and shipped as
 part of the Agda system. As a result, users have very few
@@ -197,7 +197,7 @@ construction of programs and proofs is the same activity. Any
 external language for proof automation renounces this philosophy. This
 paper demonstrates that proof automation is not inherently at odds
 with the philosophy of type theory. Paraphrasing
-Martin-L\"of~\cite{martin-lof}, it no longer seems possible to
+Martin-L\"of~\citep{martin-lof}, it no longer seems possible to
 distinguish the discipline of \emph{programming} from the
 \emph{construction} of mathematics.
 
