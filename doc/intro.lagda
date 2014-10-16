@@ -3,26 +3,26 @@
 
 Writing proof terms in type theory is hard and often tedious.
 Interactive proof assistants based on type theory, such as
-Agda~\cite{agda} or Coq~\cite{coq}, take very different approaches to
+Agda~\citep{agda} or Coq~\citeyearpar{coq}, take very different approaches to
 facilitating this process.
 
 The Coq proof assistant has two distinct language fragments. Besides
 the programming language Gallina, there is a separate tactic language
 for writing and programming proof scripts. Together with several
 highly customizable tactics, the tactic language Ltac can provide
-powerful proof automation~\cite{chlipala}. Having to introduce a
+powerful proof automation~\citep{chlipala}. Having to introduce a
 separate tactic language, however, seems at odds with the spirit of
 type theory, where a single language is used for both proof and
 computation.  Having a separate language for programming proofs has
 its drawbacks. Programmers need to learn another language to automate
 proofs. Debugging Ltac programs can be difficult and the resulting
-proof automation may be inefficient~\cite{brabaint}.
+proof automation may be inefficient~\citep{brabaint}.
 
 Agda does not have Coq's segregation of proof and programming
 language.  Instead, programmers are encouraged to automate proofs by
-writing their own solvers~\cite{ulf-tphols}. In combination with
-Agda's reflection mechanism~\cite{agda-relnotes-228,van-der-walt}, developers can write
-powerful automatic decision procedures~\cite{allais}. Unfortunately,
+writing their own solvers~\citep{ulf-tphols}. In combination with
+Agda's reflection mechanism~\citep{agda-relnotes-228,van-der-walt}, developers can write
+powerful automatic decision procedures~\citep{allais}. Unfortunately,
 not all proofs are easily automated in this fashion. In that case,
 the user is forced to interact with the integrated development
 environment and manually construct a proof term step by step.
@@ -30,6 +30,9 @@ environment and manually construct a proof term step by step.
 This paper tries to combine the best of both worlds by implementing a
 library for proof search \emph{within} Agda itself. More specifically,
 this paper makes the several novel contributions.
+
+\todo{Emphasise how this fits perfectly with the mathematics of
+  program construction. And say what the key advantages of our approach are.}
 
 \begin{itemize}
 \item %
@@ -59,14 +62,16 @@ this paper makes the several novel contributions.
     fine-grained control over instance search. It is, however, a poor
     main example by now.}
   Finally, we show how we can use our proof search together with
-  Agda's \emph{instance arguments}~\cite{instance-args} to implement
+  Agda's \emph{instance arguments}~\citep{instance-args} to implement
   lightweight type classes in Agda (Section~\ref{sec:typeclasses}).
   This resolves one of the major restrictions of instance arguments:
   the lack of a recursive search procedure for their construction.
 \end{itemize}
+\wouter{Pepijn -- will you clean up the above itemize? Some dead
+  links, references to sections that we want to scrap, etc.}
 
 Although Agda already has built-in proof search
-functionality~\cite{lindblad}, we believe that exploring the
+functionality~\citep{lindblad}, we believe that exploring the
 first-class proof automation defined in this paper is still
 worthwhile. For the moment, however, we would like to defer discussing
 the various forms of proof automation until after we have
