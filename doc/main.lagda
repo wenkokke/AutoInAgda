@@ -1,4 +1,4 @@
-\documentclass[preprint]{sigplanconf}
+\documentclass[preprint]{llncs}
 
 %include agda.fmt
 %include main.fmt
@@ -6,15 +6,16 @@
 
 \begin{document}
 
-\conferenceinfo{CPP'15} {January 12--14, 2015, Mumbai, India}
-\titlebanner{Under preparation for CPP 2015}
 
 \title{Auto in Agda}
 \subtitle{Programming proof search}
 
-\authorinfo{Pepijn Kokke \and Wouter Swierstra}
-           {Universiteit Utrecht}
-           {pepijn.kokke@@gmail.com \quad w.s.swierstra@@uu.nl}
+\author{Pepijn Kokke\inst{1} \and Wouter Swierstra\inst{1}}
+
+\institute{Universiteit Utrecht}
+
+           % {Universiteit Utrecht}
+           % {pepijn.kokke@@gmail.com \quad w.s.swierstra@@uu.nl}
 
 \maketitle
 
