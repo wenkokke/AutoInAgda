@@ -355,7 +355,9 @@ generate the rest of the search tree.
           s′   : ∃[ n ] Subst (δ′ + δ + m) n
           s′   = n + δ′ , injectSubst δ′ s
 \end{code}
-
+\todo{We should try to clean up this code a bit. Introducing a
+  separate name for |δ′ + δ + m| would really help keep the type
+  signatures manageable}
 
 \subsection*{Searching for proofs}
 

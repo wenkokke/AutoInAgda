@@ -6,16 +6,12 @@
 
 \begin{document}
 
-
 \title{Auto in Agda}
-\subtitle{Programming proof search}
+\subtitle{Programming proof search using reflection}
 
 \author{Pepijn Kokke\inst{1} \and Wouter Swierstra\inst{1}}
 
-\institute{Universiteit Utrecht}
-
-           % {Universiteit Utrecht}
-           % {pepijn.kokke@@gmail.com \quad w.s.swierstra@@uu.nl}
+\institute{Universiteit Utrecht\\ \email{pepijn.kokke@@gmail \quad w.s.swierstra@@uu.nl}}
 
 \maketitle
 
@@ -27,9 +23,7 @@
   dependently typed programming language Agda. Connecting this
   resolution procedure to Agda's reflection mechanism provides a
   first-class proof search tactic for first-order Agda
-  terms. Furthermore, the same mechanism may be used in tandem with
-  Agda's instance arguments to implement type classes in the style of
-  Haskell. As a result, writing proof automation tactics need not be
+  terms. As a result, writing proof automation tactics need not be
   different from writing any other program.
 
 \end{abstract}

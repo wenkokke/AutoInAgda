@@ -12,15 +12,15 @@ Agda has a \emph{reflection} mechanism\footnote{Note that Agda's
   reflection mechanism should not be confused with `proof by
   reflection' -- the technique of writing a verified decision
   procedure for some class of problems.} for compile time
-metaprogramming in the style of Lisp~\cite{lisp-macros},
-MetaML~\cite{metaml}, and Template
-Haskell~\cite{template-haskell}. This reflection mechanisms make it
+metaprogramming in the style of Lisp~\citep{lisp-macros},
+MetaML~\citep{metaml}, and Template
+Haskell~\citep{template-haskell}. This reflection mechanisms make it
 possible to convert a program fragment into its corresponding abstract
 syntax tree and vice versa. We will introduce Agda's reflection
 mechanism here with several short examples, based on the explanation
-in previous work~\cite{van-der-walt}. A more complete overview can be
-found in the Agda release notes~\cite{agda-relnotes-228} and Van der
-Walt's thesis~\cite{vdWalt:Thesis:2012}.
+in previous work~\citep{van-der-walt}. A more complete overview can be
+found in the Agda release notes~\citep{agda-relnotes-228} and Van der
+Walt's thesis~\citep{vdWalt:Thesis:2012}.
 
 The type |Term : Set| is the central type provided by the reflection mechanism.
 It defines an abstract syntax tree for Agda terms. There are several
@@ -92,9 +92,9 @@ Next we may want to prove properties of this definition:
 %
 Note that we omit universally quantified implicit arguments from the
 typeset version of this paper, in accordance with convention used by
-Haskell~\cite{haskell-report} and Idris~\cite{idris}.
+Haskell~\citep{haskell-report} and Idris~\citep{idris}.
 
-As shown by Van der Walt and Swierstra~\cite{van-der-walt}, it is easy
+As shown by Van der Walt and Swierstra~\citep{van-der-walt}, it is easy
 to decide the |Even| property for closed terms using proof by
 reflection. The interesting terms, however, are seldom closed.  For
 instance, if we would like to use the |even+| lemma in the proof
