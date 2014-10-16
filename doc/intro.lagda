@@ -58,6 +58,7 @@ this paper makes the several novel contributions.
 \pepijn{
   Add an item to explain the example of sub-lists.
 }
+\end{itemize}
 
 Although Agda already has built-in proof search
 functionality~\citep{lindblad}, we believe that exploring the
