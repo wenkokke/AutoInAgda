@@ -63,18 +63,18 @@ failure:
 The meaning of each of these error messages will be explained as we
 encounter them in our implementation below.
 
-Finally, we will need one more auxiliary function to manipulate bound
-variables. The |match| function takes two bound variables of types
-|Fin m| and |Fin n| and computes the corresponding variables in |Fin
-(m ⊔ n)| -- where |m ⊔ n| denotes the maximum of |m| and |n|:
-\begin{code}
-match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
-\end{code}
-The implementation is reasonably straightforward. We compare the
-numbers |n| and |m|, and use the |inject| function to weaken the
-appropriate bound variable. It is straightforward to use this |match|
-function to define similar operations on two terms or a term and a
-lists of terms.
+% Finally, we will need one more auxiliary function to manipulate bound
+% variables. The |match| function takes two bound variables of types
+% |Fin m| and |Fin n| and computes the corresponding variables in |Fin
+% (m ⊔ n)| -- where |m ⊔ n| denotes the maximum of |m| and |n|:
+% \begin{code}
+% match : Fin m → Fin n → Fin (m ⊔ n) × Fin (m ⊔ n)
+% \end{code}
+% The implementation is reasonably straightforward. We compare the
+% numbers |n| and |m|, and use the |inject| function to weaken the
+% appropriate bound variable. It is straightforward to use this |match|
+% function to define similar operations on two terms or a term and a
+% lists of terms.
 
 
 \subsection*{Constructing terms}
@@ -92,10 +92,22 @@ variables. The |PsTerm| data type, on the other hand, represents
 variables using a finite type |Fin n|, for some |n|. To convert
 between these representations, the function keeps track of the current
 depth, i.e.\ the number of |Π|-types it has encountered, and uses this
-information to ensure a correct conversion. We sketch the definition
-of the main function below:
+information to ensure a correct conversion. As a result, the |convert|
+function has the following type:
 \begin{code}
     convert : (depth : ℕ) → AgTerm → Error (∃ PsTerm)
+\end{code}
+The definition of |convert| is fairly straightforward. It traverses
+the argument |AgTerm|, mapping Agda Terms to their |PsTerm|
+counterparts. There is some bookkeeping involved, to ensure variables
+are handled correctly, but this is fairly straightforward.
+
+\wouter{Pepijn: kun je hier misschien wat intuitie geven over
+  wanneer het precies misgaat?}
+
+
+%if style == newcode
+\begin{code}
     convert d (var i [])    = inj₂ (convertVar d i)
     convert d (var i args)  = inj₁ unsupportedSyntax
     convert d (con n args)  = convertName n ∘ convert d ⟨$⟩ args
@@ -110,63 +122,64 @@ of the main function below:
     convert d (pi (arg _ _) (el _ t₂)) = convert (suc d) t₂
     convert d _             = inj₁ unsupportedSyntax
 \end{code}
-We define special functions, |convertVar| and |name2term|, to convert
-variables and constructors or defined terms respectively. The
-arguments to constructors or defined terms are processed using the
-|convertChildren| function defined below.
-The conversion of a |pi| node binding an explicit argument proceeds by
-converting the domain and codomain. If both conversions succeed, the
-resulting terms are |match|ed and a |PsTerm| is constructed using
-|impl|.
-Implicit arguments and instance arguments are ignored by this conversion
-function. Sorts, levels, or any other Agda feature mapped to the
-constructor |unknown| of type |Term| triggers a failure with the
-message |unsupportedSyntax|.
+%endif
 
-The |convertChildren| function converts a list of |Term| arguments to a list
-of Prolog terms, by stripping the |arg| constructor and recursively
-applying the |convert| function. We only give its type signature
-here, as the definition is straightforward:
-\begin{code}
-  convertChildren
-    : ℕ → List (Arg Term) → Error (∃ (List ∘ PsTerm))
-\end{code}
-Next, the |fromDef| function constructs a first-order constant from an
-Agda |Name| and list of terms:
-\begin{code}
-  convertName
-    : Name → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
-  convertName f (n , ts) = n , con (pname f) ts
-\end{code}
+% We define special functions, |convertVar| and |name2term|, to convert
+% variables and constructors or defined terms respectively. The
+% arguments to constructors or defined terms are processed using the
+% |convertChildren| function defined below.
+% The conversion of a |pi| node binding an explicit argument proceeds by
+% converting the domain and codomain. If both conversions succeed, the
+% resulting terms are |match|ed and a |PsTerm| is constructed using
+% |impl|.
+% Implicit arguments and instance arguments are ignored by this conversion
+% function. Sorts, levels, or any other Agda feature mapped to the
+% constructor |unknown| of type |Term| triggers a failure with the
+% message |unsupportedSyntax|.
 
-Lastly, the |convertVar| function converts a natural number,
-corresponding to a variable name in the |AgTerm| type, to the
-corresponding |PsTerm|:
-%{
-%format (dot (a)) = "\lfloor " a "\rfloor"
-\begin{code}
-  convertVar : ℕ → ℕ → ∃ PsTerm
-  convertVar n i with compare n i
-  convertVar (dot(  _))         _    | greater  (dot(_)) k  = (suc k , var (# k))
-  convertVar (dot(  _))         _    | equal    (dot(_))    = (suc 0 , var (# 0))
-  convertVar        _    (dot(  _))  | less     (dot(_)) k  = (0 , con (pvar k) [])
-\end{code}
-%}
-The |convertVar| function compares the number of binders that have been
-encountered with its argument De Bruijn index. If the variable is
-bound within the goal type, it computes a corresponding |PsTerm|
-variable;
-if the variable is bound \emph{outside} of the goal type, however, we
-compute a skolem constant.
+% The |convertChildren| function converts a list of |Term| arguments to a list
+% of Prolog terms, by stripping the |arg| constructor and recursively
+% applying the |convert| function. We only give its type signature
+% here, as the definition is straightforward:
+% \begin{code}
+%   convertChildren
+%     : ℕ → List (Arg Term) → Error (∃ (List ∘ PsTerm))
+% \end{code}
+% Next, the |fromDef| function constructs a first-order constant from an
+% Agda |Name| and list of terms:
+% \begin{code}
+%   convertName
+%     : Name → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
+%   convertName f (n , ts) = n , con (pname f) ts
+% \end{code}
+
+% Lastly, the |convertVar| function converts a natural number,
+% corresponding to a variable name in the |AgTerm| type, to the
+% corresponding |PsTerm|:
+% %{
+% %format (dot (a)) = "\lfloor " a "\rfloor"
+% \begin{code}
+%   convertVar : ℕ → ℕ → ∃ PsTerm
+%   convertVar n i with compare n i
+%   convertVar (dot(  _))         _    | greater  (dot(_)) k  = (suc k , var (# k))
+%   convertVar (dot(  _))         _    | equal    (dot(_))    = (suc 0 , var (# 0))
+%   convertVar        _    (dot(  _))  | less     (dot(_)) k  = (0 , con (pvar k) [])
+% \end{code}
+% %}
+% The |convertVar| function compares the number of binders that have been
+% encountered with its argument De Bruijn index. If the variable is
+% bound within the goal type, it computes a corresponding |PsTerm|
+% variable;
+% if the variable is bound \emph{outside} of the goal type, however, we
+% compute a skolem constant.
 
 To convert between an |AgTerm| and |PsTerm| we simply call the
-|convert4Term| function, initializing the number of binders
-encountered to |0|.
+|convert| function, initializing the number of binders
+we have traversed to |0|.
 \begin{code}
   agda2term : AgTerm → Error (∃ PsTerm)
-  agda2term t = convert4Term 0 t
+  agda2term t = convert 0 t
 \end{code}
-
 
 \subsection*{Constructing rules}
 
@@ -209,8 +222,8 @@ This generation of rules is done in two steps. First, we will convert a
   name2term = agda2term ∘ unel ∘ type
 \end{code}
 The |type| construct converts a |Name| to the |AgTerm| representing
-its type; the |unel| function discards any information about sorts; the
-|agda2term| was defined previously.
+its type; the |unel| function discards information about sorts; the
+|agda2term| was defined above.
 
 In the next step, we process this |PsTerm|. The |split|
 function, defined below, splits a |PsTerm| at every top-most
@@ -239,6 +252,8 @@ into a vector of terms using |split|.  The last element of this
 vector is the conclusion of the rule; the initial prefix constitutes
 the premises.
 
+\todo{Explain initlast?}
+
 \subsection*{Constructing goals}
 
 Next, we turn our attention to converting a goal |AgTerm| to a
@@ -247,10 +262,10 @@ there are good reasons to explore other alternatives.
 
 Consider the example given in Section~\ref{sec:motivation}. The goal
 |AgTerm| we wish to prove is |Even n → Even (n + 2)|. Calling
-|agda2term| would convert this to a |PsTerm|, where the
-function space has been replaced by the |impl|. What we would like to
-do, however, is to introduce arguments as available assumptions, such
-as |Even n|, and try to resolve the remaining goal |Even (n + 2)|.
+|agda2term| would convert this to a |PsTerm|, where the function space
+has been replaced by the |impl|. What we would like to do, however, is
+to introduce arguments as available assumptions, such as |Even n|, and
+try to resolve the remaining goal |Even (n + 2)|.
 
 In addition, we cannot directly reuse the implementation of |convert|
 as used in the construction of terms. In this version of |convert|, an
@@ -259,7 +274,7 @@ goal type, however, we want to generate \emph{skolem constants} for
 our variables, rather than Prolog variables which may still be unified.
 To account for this difference we have two flavours of the |convert|
 function: |convert| and |convert4Goal|. Both differ only in their
-implementation of |convertVar|.
+treatment of variables.
 
 Fortunately, we can reuse many of the other function we have defined
 above, and, using the |split| and |initLast| function, we can get our
@@ -299,13 +314,24 @@ encounters.
 
 The |Proof| may contain two kinds of variables: locally bound
 variables, |rvar i|, or variables storing an Agda |Name|, |name n|.
- Each of these variables is treated differently in the |reify|
+These variables is treated differently in the |reify|
 function. Any references to locally bound variables are mapped to the |var|
 constructor of the |AgTerm| data type. These variables correspond
 to usage of arguments to the function being defined. As we know by
 construction that these arguments are mapped to rules without
 premises, the corresponding Agda variables do not need any further
 arguments.
+
+If the rule being applied is constructed using an |name|, we do
+disambiguate whether the rule name refers to a function or a
+constructor. The |definition| function, defined in Agda's reflection
+library, returns information about how the piece of abstract syntax to
+which its argument |Name| corresponds. For the sake of brevity, we
+restrict the definition here to only handle defined functions and data
+constructors. It is easy enough to extend with further branches for
+postulates, primitives, and so forth. \todo{What would be necessary to
+  handle axioms, etc. well? I think it should 'just work' so why not do it?}
+
 \begin{code}
   reify : Proof → AgTerm
   reify (con (rvar i) ps) = var i []
@@ -320,19 +346,11 @@ arguments.
       toArg : AgTerm → Arg AgTerm
       toArg = arg (arg-info visible relevant)
 \end{code}
-If the rule being applied is constructed using an |name|, we do
-disambiguate whether the rule name refers to a function or a
-constructor. The |definition| function, defined in Agda's reflection
-library, returns information about how the piece of abstract syntax to
-which its argument |Name| corresponds. For the sake of brevity, we restrict
-the definition here to only handle defined functions and data
-constructors. It is easy enough to extend with further branches for
-postulates, primitives, and so forth.
 
 We will also need to wrap additional lambdas around the resulting
 term, due to the premises that were introduced by the
 |agda2goal×premises| function.
-To do so, we define the |intros| function that repeatedly wraps its
+To do so, we define the |intros| function that wraps an Agda term in a
 argument term in a lambda:
 \begin{code}
   intros : AgTerm → AgTerm
@@ -342,6 +360,9 @@ argument term in a lambda:
       introsAcc  zero   t = t
       introsAcc (suc k) t = lam visible (introsAcc k t)
 \end{code}
+
+\todo{Where is args bound? Perhaps we can scrap this too and replace
+  it with a suitable remark somewhere?}
 
 \subsection*{Hint databases}
 \label{sec:hintdbs}
@@ -367,13 +388,13 @@ list can be quoted successfully. If you define such proofs to compute
 the trivial unit record as evidence, Agda will fill them in
 automatically in every call to the |hintdb| function on constant
 arguments. This simple form of proof automation is pervasive in Agda
-programs~\cite{oury,swierstra-more}.
+programs~\citep{oury,swierstra-more}.
 
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
 priorities to certain rules or limit the number of times a rule may be
 applied. The only function that would need to be adapted to handle
-such requirements is the |mkTree| function in
+such requirements is the |step| function in
 Section~\ref{sec:prolog}.
 
 Furthermore, note that a hint database is a simple list of rules. It
@@ -382,6 +403,7 @@ filter certain rules from a hint database, or manipulate them in any
 way we wish.
 
 \subsection*{Error messages}
+
 Lastly, we need to decide how to report error messages. Since we are
 going to return an |AgTerm|, we need to transform the |Message|
 type we saw previously into an |AgTerm|. When unquoted, this term
@@ -424,13 +446,10 @@ type of the goal, and a list of arguments that may be used to
 construct this term. It then proceeds by calling the |searchToDepth|
 function with the argument hint database. If this proof search
 succeeds, the |Result| is converted to an |AgTerm|, a witness that
-the original goal is inhabited. There are three places that this
+the original goal is inhabited. There are two places that this
 function may fail: the conversion to a |PsTerm| may fail, for
-instance because of unsupported syntax; the proof search may not find
-any result; or the final conversion to an |AgTerm| may fail
-unexpectedly. This last case should never be triggered, provided the
-|toProofTerm| function is only called on the result of our proof
-search.
+instance because of unsupported syntax; or the proof search may not find
+any result; 
 
 
 %%% Local Variables:

@@ -201,6 +201,8 @@ Martin-L\"of~\citep{martin-lof}, it no longer seems possible to
 distinguish the discipline of \emph{programming} from the
 \emph{construction} of mathematics.
 
+\todo{conclude saying somethingi about the mathematics of program construction.}
+
 % This is super useful: consider the problem of having |trans| in a hint
 % database.
 
