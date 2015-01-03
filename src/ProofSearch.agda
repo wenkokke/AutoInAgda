@@ -1,12 +1,13 @@
 open import Level using (_⊔_)
-open import Function using (id; _∘_; _$_)
+open import Function using (id; const; _∘_; _$_)
 open import Coinduction using (∞; ♯_; ♭)
+open import Algebra.Structures using (IsMonoid)
 open import Data.Nat as Nat using (ℕ; suc; zero; _≤_; z≤n; s≤s; decTotalOrder)
 open import Data.Nat.Properties as NatProps using (commutativeSemiring; distributiveLattice)
 open import Data.Fin as Fin using (Fin; suc; zero)
 open import Data.Fin.Properties as FinProps renaming (_≟_ to _≟-Fin_)
-open import Data.Maybe as Maybe using (Maybe; just; nothing; monad)
-open import Data.List as List using (List; _∷_; []; _++_; length; concat; map; foldr; concatMap; monad)
+open import Data.Maybe as Maybe using (Maybe; just; nothing)
+open import Data.List as List using (List; _∷_; []; _++_; length; concat; map; foldr; concatMap)
 open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)
 open import Data.Vec as Vec using (Vec; _∷_; [])
 open import Data.Sum as Sum using (_⊎_; inj₁; inj₂)
@@ -20,14 +21,15 @@ open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; sym; 
 module ProofSearch
   (RuleName : Set)
   (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y))
-  (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y))
+  (Literal  : Set) (_≟-Literal_  : (x y : Literal)  → Dec (x ≡ y))
   where
-
-  open CommutativeSemiring NatProps.commutativeSemiring using (_+_; +-comm; +-assoc)
-  open DistributiveLattice NatProps.distributiveLattice using (_∧_; ∧-comm)
-  open DecTotalOrder Nat.decTotalOrder using (total)
-  open RawMonad {{...}} using (return; _>>=_)
+ 
   open import Unification TermName _≟-TermName_ Literal _≟-Literal_ public hiding (_++_)
+
+
+  ----------------------------------------------------------------------------
+  -- * define rules and utility functions                                 * --
+  ----------------------------------------------------------------------------
 
   private
     ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b ⊔ a)
@@ -48,9 +50,20 @@ module ProofSearch
   open Rule using (name; conclusion; premises)
 
 
+  -- alias for list of rules
+  Rules : Set
+  Rules = List (∃ Rule)
+
+
   -- compute the arity of a rule
   arity : ∀ {n} (r : Rule n) → ℕ
   arity = length ∘ premises
+
+
+  -- open instances relevant to definitions of difference, inject and raise
+  open CommutativeSemiring NatProps.commutativeSemiring using (_+_; +-comm; +-assoc)
+  open DistributiveLattice NatProps.distributiveLattice using (_∧_; ∧-comm)
+  open DecTotalOrder       Nat.decTotalOrder            using (total)
 
 
   -- compute the difference between two natural numbers, given an
@@ -131,24 +144,59 @@ module ProofSearch
   ... | inj₂ p rewrite ∧-comm m n | m≤n→m⊔n=n p = (i , inject≤ p j)
 
 
+  ----------------------------------------------------------------------------
+  -- * define hint databases                                              * --
+  ----------------------------------------------------------------------------
+
+  record IsHintDB : Set₁ where
+    field
+      HintDB   : Set
+      Hint     : ℕ → Set
+
+    Hints : Set
+    Hints = List (∃ Hint)
+
+    field
+      getHints : HintDB → Hints
+      getRule  : ∀ {k} → Hint k → Rule k
+      getTr    : ∀ {k} → Hint k → (HintDB → HintDB)
+      compile  : Rules → HintDB
+      _∙_      : HintDB → HintDB → HintDB
+
+  defaultHintDB : IsHintDB
+  defaultHintDB = record
+    { HintDB   = Rules
+    ; Hint     = Rule
+    ; getHints = id
+    ; getRule  = id
+    ; getTr    = const id
+    ; compile  = id
+    ; _∙_      = _++_
+    }
+
+  ----------------------------------------------------------------------------
+  -- * define search trees, proofs and partial proofs                     * --
+  ----------------------------------------------------------------------------
+  
+  -- simple alias to set apart the goal term
+  Goal = Term
 
   -- search trees
   data SearchTree (A : Set) : Set where
     leaf : A → SearchTree A
     node : List (∞ (SearchTree A)) → SearchTree A
 
-
-  -- let's try and keep the types readable, shall we?
-  Goal   = Term
-  HintDB = List (∃ Rule)
-
+  -- representation of a failed branch
+  fail : ∀ {A} → SearchTree A
+  fail = node []
+  
   data Proof : Set where
-    con : (name : RuleName) (args : List Proof) → Proof
+     con : (name : RuleName) (args : List Proof) → Proof
 
   -- representation of an incomplete proof
   Proof′ : ℕ → Set
   Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
-
+  
   con′ : ∀ {n k} (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
   con′ {n} {k} r xs = head ∷ rest
     where
@@ -157,50 +205,72 @@ module ProofSearch
       rest : Vec Proof k
       rest = Vec.drop (arity r) xs
 
-  -- build search tree for a goal term
-  solve : ∀ {m} → Goal m → HintDB → SearchTree Proof
-  solve {m} g rules = solveAcc {0} {m} (just (m , nil)) (1 , g ∷ [] , Vec.head)
-    where
-      solveAcc : ∀ {δ m} → Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
-      solveAcc nothing _ = node [] -- fail
-      solveAcc (just (n , s)) (0 , [] , p) = leaf (p [])
-      solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) = node (steps rules)
-        where
-          step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
-          step (δ′ , r) = ♯ solveAcc {δ′ + δ} {m} mgu prf
-            where
-              lem : δ′ + δ + m ≡ δ + m + δ′
-              lem = trans (+-assoc δ′ δ m) (+-comm δ′ (δ + m))
-              prf : Proof′ (δ′ + δ + m)
-              prf = arity r + k , prm′ Vec.++ gs′ , p′
-                where
-                  gs′  : Vec (Goal (δ′ + δ + m)) k
-                  gs′  rewrite lem = inject δ′ gs
-                  prm′ : Vec (Goal (δ′ + δ + m)) (arity r)
-                  prm′ rewrite lem = Vec.map (raise (δ + m)) (Vec.fromList (premises r))
-                  p′   : Vec Proof (arity r + k) → Proof
-                  p′   = p ∘ con′ r
-              mgu : Maybe (∃[ n ] (Subst (δ′ + δ + m) n))
-              mgu = unifyAcc g′ cnc′ s′
-                where
-                  g′   : Term (δ′ + δ + m)
-                  g′   rewrite lem = inject δ′ g
-                  cnc′ : Term (δ′ + δ + m)
-                  cnc′ rewrite lem = raise (δ + m) (conclusion r)
-                  s′   : ∃[ n ] Subst (δ′ + δ + m) n
-                  s′   rewrite lem = n + δ′ , injectSubst δ′ s
 
-          -- equivalent to `map step` due to termination checker
-          steps : HintDB → List (∞ (SearchTree Proof))
-          steps [] = []
-          steps (r ∷ rs) = step r ∷ steps rs
+  ----------------------------------------------------------------------------
+  -- * define proof search function                                       * --
+  ----------------------------------------------------------------------------
 
-  dfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
+  module Extensible (isHintDB : IsHintDB) where
+  
+    open IsHintDB isHintDB
+
+    -- build search tree for a goal term
+    solve : ∀ {m} → Goal m → HintDB → SearchTree Proof
+    solve {m} g = solveAcc {0} {m} (just (m , nil)) (1 , g ∷ [] , Vec.head)
+      where
+        solveAcc : ∀ {δ m} → Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → HintDB → SearchTree Proof
+        solveAcc nothing _ _ = fail
+        solveAcc (just (n , s)) (0 , [] , p) _ = leaf (p [])
+        solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) db = node (steps (getHints db))
+          where
+            step : ∃[ δ′ ] (Hint δ′) → ∞ (SearchTree Proof)
+            step (δ′ , h) = ♯ solveAcc {δ′ + δ} {m} mgu prf db′
+              where
+                r   = getRule h
+                db′ = getTr h db
+                
+                lem : δ′ + δ + m ≡ δ + m + δ′
+                lem = trans (+-assoc δ′ δ m) (+-comm δ′ (δ + m))
+                
+                prf : Proof′ (δ′ + δ + m)
+                prf = arity r + k , prm′ Vec.++ gs′ , p′
+                  where
+                    gs′  : Vec (Goal (δ′ + δ + m)) k
+                    gs′  rewrite lem = inject δ′ gs
+                    prm′ : Vec (Goal (δ′ + δ + m)) (arity r)
+                    prm′ rewrite lem = Vec.map (raise (δ + m)) (Vec.fromList (premises r))
+                    p′   : Vec Proof (arity r + k) → Proof
+                    p′   = p ∘ con′ r
+                    
+                mgu : Maybe (∃[ n ] (Subst (δ′ + δ + m) n))
+                mgu = unifyAcc g′ cnc′ s′
+                  where
+                    g′   : Term (δ′ + δ + m)
+                    g′   rewrite lem = inject δ′ g
+                    cnc′ : Term (δ′ + δ + m)
+                    cnc′ rewrite lem = raise (δ + m) (conclusion r)
+                    s′   : ∃[ n ] Subst (δ′ + δ + m) n
+                    s′   rewrite lem = n + δ′ , injectSubst δ′ s
+  
+            -- equivalent to `map step` due to termination checker
+            steps : List (∃ Hint) → List (∞ (SearchTree Proof))
+            steps []       = []
+            steps (h ∷ hs) = step h ∷ steps hs
+  
+  
+  ----------------------------------------------------------------------------
+  -- * define various search strategies                                   * --
+  ----------------------------------------------------------------------------
+
+  Strategy : Set₁
+  Strategy = ∀ {A} (depth : ℕ) → SearchTree A → List A
+
+  dfs : Strategy
   dfs  zero    _        = []
-  dfs (suc k) (leaf x)  = return x
+  dfs (suc k) (leaf x)  = x ∷ []
   dfs (suc k) (node xs) = concatMap (λ x → dfs k (♭ x)) xs
-
-  bfs : ∀ {A} (depth : ℕ) → SearchTree A → List A
+  
+  bfs : Strategy
   bfs depth t = concat (Vec.toList (bfsAcc depth t))
     where
       merge : ∀ {A : Set} {k} → (xs ys : Vec (List A) k) → Vec (List A) k
@@ -210,8 +280,9 @@ module ProofSearch
       empty : ∀ {A : Set} {k} → Vec (List A) k
       empty {k = zero}  = []
       empty {k = suc k} = [] ∷ empty
-
+  
       bfsAcc : ∀ {A} (depth : ℕ) → SearchTree A → Vec (List A) depth
       bfsAcc  zero   _         = []
       bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
       bfsAcc (suc k) (node xs) = [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
+  

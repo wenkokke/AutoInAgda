@@ -97,14 +97,13 @@ of the main function below:
 \begin{code}
     convert : (depth : ℕ) → AgTerm → Error (∃ PsTerm)
     convert d (var i [])    = inj₂ (convertVar d i)
-    convert d (var i args)  = inj₁ unsupportedSyntax
     convert d (con n args)  = convertName n ∘ convert d ⟨$⟩ args
     convert d (def n args)  = convertName n ∘ convert d ⟨$⟩ args
     convert d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
       with convert d t₁ | convert (suc d) t₂
-    ... | inj₁ msg | _        = inj₁ msg
-    ... | _        | inj₁ msg = inj₁ msg
-    ... | inj₂ (n₁ , p₁) | inj₂ (n₂ , p₂)
+    ... | inj₁ msg        | _         = inj₁ msg
+    ... | _               | inj₁ msg  = inj₁ msg
+    ... | inj₂ (n₁ , p₁)  | inj₂ (n₂ , p₂)
       with match p₁ p₂
     ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
     convert d (pi (arg _ _) (el _ t₂)) = convert (suc d) t₂
