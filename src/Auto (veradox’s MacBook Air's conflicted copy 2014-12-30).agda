@@ -80,7 +80,7 @@ module Auto where
 
   -- now we can load the definitions from proof search
   open import ProofSearch RuleName TermName _≟-TermName_ Literal _≟-Lit_
-       as PS public hiding (module Extensible) renaming (Term to PsTerm)
+       as PS public renaming (Term to PsTerm)
 
 
   -- next up, converting the terms returned by Agda's reflection
@@ -183,14 +183,14 @@ module Auto where
   -- representing the premises of the rule---this means that for a
   -- term of the type `A → B` this function will generate a goal of
   -- type `B` and a premise of type `A`.
-  agda2goal×premises : AgTerm → Error (∃ PsTerm × Rules)
+  agda2goal×premises : AgTerm → Error (∃ PsTerm × HintDB)
   agda2goal×premises t with convert convertVar4Goal 0 t
   ... | inj₁ msg            = inj₁ msg
   ... | inj₂ (n , p)        with split p
   ... | (k , ts)            with initLast ts
   ... | (prems , goal , _)  = inj₂ ((n , goal) , toPremises 0 prems)
     where
-      toPremises : ∀ {k} → ℕ → Vec (PsTerm n) k → Rules
+      toPremises : ∀ {k} → ℕ → Vec (PsTerm n) k → HintDB
       toPremises i [] = []
       toPremises i (t ∷ ts) = (n , rule (rvar i) t []) ∷ toPremises (suc i) ts
 
@@ -244,47 +244,33 @@ module Auto where
   quoteError (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
 
 
-  ----------------------------------------------------------------------------
-  -- * operator for adding rules to a list of rules based on an Agda name * --
-  ----------------------------------------------------------------------------
+  -- operator for adding rules to a HintDB based on an Agda name.
 
   infixl 5 _<<_
 
-  _<<_ : Rules → Name → Rules
+  _<<_ : HintDB → Name → HintDB
   db << n with name2rule n
   db << n | inj₁ msg = db
   db << n | inj₂ r   = db ++ [ r ]
 
+  compile : List Name → HintDB
+  compile = List.foldr (flip _<<_) []
 
 
-  ----------------------------------------------------------------------------
-  -- * embedded, extensible auto tactic for computing Agda functions      * --
-  ----------------------------------------------------------------------------
+  -- embedded `auto` tactic for computing Agda functions.
 
-  module Extensible (isHintDB : IsHintDB) where
-  
-    open PS.IsHintDB   isHintDB
-    open PS.Extensible isHintDB
-
-    auto : Strategy → ℕ → HintDB → AgTerm → AgTerm
-    auto search depth db type
-      with agda2goal×premises type
-    ... | inj₁ msg = quoteError msg
-    ... | inj₂ ((n , g) , args)
-      with search depth (solve g (compile args ∙ db))
-    ... | []      = quoteError searchSpaceExhausted
-    ... | (p ∷ _) = intros (reify p)
-      where
-        intros : AgTerm → AgTerm
-        intros = introsAcc (length args)
-          where
-            introsAcc : ℕ → AgTerm → AgTerm
-            introsAcc  zero   t = t
-            introsAcc (suc k) t = lam visible (introsAcc k t)
-
-
-  -- simple version of the auto tactic, which uses a list of rules and depth-first search
-  simpleAuto : ℕ → Rules → AgTerm → AgTerm
-  simpleAuto = auto dfs
+  auto : ℕ → HintDB → AgTerm → AgTerm
+  auto depth rules type
+    with agda2goal×premises type
+  ... | inj₁ msg = quoteError msg
+  ... | inj₂ ((n , g) , args)
+    with dfs depth (solve g (args ++ rules))
+  ... | []      = quoteError searchSpaceExhausted
+  ... | (p ∷ _) = intros (reify p)
     where
-      open Extensible defaultHintDB
+      intros : AgTerm → AgTerm
+      intros = introsAcc (length args)
+        where
+          introsAcc : ℕ → AgTerm → AgTerm
+          introsAcc  zero   t = t
+          introsAcc (suc k) t = lam visible (introsAcc k t)
