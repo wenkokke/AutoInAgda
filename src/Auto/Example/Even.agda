@@ -6,21 +6,23 @@ open import Data.Product using (_×_; ∃₂; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
 open import Reflection
 
-module Auto.Example where
+module Auto.Example.Even where
 
-  n+0≡n : ∀ n → n + 0 ≡ n
-  n+0≡n zero    = refl
-  n+0≡n (suc n) = cong suc (n+0≡n n)
+  private
+    n+0≡n : ∀ n → n + 0 ≡ n
+    n+0≡n zero    = refl
+    n+0≡n (suc n) = cong suc (n+0≡n n)
 
-  m+1+n≡1+m+n : ∀ m n → m + suc n ≡ suc (m + n)
-  m+1+n≡1+m+n zero    n = refl
-  m+1+n≡1+m+n (suc m) n = cong suc (m+1+n≡1+m+n m n)
+    m+1+n≡1+m+n : ∀ m n → m + suc n ≡ suc (m + n)
+    m+1+n≡1+m+n zero    n = refl
+    m+1+n≡1+m+n (suc m) n = cong suc (m+1+n≡1+m+n m n)
+
 
   data Even  : ℕ →  Set where
     isEven0  : Even 0
     isEven+2 : ∀ {n} → Even n → Even (suc (suc n))
 
-  even+ : ∀ {n m} -> Even n -> Even m -> Even (n + m)
+  even+ : ∀ {n m} → Even n → Even m → Even (n + m)
   even+  isEven0      e2 = e2
   even+ (isEven+2 e1) e2 = isEven+2 (even+ e1 e2)
 
@@ -28,7 +30,9 @@ module Auto.Example where
   simple e =  even+ e (isEven+2 isEven0)
 
   rules : Rules
-  rules = [] << quote isEven0 << quote isEven+2 << quote even+
+  rules = [] << quote isEven0
+             << quote isEven+2
+             << quote even+
 
   test₁ : Even 4
   test₁ = tactic (simpleAuto 5 rules)
@@ -36,7 +40,7 @@ module Auto.Example where
   test₂ : ∀ {n} → Even n → Even (n + 2)
   test₂ = tactic (simpleAuto 5 rules)
 
-  test₃ : ∀ {n} → Even n → Even (suc (suc (suc (suc n))))
+  test₃ : ∀ {n} → Even n → Even (4 + n)
   test₃ = tactic (simpleAuto 5 rules)
 
   test₄ : ∀ {n} → Even n → Even (n + 2)
