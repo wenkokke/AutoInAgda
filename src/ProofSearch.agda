@@ -157,11 +157,16 @@ module ProofSearch
     Hints = List (∃ Hint)
 
     field
-      getHints : HintDB → Hints
-      getRule  : ∀ {k} → Hint k → Rule k
-      getTr    : ∀ {k} → Hint k → (HintDB → HintDB)
-      compile  : Rules → HintDB
-      _∙_      : HintDB → HintDB → HintDB
+      getHints   : HintDB → Hints
+      getRule    : ∀ {k} → Hint k → Rule k
+      getTr      : ∀ {k} → Hint k → (HintDB → HintDB)
+      fromRule   : ∀ {k} → Rule k → HintDB
+      ε          : HintDB
+      _∙_        : HintDB → HintDB → HintDB
+
+    fromRules : Rules → HintDB
+    fromRules []             = ε
+    fromRules ((k , r) ∷ rs) = fromRule r ∙ fromRules rs
 
   defaultHintDB : IsHintDB
   defaultHintDB = record
@@ -170,8 +175,9 @@ module ProofSearch
     ; getHints = id
     ; getRule  = id
     ; getTr    = const id
-    ; compile  = id
+    ; ε        = []
     ; _∙_      = _++_
+    ; fromRule = λ {k} r → List.[ k , r ]
     }
 
   ----------------------------------------------------------------------------
