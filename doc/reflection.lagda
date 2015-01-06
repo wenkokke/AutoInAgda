@@ -356,8 +356,8 @@ We can construct hint databases using the insertion operator, |<<|.
 \begin{code}
 _<<_ : HintDB → Name → HintDB
 db << n with name2rule n
-db << n | inj₁ msg = db
-db << n | inj₂ r   = db ++ [ r ]
+db << n | inj₁ msg  = db
+db << n | inj₂ r    = db ++ [ r ]
 \end{code}
 If the generation of a rule fails for whatever reason, no error is
 raised, and the rule is simply ignored. Our actual implementation
@@ -371,9 +371,8 @@ programs~\cite{oury,swierstra-more}.
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
 priorities to certain rules or limit the number of times a rule may be
-applied. The only function that would need to be adapted to handle
-such requirements is the |mkTree| function in
-Section~\ref{sec:prolog}.
+applied. We will investigate some possibilities for extensible proof
+search in section~\ref{sec:extensible}.
 
 Furthermore, note that a hint database is a simple list of rules. It
 is an entirely first-class entity. We can combine hints databases,
@@ -398,10 +397,8 @@ Next, we define a function to produce an |AgTerm| from a
 just use Agda's |quoteTerm| construct:
 \begin{code}
 quoteError : Message → Term
-quoteError (searchSpaceExhausted)
-  = quoteTerm (throw searchSpaceExhausted)
-quoteError (unsupportedSyntax)
-  = quoteTerm (throw unsupportedSyntax)
+quoteError searchSpaceExhausted  = quoteTerm (throw searchSpaceExhausted)
+quoteError unsupportedSyntax     = quoteTerm (throw unsupportedSyntax)
 \end{code}
 
 \subsection*{Putting it all together}
@@ -409,7 +406,7 @@ quoteError (unsupportedSyntax)
 Finlaly, we can present the definition of the |auto| function used in
 the examples in Section~\ref{sec:motivation}:
 \begin{code}
-auto : ℕ → HintDB → AgTerm → AgTerm
+  auto : ℕ → HintDB → AgTerm → AgTerm
   auto depth rules type
     with agda2goal×premises type
   ... | inj₁ msg = quoteError msg
