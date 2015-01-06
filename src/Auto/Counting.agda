@@ -45,13 +45,14 @@ module CountingHintDB where
   HintDB : Set
   HintDB = List (∃ Hint)
   
-  mdecr : ∀ {k} → Hint k → Maybe (Hint k)
-  mdecr {k} (mkHint r c) = mkHint r <$> mpred c 
+  decrCount : ∀ {k} → Hint k → Maybe (Hint k)
+  decrCount {k} (mkHint r c) = mkHint r <$> decrCount′ c 
     where
-      mpred : Count → Maybe Count
-      mpred (inj₁ 0) = nothing
-      mpred (inj₁ x) = just (inj₁ (pred x))
-      mpred (inj₂ _) = just (inj₂ _)
+      decrCount′ : Count → Maybe Count
+      decrCount′ (inj₁ 0) = nothing
+      decrCount′ (inj₁ 1) = nothing
+      decrCount′ (inj₁ x) = just (inj₁ (pred x))
+      decrCount′ (inj₂ _) = just (inj₂ _)
 
   getTr : ∀ {k} → Hint k → (HintDB → HintDB)
   getTr h₁ = List.concatMap (List.fromMaybe ∘ mdecr₁)
@@ -59,7 +60,7 @@ module CountingHintDB where
       mdecr₁ : ∃ Hint → Maybe (∃ Hint)
       mdecr₁ (_ , h₂) =
         if ⌊ Hint.ruleName h₁ ≟-RuleName Hint.ruleName h₂ ⌋
-        then (_,_ _) <$> mdecr h₂
+        then (_,_ _) <$> decrCount h₂
         else just (_ , h₂)
     
   countingHintDB : IsHintDB

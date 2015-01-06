@@ -58,8 +58,8 @@ quoting an Agda |Name|. Not all useful hints, however, have a such a
 matching or function arguments. For example, the following call to the
 |auto| function fails to produce the desired proof:
 \begin{code}
-  simple : Even n → Even (n + 2)
-  simple e = quoteGoal g in unquote (auto 5 hints g)
+  trivial : Even n → Even (n + 2)
+  trivial e = tactic (auto 5 hints)
 \end{code}
 The variable |e|, necessary to complete the proof is not part of the
 hint database. We hope that this could be easily fixed by providing a
@@ -176,7 +176,7 @@ to certain hints; and there is a single fixed search strategy. In
 contrast to the proof search presented here, where we have much more
 fine grained control over all these issues.
 
-\subsection*{Closure}
+\subsection*{Conclusion}
 
 The proof automation presented in this paper is not as mature as some
 of these alternative systems. Yet we strongly believe that this style

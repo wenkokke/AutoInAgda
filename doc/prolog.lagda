@@ -400,7 +400,6 @@ Similarly, we could define a function which traverses the search tree
 aided by several heuristics.
 
 
-
 If we are willing to make further changes, we could also represent a
 hint database as a list of \emph{pairs} of rules and functions of the
 type |HintDB → HintDB|, such that after a rule |r| is selected in the

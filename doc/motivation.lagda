@@ -101,8 +101,8 @@ instance, if we would like to use the |even+| lemma in the proof
 below, we need to call it explicitly.
 
 \begin{code}
-  simple : Even n → Even (n + 2)
-  simple e = even+ e (isEven+2 isEven0)
+  trivial : Even n → Even (n + 2)
+  trivial e = even+ e (isEven+2 isEven0)
 \end{code}
 Manually constructing explicit proof objects
 in this fashion is not easy. The proof is brittle. We cannot easily
@@ -135,18 +135,18 @@ to Section~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
 data base is a \emph{first-class} value that can be manipulated,
 inspected, or passed as an argument to a function.
 
-We now give an alternative proof of the |simple| lemma, using this
+We now give an alternative proof of the |trivial| lemma, using this
 hint database:
 \begin{code}
-  simple : Even n → Even (n + 2)
-  simple = quoteGoal g in unquote (auto 5 hints g)
+  trivial : Even n → Even (n + 2)
+  trivial = quoteGoal g in unquote (auto 5 hints g)
 \end{code}
 Or, using the newly added Agda tactic syntax\footnote{
   Syntax for Agda tactics was added in Agda 2.4.2.
 }:
 \begin{code}
-  simple : Even n → Even (n + 2)
-  simple = tactic (auto 5 hints)
+  trivial : Even n → Even (n + 2)
+  trivial = tactic (auto 5 hints)
 \end{code}
 The central ingredient is a \emph{function} |auto| with the following
 type:

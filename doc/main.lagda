@@ -32,7 +32,7 @@
 %include motivation.lagda
 %include prolog.lagda
 %include reflection.lagda
-%%include typeclasses.lagda
+%include extensible.lagda
 %include discussion.lagda
 
 \paragraph{Acknowledgements}
