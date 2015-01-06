@@ -1,6 +1,6 @@
 open import Function      using (flip)
 open import Auto.Core     using (dfs)
-open import Auto.Counting
+open import Auto.Counting 
 open import Data.List     using (List; _∷_; [])
 
 module Auto.Example.Sublists where
@@ -24,11 +24,16 @@ trans       p  (drop q) = drop (trans p q)
 trans (drop p) (keep q) = drop (trans p q)
 trans (keep p) (keep q) = keep (trans p q)
 
-
-hintdb : HintDB
-hintdb = ε <<      quote refl
-           <<[ 3 ] quote trans
-
+db₁ : HintDB
+db₁ = ε <<      quote refl
+        <<[ 3 ] quote trans
 
 test₁ : {A : Set} {ws xs ys zs : List A} → ws ⊆ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ zs
-test₁ = tactic (countingAuto dfs 10 hintdb)
+test₁ = tactic (countingAuto dfs 10 db₁)
+
+db₂ : HintDB
+db₂ = ε <<      quote refl
+        <<[ 2 ] quote trans
+
+test₂ : Exception searchSpaceExhausted
+test₂ = tactic (countingAuto dfs 10 db₁)

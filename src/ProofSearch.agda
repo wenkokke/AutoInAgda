@@ -160,25 +160,15 @@ module ProofSearch
       getHints   : HintDB → Hints
       getRule    : ∀ {k} → Hint k → Rule k
       getTr      : ∀ {k} → Hint k → (HintDB → HintDB)
-      fromRule   : ∀ {k} → Rule k → HintDB
       ε          : HintDB
       _∙_        : HintDB → HintDB → HintDB
+      return     : ∀ {k} → Rule k → HintDB
 
     fromRules : Rules → HintDB
     fromRules []             = ε
-    fromRules ((k , r) ∷ rs) = fromRule r ∙ fromRules rs
+    fromRules ((k , r) ∷ rs) = return r ∙ fromRules rs
 
-  defaultHintDB : IsHintDB
-  defaultHintDB = record
-    { HintDB   = Rules
-    ; Hint     = Rule
-    ; getHints = id
-    ; getRule  = id
-    ; getTr    = const id
-    ; ε        = []
-    ; _∙_      = _++_
-    ; fromRule = λ {k} r → List.[ k , r ]
-    }
+
 
   ----------------------------------------------------------------------------
   -- * define search trees, proofs and partial proofs                     * --
