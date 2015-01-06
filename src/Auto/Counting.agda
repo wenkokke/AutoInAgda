@@ -1,5 +1,5 @@
 open import Auto.Core                  using (Rule; RuleName; _≟-RuleName_; name2rule; IsHintDB)
-open import Level
+open import Level                      using (zero)
 open import Function                   using (id; _∘_)
 open import Category.Functor           using (module RawFunctor)
 open import Data.Bool    as Bool       using (if_then_else_)
@@ -14,74 +14,81 @@ open import Relation.Nullary.Decidable using (⌊_⌋)
 
 module Auto.Counting where
 
-private
-  module Private where
 
-    Count : Set
-    Count = ℕ ⊎ ⊤
+--------------------------------------------------------------------------------
+-- Define a 'counting' hint database which, upon selection of a rule will     --
+-- decrement an associated 'count' value, and upon reaching 0 will delete     --
+-- the hint from the hint database.                                           --
+--                                                                            --
+-- The count values can either be natural numbers, in which case they         --
+-- will be decremented as expected, or the value ⊤, in which case they        --
+-- will not be decremented, effectively inserting infinite copies of the      --
+-- rule into the hint database.                                               --
+--------------------------------------------------------------------------------
 
-    maybePred : Count → Maybe Count
-    maybePred (inj₁ 0) = nothing
-    maybePred (inj₁ x) = just (inj₁ (pred x))
-    maybePred (inj₂ _) = just (inj₂ _)
+module CountingHintDB where
+
+  open RawFunctor (Maybe.functor {zero}) using (_<$>_)
+
+  Count : Set
+  Count = ℕ ⊎ ⊤
   
-    record Hint (k : ℕ) : Set where
-      constructor mkHint
-      field
-        getRule  : Rule k
-        getCount : Count
+  record Hint (k : ℕ) : Set where
+    constructor mkHint
+    field
+      rule  : Rule k
+      count : Count
   
-      getRuleName : RuleName
-      getRuleName = Rule.name getRule
+    ruleName : RuleName
+    ruleName = Rule.name rule
+
+  HintDB : Set
+  HintDB = List (∃ Hint)
   
-    open Hint using (getRule; getCount; getRuleName)
+  mdecr : ∀ {k} → Hint k → Maybe (Hint k)
+  mdecr {k} (mkHint r c) = mkHint r <$> mpred c 
+    where
+      mpred : Count → Maybe Count
+      mpred (inj₁ 0) = nothing
+      mpred (inj₁ x) = just (inj₁ (pred x))
+      mpred (inj₂ _) = just (inj₂ _)
+
+  getTr : ∀ {k} → Hint k → (HintDB → HintDB)
+  getTr h₁ = List.concatMap (List.fromMaybe ∘ mdecr₁)
+    where
+      mdecr₁ : ∃ Hint → Maybe (∃ Hint)
+      mdecr₁ (_ , h₂) =
+        if ⌊ Hint.ruleName h₁ ≟-RuleName Hint.ruleName h₂ ⌋
+        then (_,_ _) <$> mdecr h₂
+        else just (_ , h₂)
     
-    maybeDecr : ∀ {k} → Hint k → Maybe (Hint k)
-    maybeDecr {k} (mkHint r c) = mkHint r <$> maybePred c 
-      where
-        open RawFunctor Maybe.functor using (_<$>_)
-
-    HintDB : Set
-    HintDB = List (∃ Hint)
-
-    getTr : ∀ {k} → Hint k → (HintDB → HintDB)
-    getTr h₁ = List.concatMap (List.fromMaybe ∘ decrIf1)
-      where
-        decrIf1 : ∃ Hint → Maybe (∃ Hint)
-        decrIf1 (_ , h₂) =
-          if ⌊ getRuleName h₁ ≟-RuleName getRuleName h₂ ⌋
-          then (_,_ _) <$> maybeDecr h₂
-          else just (_ , h₂)
-          where
-            open RawFunctor Maybe.functor using (_<$>_)
-    
-    instHintDB : IsHintDB
-    instHintDB = record
-      { HintDB   = HintDB
-      ; Hint     = Hint
-      ; getHints = id
-      ; getRule  = getRule
-      ; getTr    = getTr
-      ; ε        = List.[]
-      ; _∙_      = List._++_
-      ; fromRule = λ {k} r → List.[ k , mkHint r (inj₂ _) ]
-      }
+  countingHintDB : IsHintDB
+  countingHintDB = record
+    { HintDB   = HintDB
+    ; Hint     = Hint
+    ; getHints = id
+    ; getRule  = Hint.rule
+    ; getTr    = getTr
+    ; ε        = []
+    ; _∙_      = _++_
+    ; return   = λ r → [ _ , mkHint r (inj₂ _) ]
+    }
 
 
 
-open Private using (mkHint; instHintDB)
-open import Auto.Extensible instHintDB public renaming (auto to countingAuto)
+open CountingHintDB using (mkHint; countingHintDB)
+open import Auto.Extensible countingHintDB public renaming (auto to countingAuto)
 
 
 
-infixl 5 _<<_ _<<[_]_
+--------------------------------------------------------------------------------
+-- Define some new syntax in order to insert rules with limited usage.        --
+--------------------------------------------------------------------------------
 
-_<<_ : HintDB → Name → HintDB
-db << n with (name2rule n)
-db << n | inj₁ msg     = db
-db << n | inj₂ (k , r) = db ∙ fromRule r
+infixl 5 _<<[_]_
 
 _<<[_]_ : HintDB → ℕ → Name → HintDB
+db <<[ 0 ] _ = db
 db <<[ x ] n with (name2rule n)
 db <<[ x ] n | inj₁ msg     = db
 db <<[ x ] n | inj₂ (k , r) = db ∙ [ k , mkHint r (inj₁ x) ]
