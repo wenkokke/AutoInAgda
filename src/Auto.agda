@@ -21,9 +21,8 @@ simpleHintDB = record
   ; return   = λ r → [ _ , r ]
   }
 
+open import Auto.Extensible simpleHintDB public renaming (auto to auto′)
 
-open import Auto.Extensible simpleHintDB public renaming (auto to simpleAuto′)
-
-simpleAuto : ℕ → HintDB → Term → Term
-simpleAuto = simpleAuto′ dfs
+auto : ℕ → HintDB → Term → Term
+auto = auto′ dfs
 

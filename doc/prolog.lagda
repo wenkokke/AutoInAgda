@@ -249,27 +249,6 @@ We construct our search trees as follows:
   the case, then we will provably also have a complete proof term,
   which we can return.
 \end{enumerate}
-A sample search-tree can be seen in figure~\ref{fig:searchtree}.
-
-\begin{figure}[ht]
-  \centering
-  \begin{tikzpicture}[thick, scale=0.8]
-    \Tree
-    [.{\ldots}
-      {|isEven0|}
-      [.{(|isEven+2| \, \ldots)}
-        [.{(|isEven+2| \, |isEven0|)} ]
-        [.{(|isEven+2| \, |isEven+2| \, {\vdots})} {\vdots} ]
-        [.{\vdots} ]
-      ]
-      [.{(|even+| \, \ldots \, \ldots)}
-        {\vdots}
-      ]
-    ]
-  \end{tikzpicture}
-  \caption{Sample search tree during construction.}
-  \label{fig:searchtree}
-\end{figure}
 
 Partial proofs are represented by the |Proof′| type, which is a pair
 containing our list of sub-goals (of length |k|) combined with a
@@ -312,9 +291,9 @@ continue the proof search by constructing a node with one child for
 every possible node, by applying the stepping function.
 \begin{code}
   solveAcc : Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
-  solveAcc nothing _ = node [] -- fail
-  solveAcc (just (n , s)) (0 , [] , p) = leaf (p [])
-  solveAcc (just (n , s)) (suc k , g ∷ gs , p) = node (map step rules)
+  solveAcc  nothing         _                     = node [] -- fail
+  solveAcc  (just (n , s))  (0 , [] , p)          = leaf (p [])
+  solveAcc  (just (n , s))  (suc k , g ∷ gs , p)  = node (map step rules)
 \end{code}
 The stepping function itself looks daunting, but what it does is
 relatively simple.\footnote{
@@ -378,27 +357,8 @@ define a simple bounded depth-first traversal as follows:
 It is fairly straightforward to define other traversal strategies,
 such as a breadth-first search, which traverses the search tree in
 layers.
-\begin{code}
-  bfs : (depth : ℕ) → SearchTree A → List A
-  bfs depth t = concat (toList (bfsAcc depth t))
-    where
-      merge : (xs ys : Vec (List A) k) → Vec (List A) k
-      merge  []        []        = []
-      merge  (x ∷ xs)  (y ∷ ys)  = (x ++ y) ∷ merge xs ys
-
-      empty : Vec (List A) k
-      empty {k = zero}   = []
-      empty {k = suc k}  = [] ∷ empty
-
-      bfsAcc : (depth : ℕ) → SearchTree A → Vec (List A) depth
-      bfsAcc  zero   _          = []
-      bfsAcc (suc k) (leaf x)   = (x ∷ []) ∷ empty
-      bfsAcc (suc k) (node xs)  =
-        [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
-\end{code}
 Similarly, we could define a function which traverses the search tree
 aided by several heuristics.
-
 
 If we are willing to make further changes, we could also represent a
 hint database as a list of \emph{pairs} of rules and functions of the
@@ -410,6 +370,7 @@ This would make it relatively easy to implement, for instance, a
 linear proof search, where every rule is applied at most once---we
 would only have to pass in a function which deleted the selected rule
 from the hint database.
+We will further investigate this possibility in section~\ref{sec:extensible}.
 
 %%% Local Variables:
 %%% mode: latex

@@ -265,7 +265,12 @@ module ProofSearch
   dfs  zero    _        = []
   dfs (suc k) (leaf x)  = x ∷ []
   dfs (suc k) (node xs) = concatMap (λ x → dfs k (♭ x)) xs
+
   
+  ------------------------------------------------------------------------------
+  -- * yeah, this doesn't actually do anything; all values are in the leafs * --
+  ------------------------------------------------------------------------------
+  {-
   bfs : Strategy
   bfs depth t = concat (Vec.toList (bfsAcc depth t))
     where
@@ -282,3 +287,4 @@ module ProofSearch
       bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
       bfsAcc (suc k) (node xs) = [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
   
+  -}
