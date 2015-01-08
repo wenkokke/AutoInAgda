@@ -127,14 +127,12 @@ of Prolog terms, by stripping the |arg| constructor and recursively
 applying the |convert| function. We only give its type signature
 here, as the definition is straightforward:
 \begin{code}
-  convertChildren
-    : ℕ → List (Arg Term) → Error (∃ (List ∘ PsTerm))
+  convertChildren : ℕ → List (Arg Term) → Error (∃ (List ∘ PsTerm))
 \end{code}
 Next, the |fromDef| function constructs a first-order constant from an
 Agda |Name| and list of terms:
 \begin{code}
-  convertName
-    : Name → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
+  convertName : Name → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
   convertName f (n , ts) = n , con (pname f) ts
 \end{code}
 

@@ -42,7 +42,7 @@ which computes a new hint database based on the selected hint.
 Using this interface, we can easily script all kinds of proof
 search. For instance, linear search could easily be implemented by
 setting the transition function to |delete| the selected rule from the
-hint database.  
+hint database.
 
 
 \subsection*{Example: limited usage of hints}
@@ -50,7 +50,7 @@ hint database.
 To illustrate the custom hint databases introduced above, we will use
 them to implement a 'counting' hint database; one in which each hint
 will be associated with a usage count, representing the number of
-times the hint can still be applied. 
+times the hint can still be applied.
 For this we will represent hints as the pair of a rule and a 'count'.
 \begin{code}
   record Hint (k : ℕ) : Set where
@@ -80,6 +80,11 @@ and we will return |nothing|.
 Given a hint |h|, the transition function will now simply find the
 position of |h| in the hint database and decrement the hint's count,
 removing it from the database if necessary.
+
+Using this counting hint database we can limit the number of times the
+proof search will use a problematic inference rule. An example of such
+a problematic rule is transitivity, which is known to inflate search
+space due to the fact that it can always be applied.
 
 %%% Local Variables:
 %%% mode: latex

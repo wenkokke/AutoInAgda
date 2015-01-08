@@ -27,7 +27,7 @@ open Show {{...}}
 -- * And set up a list of rules which guide the instance resolution         * --
 --------------------------------------------------------------------------------
 
-rules : Rules
+rules : HintDB
 rules = [] << quote instShowEither << quote instShowBool << quote instShowNat
   where
     instShowBool : Show Bool
@@ -46,8 +46,8 @@ rules = [] << quote instShowEither << quote instShowBool << quote instShowNat
 
 
 --------------------------------------------------------------------------------
--- * Using these rules and `simpleAuto` we can easily and robustly compute  * --
--- * the instances we need.                                                 * --
+-- * Using these rules and `auto` we can easily and robustly compute the    * --
+-- * instances we need.                                                     * --
 --------------------------------------------------------------------------------
 
 example₁ : String
@@ -55,7 +55,7 @@ example₁ = show (left true) ++ show (right 4)
   where
     instance
       inst : Show (Either Bool ℕ)
-      inst = tactic (simpleAuto 5 rules)
+      inst = tactic (auto 5 rules)
 
 
 
@@ -74,7 +74,7 @@ module DefaultPair where
       showPair (proj₁ , proj₂) = show proj₁ ++ "," ++ show proj₂
 
   inst : Exception unsupportedSyntax
-  inst = unquote (simpleAuto 5 (rules << quote instShowPair) g)
+  inst = unquote (auto 5 (rules << quote instShowPair) g)
     where
       g = quoteTerm (Show (Bool × ℕ))
   
@@ -100,7 +100,7 @@ module CustomPair where
     where
       instance
         inst : Show (Bool × ℕ)
-        inst = tactic (simpleAuto 5 (rules << quote instShowPair))
+        inst = tactic (auto 5 (rules << quote instShowPair))
 
 
 

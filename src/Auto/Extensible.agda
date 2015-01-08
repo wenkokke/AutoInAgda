@@ -10,7 +10,7 @@ module Auto.Extensible (instHintDB : IsHintDB) where
 
 open IsHintDB     instHintDB public
 open PsExtensible instHintDB public
-open Auto.Core               public using (Exception; searchSpaceExhausted; unsupportedSyntax)
+open Auto.Core               public using (Exception; throw; searchSpaceExhausted; unsupportedSyntax)
 
 
 auto : Strategy → ℕ → HintDB → Term → Term
@@ -18,7 +18,7 @@ auto search depth db type
   with agda2goal×premises type
 ... | inj₁ msg = quoteError msg
 ... | inj₂ ((n , g) , args)
-  with search depth (solve g (fromRules args ∙ db))
+  with search (suc depth) (solve g (fromRules args ∙ db))
 ... | []      = quoteError searchSpaceExhausted
 ... | (p ∷ _) = intros (reify p)
   where

@@ -78,7 +78,7 @@ module CountingHintDB where
 
 
 open CountingHintDB using (mkHint; countingHintDB)
-open import Auto.Extensible countingHintDB public renaming (auto to countingAuto)
+open import Auto.Extensible countingHintDB public
 
 
 
