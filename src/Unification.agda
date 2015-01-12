@@ -25,6 +25,7 @@ module Unification
     var : (x : Fin n) → Term n
     con : (s : Name) (ts : List (Term n)) → Term n
     lit : (l : Literal) → Term n
+--  ext : (x : Fin (suc n)) (t : Term (suc n)) → Term n
 
   var-inj : ∀ {n x₁ x₂} → var {n} x₁ ≡ var {n} x₂ → x₁ ≡ x₂
   var-inj refl = refl
@@ -35,25 +36,39 @@ module Unification
   lit-inj : ∀ {n x₁ x₂} → lit {n} x₁ ≡ lit {n} x₂ → x₁ ≡ x₂
   lit-inj refl = refl
 
+--ext-inj : ∀ {n x₁ x₂ t₁ t₂} → ext {n} x₁ t₁ ≡ ext {n} x₂ t₂ → x₁ ≡ x₂ × t₁ ≡ t₂
+--ext-inj refl = refl , refl
+
   mutual
     _≟-Term_ : ∀ {n} → (t₁ t₂ : Term n) → Dec (t₁ ≡ t₂)
-    _≟-Term_ (var _)   (lit _)   = no (λ ())
-    _≟-Term_ (con _ _) (lit _)   = no (λ ())
-    _≟-Term_ (lit _)   (var _)   = no (λ ())
-    _≟-Term_ (lit _)   (con _ _) = no (λ ())
-    _≟-Term_ (var _)   (con _ _) = no (λ ())
-    _≟-Term_ (con _ _) (var _)   = no (λ ())
-    _≟-Term_ (lit x₁) (lit x₂) with x₁ ≟-Literal x₂
-    ... | yes x₁=x₂ = yes (cong lit x₁=x₂)
-    ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ lit-inj)
+    _≟-Term_ (var _)  (lit _)   = no (λ ())
+    _≟-Term_ (var _)  (con _ _) = no (λ ())
+--  _≟-Term_ (var _)  (ext _ _) = no (λ ())
     _≟-Term_ (var x₁) (var x₂) with x₁ ≟-Fin x₂
     ... | yes x₁=x₂ = yes (cong var x₁=x₂)
     ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ var-inj)
+    _≟-Term_ (con _ _)    (var _)   = no (λ ())
+    _≟-Term_ (con _ _)    (lit _)   = no (λ ())
+--  _≟-Term_ (con _ _)    (ext _ _) = no (λ ())
     _≟-Term_ (con s₁ ts₁) (con s₂ ts₂) with s₁ ≟-Name s₂
     ... | no  s₁≠s₂ = no (s₁≠s₂ ∘ proj₁ ∘ con-inj)
     ... | yes s₁=s₂ rewrite s₁=s₂ with ts₁ ≟-Terms ts₂
     ... | no  ts₁≠ts₂ = no (ts₁≠ts₂ ∘ proj₂ ∘ con-inj)
     ... | yes ts₁=ts₂ = yes (cong (con s₂) ts₁=ts₂)
+    _≟-Term_ (lit _)  (var _)   = no (λ ())
+    _≟-Term_ (lit _)  (con _ _) = no (λ ())
+--  _≟-Term_ (lit _)  (ext _ _) = no (λ ())
+    _≟-Term_ (lit x₁) (lit x₂) with x₁ ≟-Literal x₂
+    ... | yes x₁=x₂ = yes (cong lit x₁=x₂)
+    ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ lit-inj)
+--  _≟-Term_ (ext _ _)   (var _)        = no (λ ())
+--  _≟-Term_ (ext _ _)   (con _ _)      = no (λ ())
+--  _≟-Term_ (ext _ _)   (lit _)        = no (λ ())
+--  _≟-Term_ (ext x₁ t₁) (ext x₂ t₂) with x₁ ≟-Fin x₂
+--  ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ proj₁ ∘ ext-inj)
+--  ... | yes x₁=x₂ rewrite x₁=x₂ with t₁ ≟-Term t₂
+--  ... | no  t₁≠t₂ = no (t₁≠t₂ ∘ proj₂ ∘ ext-inj)
+--  ... | yes t₁=t₂ = yes (cong (ext x₂) t₁=t₂)
 
     _≟-Terms_ : ∀ {n} (xs ys : List (Term n)) → Dec (xs ≡ ys)
     _≟-Terms_ [] [] = yes refl
@@ -64,6 +79,20 @@ module Unification
     ... | yes x=y with xs ≟-Terms ys
     ... | no  xs≠ys = no (xs≠ys ∘ proj₂ ∘ ∷-inj)
     ... | yes xs=ys = yes (cong₂ _∷_ x=y xs=ys)
+
+  
+  -- defining thick and thin
+  thin : {n : ℕ} → Fin (suc n) → Fin n → Fin (suc n)
+  thin  zero    y      = suc y
+  thin (suc x)  zero   = zero
+  thin (suc x) (suc y) = suc (thin x y)
+
+  thick : {n : ℕ} → (x y : Fin (suc n)) → Maybe (Fin n)
+  thick          zero    zero   = nothing
+  thick          zero   (suc y) = just y
+  thick {zero}  (suc ()) _
+  thick {suc n} (suc x)  zero   = just zero
+  thick {suc n} (suc x) (suc y) = suc <$> thick x y
 
   -- defining replacement function (written _◂ in McBride, 2003)
   replace : ∀ {n m} → (Fin n → Term m) → Term n → Term m
@@ -78,19 +107,6 @@ module Unification
   -- defining replacement composition
   _◇_ : ∀ {m n l} (f : Fin m → Term n) (g : Fin l → Term m) → Fin l → Term n
   _◇_ f g = replace f ∘ g
-
-  -- defining thick and thin
-  thin : {n : ℕ} → Fin (suc n) → Fin n → Fin (suc n)
-  thin  zero    y      = suc y
-  thin (suc x)  zero   = zero
-  thin (suc x) (suc y) = suc (thin x y)
-
-  thick : {n : ℕ} → (x y : Fin (suc n)) → Maybe (Fin n)
-  thick          zero    zero   = nothing
-  thick          zero   (suc y) = just y
-  thick {zero}  (suc ()) _
-  thick {suc n} (suc x)  zero   = just zero
-  thick {suc n} (suc x) (suc y) = suc <$> thick x y
 
   -- defining an occurs check (**check** in McBride, 2003)
   check : ∀ {n} (x : Fin (suc n)) (t : Term (suc n)) → Maybe (Term n)
@@ -165,3 +181,4 @@ module Unification
 
   unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ (Subst m))
   unify {m} t₁ t₂ = unifyAcc t₁ t₂ (m , nil)
+
