@@ -11,7 +11,7 @@ open import Relation.Nullary using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; cong; cong₂)
 
 module Unification
-  (Name : Set) (_≟-Name_ : (x y : Name) → Dec (x ≡ y))
+  (Name    : Set) (_≟-Name_    : (x y : Name)    → Dec (x ≡ y))
   (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y))
   where
 
