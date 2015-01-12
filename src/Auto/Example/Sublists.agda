@@ -1,5 +1,4 @@
 open import Function      using (flip; _∘_; _$_)
-open import Auto.Core     using (dfs)
 open import Auto.Counting
 open import Data.Nat      using (ℕ)
 open import Data.List     using (List; _∷_; [])
@@ -28,23 +27,26 @@ trans       p  (drop q) = drop (trans p q)
 trans (drop p) (keep q) = drop (trans p q)
 trans (keep p) (keep q) = keep (trans p q)
 
-db₁ : HintDB
-db₁ = ε <<[ 2 ] quote trans
-        
-test₁ : {A : Set} {ws xs ys zs : List A} → ws ⊆ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ zs
-test₁ = tactic (auto dfs 10 db₁)
+hintdb₁ : HintDB
+hintdb₁ = ε << quote drop
+            << quote keep
+            << quote trans
 
+lemma₁ : {ws xs ys zs : List ℕ}
+       → ws ⊆ 1 ∷ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ 1 ∷ 2 ∷ zs
+lemma₁ = tactic (auto dfs 10 hintdb₁)
+
+lemma₂ : {ws xs ys zs : List ℕ}
+       → ws ⊆ 1 ∷ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆     2 ∷ zs
+lemma₂ = tactic (auto dfs 10 hintdb₁)
+
+
+{-
 db₂ : HintDB
-db₂ = ε <<[ 1 ] quote trans
+db₂ = ε << quote trans
+        << quote keep
+        << quote drop
 
-test₂ : Exception searchSpaceExhausted
-test₂ = unquote (auto dfs 10 db₂ (quoteTerm
-                ({A : Set} {ws xs ys zs : List A} → ws ⊆ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ zs)))
-
-db₃ : HintDB
-db₃ = ε <<[ 1 ] quote trans
-        <<      quote drop
-        <<      quote keep
-
-test₃ : {xs ys zs : List ℕ} → xs ⊆ ys → ys ⊆ zs → xs ⊆ 1 ∷ 2 ∷ zs
-test₃ = tactic (auto dfs 5 db₃)
+test₂ : {A : Set} {ws xs ys zs : List A} → ws ⊆ xs → ys ⊆ zs → ws ⊆ zs
+test₂ = tactic (auto dfs 10 db₁)
+-}
