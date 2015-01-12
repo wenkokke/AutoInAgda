@@ -268,7 +268,7 @@ hands on the list of arguments |args| and the desired return type
   ... | inj₁ msg            = inj₁ msg
   ... | inj₂ (n , p)        with split p
   ... | (k , ts)            with initLast ts
-  ... | (prems , goal , _)  = inj₂ ((n , goal) , toPremises 0 prems)
+  ... | (prems , goal , _)  = inj₂ ((n , goal) , toPremises k prems)
     where
 
 \end{code}

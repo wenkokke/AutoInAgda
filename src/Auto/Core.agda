@@ -46,49 +46,48 @@ module Auto.Core where
   -- search; we use standard Agda names, together with term-variables
   -- and Agda implications/function types.
   data TermName : Set₀ where
-    name : (n : Name) → TermName
-    tvar : (i : ℤ)    → TermName
-    impl : TermName
+    name   : (n : Name) → TermName
+    var    : (i : ℤ)    → TermName
+    impl   : TermName
 
-  name-inj : ∀ {x y} → TermName.name x ≡ TermName.name y → x ≡ y
-  name-inj refl = refl
+  tname-injective : ∀ {x y} → TermName.name x ≡ TermName.name y → x ≡ y
+  tname-injective refl = refl
 
-  tvar-inj : ∀ {i j} → tvar i ≡ tvar j → i ≡ j
-  tvar-inj refl = refl
+  tvar-injective : ∀ {i j} → TermName.var i ≡ TermName.var j → i ≡ j
+  tvar-injective refl = refl
 
   _≟-TermName_ : (x y : TermName) → Dec (x ≡ y)
-  _≟-TermName_ (name x) (name  y) with x ≟-Name y
-  _≟-TermName_ (name x) (name .x) | yes refl = yes refl
-  _≟-TermName_ (name x) (name  y) | no  x≠y  = no (x≠y ∘ name-inj)
-  _≟-TermName_ (name _) (tvar _)  = no (λ ())
-  _≟-TermName_ (name _)  impl     = no (λ ())
-  _≟-TermName_ (tvar _) (name _)  = no (λ ())
-  _≟-TermName_ (tvar i) (tvar  j) with i ≟-Int j
-  _≟-TermName_ (tvar i) (tvar .i) | yes refl = yes refl
-  _≟-TermName_ (tvar i) (tvar  j) | no i≠j = no (i≠j ∘ tvar-inj)
-  _≟-TermName_ (tvar _)  impl     = no (λ ())
-  _≟-TermName_  impl    (name _)  = no (λ ())
-  _≟-TermName_  impl    (tvar _)  = no (λ ())
-  _≟-TermName_  impl     impl     = yes refl
-
+  (name x) ≟-TermName (name  y) with x ≟-Name y
+  (name x) ≟-TermName (name .x) | yes refl = yes refl
+  (name x) ≟-TermName (name  y) | no  x≠y  = no (x≠y ∘ tname-injective)
+  (name _) ≟-TermName (var   _) = no (λ ())
+  (name _) ≟-TermName (impl   ) = no (λ ())
+  (var  _) ≟-TermName (name  _) = no (λ ())
+  (var  i) ≟-TermName (var   j) with i ≟-Int j
+  (var  i) ≟-TermName (var  .i) | yes refl = yes refl
+  (var  i) ≟-TermName (var   j) | no i≠j = no (i≠j ∘ tvar-injective)
+  (var  _) ≟-TermName (impl   ) = no (λ ())
+  (impl  ) ≟-TermName (name  _) = no (λ ())
+  (impl  ) ≟-TermName (var   _) = no (λ ())
+  (impl  ) ≟-TermName (impl   ) = yes refl
 
   -- define rule names for the proof terms/rules that our proof search will
   -- return/use; we'll use standard Agda names, together with rule-variables.
   data RuleName : Set where
-    name : Name → RuleName
-    rvar : ℕ    → RuleName
+    name  : Name → RuleName
+    var   : ℕ    → RuleName
 
   name-injective : ∀ {x y} → RuleName.name x ≡ name y → x ≡ y
   name-injective refl = refl
 
-  rvar-injective : ∀ {x y} → RuleName.rvar x ≡ rvar y → x ≡ y
+  rvar-injective : ∀ {x y} → RuleName.var x ≡ var y → x ≡ y
   rvar-injective refl = refl
 
   _≟-RuleName_ : (x y : RuleName) → Dec (x ≡ y)
   name x ≟-RuleName name y = map′ (cong name) name-injective (x ≟-Name y)
-  name x ≟-RuleName rvar y = no (λ ())
-  rvar x ≟-RuleName name y = no (λ ())
-  rvar x ≟-RuleName rvar y = map′ (cong rvar) rvar-injective (x Nat.≟ y)
+  name x ≟-RuleName var  y = no (λ ())
+  var  x ≟-RuleName name y = no (λ ())
+  var  x ≟-RuleName var  y = map′ (cong var) rvar-injective (x Nat.≟ y)
 
   -- now we can load the definitions from proof search
   open import ProofSearch RuleName TermName _≟-TermName_ Literal _≟-Lit_
@@ -100,8 +99,8 @@ module Auto.Core where
 
   -- dictionary for the treatment of variables in conversion from Agda
   -- terms to terms to be used in proof search.
-  ConvertVar : Set
-  ConvertVar = (depth index : ℕ) → ∃ PsTerm
+  ConvertVar  : Set
+  ConvertVar  = (depth index : ℕ) → ∃ PsTerm
 
   -- conversion dictionary for rule-terms, which turns every variable
   -- that is within the scope of the term (i.e. is defined within the
@@ -114,7 +113,7 @@ module Auto.Core where
       fromVar : (depth index : ℕ) → ∃ PsTerm
       fromVar d i with total i d
       fromVar d i | inj₁ i≤d = (suc (Δ i≤d) , var (fromℕ (Δ i≤d)))
-      fromVar d i | inj₂ i>d = (0 , con (tvar (-[1+ Δ i>d ])) [])
+      fromVar d i | inj₂ i>d = (0 , con (var (-[1+ Δ i>d ])) [])
 
   -- conversion dictionary for goal-terms, which turns all variables
   -- into Skolem constants which blocks all unification.
@@ -123,8 +122,8 @@ module Auto.Core where
     where
       fromVar : (depth index : ℕ) → ∃ PsTerm
       fromVar d i with total i d
-      fromVar d i | inj₁ i≤d = (0 , con (tvar (+ Δ i≤d)) [])
-      fromVar d i | inj₂ i>d = (0 , con (tvar (-[1+ Δ i>d ])) [])
+      fromVar d i | inj₁ i≤d = (0 , con (var (+ Δ i≤d)) [])
+      fromVar d i | inj₂ i>d = (0 , con (var (-[1+ Δ i>d ])) [])
 
 
   -- helper function for converting definitions or constructors to
@@ -135,7 +134,7 @@ module Auto.Core where
 
   -- specialised function to convert literals of natural numbers
   -- (since they have a representation using Agda names)
-  convertℕ : ℕ → PsTerm 0
+  convertℕ : ∀ {k} → ℕ → PsTerm k
   convertℕ  zero   = con (name (quote zero)) []
   convertℕ (suc n) = con (name (quote suc)) (convertℕ n ∷ [])
 
@@ -203,7 +202,7 @@ module Auto.Core where
     where
       toPremises : ∀ {k} → ℕ → Vec (PsTerm n) k → Rules
       toPremises i [] = []
-      toPremises i (t ∷ ts) = (n , rule (rvar i) t []) ∷ toPremises (pred i) ts
+      toPremises i (t ∷ ts) = (n , rule (var i) t []) ∷ toPremises (pred i) ts
 
 
   -- convert an Agda name to an rule-term.
@@ -227,14 +226,14 @@ module Auto.Core where
   -- `ProofSearch` module) to untyped Agda terms.
   mutual
     reify : Proof → AgTerm
-    reify (con (rvar i) ps) = var i []
+    reify (con (var i) ps) = var i []
     reify (con (name n) ps) with definition n
-    ... | function x   = def n (reifyChildren ps)
-    ... | constructor′ = con n (reifyChildren ps)
-    ... | data-type x  = unknown
-    ... | record′ x    = unknown
-    ... | axiom        = unknown
-    ... | primitive′   = unknown
+    ... | function x    = def n (reifyChildren ps)
+    ... | constructor′  = con n (reifyChildren ps)
+    ... | data-type x   = unknown
+    ... | record′ x     = unknown
+    ... | axiom         = unknown
+    ... | primitive′    = unknown
 
     reifyChildren : List Proof → List (Arg AgTerm)
     reifyChildren [] = []

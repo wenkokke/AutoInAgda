@@ -10,7 +10,7 @@ module Auto.Extensible (instHintDB : IsHintDB) where
 
 open IsHintDB     instHintDB public
 open PsExtensible instHintDB public
-open Auto.Core               public using (Exception; throw; searchSpaceExhausted; unsupportedSyntax)
+open Auto.Core               public using (dfs; bfs; Exception; throw; searchSpaceExhausted; unsupportedSyntax)
 
 
 auto : Strategy → ℕ → HintDB → Term → Term

@@ -7,7 +7,7 @@ open import Data.Nat.Properties as NatProps using (commutativeSemiring; distribu
 open import Data.Fin as Fin using (Fin; suc; zero)
 open import Data.Fin.Properties as FinProps renaming (_≟_ to _≟-Fin_)
 open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.List as List using (List; _∷_; []; _++_; length; concat; map; foldr; concatMap)
+open import Data.List as List using (List; _∷_; []; [_]; _++_; length; concat; map; foldr; concatMap)
 open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)
 open import Data.Vec as Vec using (Vec; _∷_; [])
 open import Data.Sum as Sum using (_⊎_; inj₁; inj₂)
@@ -169,6 +169,22 @@ module ProofSearch
     fromRules ((k , r) ∷ rs) = return r ∙ fromRules rs
 
 
+  ----------------------------------------------------------------------------
+  -- * define simple hint databases                                       * --
+  ----------------------------------------------------------------------------
+
+  simpleHintDB : IsHintDB
+  simpleHintDB = record
+    { HintDB   = Rules
+    ; Hint     = Rule
+    ; getHints = id
+    ; getRule  = id
+    ; getTr    = const id
+    ; ε        = []
+    ; _∙_      = _++_
+    ; return   = λ r → [ _ , r ]
+    }
+
 
   ----------------------------------------------------------------------------
   -- * define search trees, proofs and partial proofs                     * --
@@ -267,10 +283,6 @@ module ProofSearch
   dfs (suc k) (node xs) = concatMap (λ x → dfs k (♭ x)) xs
 
   
-  ------------------------------------------------------------------------------
-  -- * yeah, this doesn't actually do anything; all values are in the leafs * --
-  ------------------------------------------------------------------------------
-  {-
   bfs : Strategy
   bfs depth t = concat (Vec.toList (bfsAcc depth t))
     where
@@ -286,5 +298,4 @@ module ProofSearch
       bfsAcc  zero   _         = []
       bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
       bfsAcc (suc k) (node xs) = [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
-  
-  -}
+
