@@ -97,7 +97,7 @@ applied:
       rule   : Rule k
       count  : Count
 \end{code}
-These 'count' values will either be a natural number (with a number |n|
+These |count| values will either be a natural number (with a number |n|
 meaning that the rule can still be used |n| times) or |⊤| (meaning
 that the usage of the rule is unrestricted).
 \begin{code}
