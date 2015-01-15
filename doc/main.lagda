@@ -39,7 +39,6 @@
 We would like to thank the Software Technology Reading Club at the
 Universiteit Utrecht for their helpful feedback.
 
-
 \bibliographystyle{plainnat}
 \bibliography{main}
 
