@@ -69,7 +69,7 @@ In this example, the construct |quoteGoal g| binds the |Term|
 representing the \emph{type} of the current goal, |ℕ|, to the variable
 |g|. When completing this definition by filling in the hole labeled
 |0|, we may now refer to the variable |g|. This variable is bound to
-to |def ℕ []|, the |Term| representing the type |ℕ|.
+|def ℕ []|, the |Term| representing the type |ℕ|.
 
 \subsection*{Using proof automation}
 
@@ -129,14 +129,15 @@ database:
     [] << quote isEven0 << quote isEven+2 << quote even+
 \end{code}
 To construct such a database, we |quote| any terms that we wish to
-include in it and pass them to the |hintdb| function.  We
-defer any discussion about the |hintdb| function
-to Section~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
+include in it and pass them to the |hintdb| function, that constructs
+a hint database from an appropriate sequence of names.  We will
+describe the implementation of the |hintdb| function further in
+Section~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
 data base is a \emph{first-class} value that can be manipulated,
 inspected, or passed as an argument to a function.
 
-We now give an alternative proof of the |trivial| lemma, using this
-hint database:
+We now give an alternative proof of the |trivial| lemma using the
+|auto| tactic and the hint database defined above:
 \begin{code}
   trivial : Even n → Even (n + 2)
   trivial = quoteGoal g in unquote (auto 5 hints g)
@@ -148,6 +149,9 @@ Or, using the newly added Agda tactic syntax\footnote{
   trivial : Even n → Even (n + 2)
   trivial = tactic (auto 5 hints)
 \end{code}
+The notation |tactic f| is simply syntactic sugar for |quoteGoal g in
+unquote (f g)|, for some function |f|.
+
 The central ingredient is a \emph{function} |auto| with the following
 type:
 \begin{code}
@@ -165,7 +169,7 @@ Even (n + 3)| in this style gives the following error:
     Even .n -> Even (.n + 3) of type Set
 \end{verbatim}
 When no proof can be found, the |auto| function generates a dummy
-term whose type explains the reason why the search has failed. In
+term with a type that explains the reason the search has failed. In
 this example, the search space has been exhausted. Unquoting this
 term, then gives the type error message above. It is up to the
 programmer to fix this, either by providing a manual proof or

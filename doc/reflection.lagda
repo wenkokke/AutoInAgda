@@ -82,10 +82,10 @@ lists of terms.
 We now turn our attention to the conversion of an |AgTerm| to a
 |PsTerm|. There are two problems that we must address.
 
-First of all, the |AgTerm| type represents all (possibly
-higher-order) terms, whereas the |PsTerm| type is necessarily
-first-order.  We mitigate this problem, by allowing the conversion to
-fail, throwing an `exception' with the message |unsupportedSyntax|.
+First of all, the |AgTerm| type represents all (possibly higher-order)
+terms, whereas the |PsTerm| type is necessarily first-order.  We
+mitigate this problem by allowing the conversion to 'fail', by
+producing a term of the wrong type, as we saw in the introduction.
 
 Secondly, the |AgTerm| data type uses natural numbers to represent
 variables. The |PsTerm| data type, on the other hand, represents
@@ -221,7 +221,7 @@ may assume that any unsupported syntax has already been removed.
   split t = (0 , t ∷ [])
 \end{code}
 
-Using all these auxiliary functions, it is straightforward to define
+Using all these auxiliary functions, we now define
 the |name2rule| function below that constructs a |Rule| from an Agda |Name|.
 \begin{code}
   name2rule : Name → Error (∃ Rule)
@@ -258,10 +258,6 @@ To account for this difference we have two flavours of the |convert|
 function: |convert| and |convert4Goal|. Both differ only in their
 implementation of |convertVar|.
 
-Fortunately, we can reuse many of the other function we have defined
-above, and, using the |split| and |initLast| function, we can get our
-hands on the list of arguments |args| and the desired return type
-|goal|.
 \begin{code}
   agda2goal×premises : AgTerm → Error (∃ PsTerm × HintDB)
   agda2goal×premises t with convert4Goal 0 t
@@ -269,10 +265,11 @@ hands on the list of arguments |args| and the desired return type
   ... | inj₂ (n , p)        with split p
   ... | (k , ts)            with initLast ts
   ... | (prems , goal , _)  = inj₂ ((n , goal) , toPremises k prems)
-    where
-
 \end{code}
-The only missing piece of the puzzle is a function, |toPremises|,
+Fortunately, we can reuse many of the other function we have defined
+above, and, using the |split| and |initLast| function, we can get our
+hands on the list of arguments |args| and the desired return type
+|goal|. The only missing piece of the puzzle is a function, |toPremises|,
 which converts a list of |PsTerm|s to a |Rules| list.
 \begin{code}
   toPremises : ∀ {k} → ℕ → Vec (PsTerm n) k → HintDB
@@ -307,12 +304,9 @@ arguments.
   reify : Proof → AgTerm
   reify (con (rvar i) ps) = var i []
   reify (con (name n) ps) with definition n
-  ... | function x   = def n (toArg ∘ reify ⟨$⟩ ps)
-  ... | constructor′ = con n (toArg ∘ reify ⟨$⟩ ps)
-  ... | data-type x  = unknown
-  ... | record′ x    = unknown
-  ... | axiom        = unknown
-  ... | primitive′   = unknown
+  ... | function x    = def n (toArg ∘ reify ⟨$⟩ ps)
+  ... | constructor′  = con n (toArg ∘ reify ⟨$⟩ ps)
+  ... | _             = unknown
     where
       toArg : AgTerm → Arg AgTerm
       toArg = arg (arg-info visible relevant)
@@ -330,7 +324,7 @@ We will also need to wrap additional lambdas around the resulting
 term, due to the premises that were introduced by the
 |agda2goal×premises| function.
 To do so, we define the |intros| function that repeatedly wraps its
-argument term in a lambda:
+argument term in a lambda.
 \begin{code}
   intros : AgTerm → AgTerm
   intros = introsAcc (length args)
@@ -395,8 +389,10 @@ Next, we define a function to produce an |AgTerm| from a
 just use Agda's |quoteTerm| construct:
 \begin{code}
 quoteError : Message → Term
-quoteError searchSpaceExhausted  = quoteTerm (throw searchSpaceExhausted)
-quoteError unsupportedSyntax     = quoteTerm (throw unsupportedSyntax)
+quoteError searchSpaceExhausted  = 
+  quoteTerm (throw searchSpaceExhausted)
+quoteError unsupportedSyntax     = 
+  quoteTerm (throw unsupportedSyntax)
 \end{code}
 
 \subsection*{Putting it all together}

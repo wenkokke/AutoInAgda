@@ -1,8 +1,8 @@
 \section{Extensible proof search}
 \label{sec:extensible}
 
-As we promised in the previous section, we will now investigate
-possibilities and applications for a more extensible |auto|.
+As we promised in the previous section, we will now explore several
+variations and extensions to the |auto| tactic described above.
 
 
 \subsection*{Custom search strategies}
@@ -17,38 +17,40 @@ The changed type of the |auto| function now becomes.
 \begin{code}
   auto : Strategy → ℕ → HintDB → AgTerm → AgTerm
 \end{code}
-This will allow us to choose whether to pass in |dfs|, |bfs| or even a
-custom user-provided search strategy.
+This will allow us to choose whether to pass in |dfs|, breadth-first
+search or even a custom user-provided search strategy.
 
 
 \subsection*{Custom hint databases}
 
-A more radical change we could make to our |auto| function is the
-following: we allow the user to submit any custom type for hint
-databases, as long as it implements a basic interface.
+Alternatively, we have developed a variant of the |auto| tactic
+described in the paper that allows users to define their own type of
+hint database, provided they can implement the following interface:
 \begin{code}
-  record IsHintDB : Set₁ where
-    field
       HintDB    : Set
       Hint      : ℕ → Set
       getHints  : HintDB → Hints
       getRule   : Hint k → Rule k
       getTr     : Hint k → (HintDB → HintDB)
 \end{code}
-In addition to this, we allow hint databases to evolve during the
-proof search, by supplying a transformation function, through |getTr|,
-which computes a new hint database based on the selected hint.
+Besides the obvious types for hints and rules, we allow hint databases
+to evolve during the proof search. The user-defined |getTr| function
+describes a transformation that may modify the hint database after a
+certain hint has been applied.
 
-Using this interface, we can easily script all kinds of proof
-search. For instance, linear search could easily be implemented by
-setting the transition function to |delete| the selected rule from the
-hint database.
-
+Using this interface, we can implement alternative hint databases. For
+instance, we could implement a `linear' proof search function to
+removes a rule from the hint database after it has been
+applied. Alternatively, we may want to assign priorities to our
+hints. To illustrate one possible application of this interface, we
+will describe a hint database implementation that limits the usage of
+certain rules. Before we do so, however, we need to introduce a
+motivating example.
 
 \subsection*{Example: limited usage of hints}
 
-To illustrate the custom hint databases introduced above, introduce a
-new example: the sublist relation.
+We start by defining the following sublist relation, taken from the
+Agda tutorial~\citep{agda-tutorial}:
 \begin{code}
   data _⊆_ : List A → List A → Set where
     stop : [] ⊆ []
@@ -58,38 +60,37 @@ new example: the sublist relation.
 It is easy to show that the sublist relation is both reflexive and
 transitive.
 
-Using these rules, we can build up a small hint database to reason
-about the sublist relation.
+Using these rules, we can build up a small hint database to generate
+proofs using the sublist relation.
 \begin{code}
   hintdb  : HintDB
   hintdb  = ε << quote drop << quote keep << quote refl << quote trans
 \end{code}
-We can use this hint database to easily prove lemmas about the sublist
-relation. For instance, |auto| quickly finds a proof for the following
-lemma.
+Our |auto| tactic quickly finds a proof for the following lemma:
 \begin{code}
   lemma₁  : ws ⊆ 1 ∷ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ 1 ∷ 2 ∷ zs
   lemma₁  = tactic (auto dfs 7 hintdb)
 \end{code}
-The following lemma is false. However, as noted by \citet{chlipala}
-when examining tactics in Coq, |auto| will spend a lot of time
-searching for proofs of it.
+The following lemma, however, is false. 
 \begin{code}
   lemma₂  : ws ⊆ 1 ∷ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ 2 ∷ zs
   lemma₂  = tactic (auto dfs 10 hintdb)
 \end{code}
-The reason is that the |trans| rule is always applicable. This will
-cause the proof search to construct the full search tree up to the
-search depth---resulting in an exponental running time.
+Indeed, this example does not type check and our tactic reports that
+the search space is exhausted.  As noted by \citet{chlipala} when
+examining tactics in Coq, |auto| will nonetheless spend a considerable
+amount of time trying to construct a proof. As the |trans| rule is
+always applicable, the proof search will construct the full search
+tree up to the search depth -- resulting in an exponental running time.
 
+We will use a variation of the |auto| tactic to address this
+problem. Upon constructing the new hint database, users may assign
+limits to the number times certain hints may be used. By limiting the
+usage of transitivity, our tactic will fail quicker.
 
-We will use our extensible |auto| tactic to implement a quick fix for
-this problem. We will implement a 'counting' hint database; one in
-which each hint will be associated with a usage count, representing
-the number of times the hint can still be applied.
-
-Starting out, we will choose the representation of our hints: a pair
-of a rule and a 'count'.
+To begin with, we choose the representation of our hints: a pair of a
+rule and a `count' that describes how often the rule may still be
+applied:
 \begin{code}
   record Hint (k : ℕ) : Set where
     field
@@ -130,8 +131,8 @@ be allowed in a derivation.
   db <<[ x ] n | inj₁ msg     = db
   db <<[ x ] n | inj₂ (k , r) = db ++ [ k , record { rule = r , count = inj₁ x } ]
 \end{code}
-Imagine we, had constructed our hint database as follows, using our
-new counting databases.
+We now revisit our original hint database and limit the number
+of times transitivity may be applied:
 \begin{code}
   hintdb  : HintDB
   hintdb  = ε  <<       quote drop
@@ -140,10 +141,13 @@ new counting databases.
                <<[ 2 ]  quote trans
 \end{code}
 If we were to search for a proof of |lemma₂| now, our proof search
-terminate much sooner, as it would run out of applicable rules. And
-even better! If we use this restricted database when searching for a
-proof of |lemma₁|, the |auto| function terminates much sooner, as we
-have greatly reduced the number of possible proofs to search through!
+fails sooner. \emph{A fortiori}, if we use this restricted database
+when searching for a proof of |lemma₁|, the |auto| function succeeds
+sooner, as we have greatly reduced the search space. Of course, there
+are plenty of lemmas that require more than two applications of
+transitivity. The key insight, however, is that users now have control
+over these issues -- something which is not even possible in current
+implementations of |auto| in Coq.
 
 %%% Local Variables:
 %%% mode: latex

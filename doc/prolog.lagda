@@ -27,8 +27,8 @@ data PsTerm (n : ℕ) : Set where
   var  : Fin n → PsTerm n
   con  : TermName → List (PsTerm n) → PsTerm n
 \end{code}
-In addition to a restricted set of variables, we will allow
-first-order constants encoded as a name with a list of
+In addition to variables, represented by the finite type |Fin n|, we
+will allow first-order constants encoded as a name with a list of
 arguments.
 
 For instance, if we choose to instantiate |PsName| with the following
@@ -108,10 +108,13 @@ addition. In Prolog, this would be written as follows.
   add(0, X, X).
   add(suc(X), Y, suc(Z)) :- add(X, Y, Z).
 \end{verbatim}
-Unfortunately, the named equivalents in our Agda implementation are a
-bit more verbose. Note that we have, for the sake of this example,
-instantiated the |RuleName| and |TermName| to |String| and |Arith|
-respectively.
+Unfortunately, the named equivalents in our Agda implementation given
+in Figure~\ref{fig:rules} are a bit more verbose. Note that we have,
+for the sake of this example, instantiated the |RuleName| and
+|TermName| to |String| and |Arith| respectively.
+\begin{figure}
+  \centering
+  \normalsize
 \begin{code}
 AddBase : Rule 1
 AddBase = record {
@@ -122,8 +125,7 @@ AddBase = record {
                          ∷ [])
   premises    = []
   }
-\end{code}%
-\begin{code}
+
 AddStep : Rule 3
 AddStep = record {
   name        = "AddStep"
@@ -138,6 +140,9 @@ AddStep = record {
                  ∷ []
   }
 \end{code}
+  \caption{Agda representation of example rules}
+  \label{fig:rules}
+\end{figure}
 
 
 \subsection*{Generalised injection and raising}
@@ -158,9 +163,7 @@ larger finite type.
   raise  zero    i  = i
   raise (suc m)  i  = suc (raise m i)
 \end{code}
-We have tried to visualize the behaviour of |inject| and |raise|,
-embedding |Fin 3| into |Fin (3 + 1)| in Figure~\ref{fig:fins}. On the
-surface, the |inject| function appears to be the identity. When you
+On the surface, the |inject| function appears to be the identity. When you
 make all the implicit arguments explicit, however, you will see that
 it sends the |zero| constructor in |Fin m| to the |zero| constructor
 of type |Fin (m + n)|. Hence, the |inject| function maps |Fin m| into the
@@ -168,46 +171,7 @@ of type |Fin (m + n)|. Hence, the |inject| function maps |Fin m| into the
 |raise| function maps |Fin n| into the \emph{last} |n| elements of the
 type |Fin (m + n)| by repeatedly applying the |suc| constructor.
 
-\begin{figure}
-  \centering
-  \subfigure[]{ \label{fig:injFig}
-    \begin{tikzpicture}[place/.style={circle,draw=darkgray!50,fill=gray!20,thick}]
-       \node[place,label=left:1] (one3) {};
-       \node[place,label=left:2] (two3) [below=of one3] {};
-       \node[place,label=left:3] (three3) [below=of two3] {};
-
-       \node[place,label=right:1] (one4) [right=of one3] {};
-       \node[place,label=right:2] (two4) [below=of one4] {};
-       \node[place,label=right:3] (three4) [below=of two4] {};
-       \node[place,label=right:4] (four4) [below=of three4] {};
-
-       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (one4);
-       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (two4);
-       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (three4);
-    \end{tikzpicture}}
-\hspace{7.5em}
-  \subfigure[]{
-  \begin{tikzpicture} [place/.style={circle,draw=darkgray!50,fill=gray!20,thick}]
-       \node[place,label=left:1] (one3) {};
-       \node[place,label=left:2] (two3) [below=of one3] {};
-       \node[place,label=left:3] (three3) [below=of two3] {};
-
-       \node[place,label=right:1] (one4) [right=of one3] {};
-       \node[place,label=right:2] (two4) [below=of one4] {};
-       \node[place,label=right:3] (three4) [below=of two4] {};
-       \node[place,label=right:4] (four4) [below=of three4] {};
-
-       \draw [->] (one3) to [thick, shorten <=1pt,>=stealth'] (two4);
-       \draw [->] (two3) to [thick, shorten <=1pt,>=stealth']  (three4);
-       \draw [->] (three3) to [thick, shorten <=1pt,>=stealth']  (four4);
-  \end{tikzpicture}}
-
-\vspace{4ex}
-\caption{The graph of the |inject| function (a) and the |raise|
-  function (b) embedding |Fin 3| in |Fin (3 + 1)|}
-\label{fig:fins}
-\end{figure}
-We can use these |inject| and |raise| to define similar functions
+We can use |inject| and |raise| to define similar functions
 that work on our |Rule| and |PsTerm| data types, by mapping them over
 all the variables that they contain.
 
@@ -215,7 +179,8 @@ all the variables that they contain.
 \subsection*{Constructing the search tree}
 \label{subsec:searchtrees}
 
-Our search tree is simply a potentially infinite rose tree.
+Our search tree is simply a (potentially) infinitely deep, but
+finitely branching rose tree.
 \begin{code}
   data SearchTree (A : Set) : Set where
     leaf  : A → SearchTree A
@@ -243,11 +208,9 @@ We construct our search trees as follows:
   structure of the partial proof, instantiating the hole with our rule
   |r|, and creating new holes for the premises of |r|.
 
-\item
-  Last, we recursively apply step~\ref{step:recurse} until we have
-  emptied the list of sub-goals---which may never happen. If this is
-  the case, then we will provably also have a complete proof term,
-  which we can return.
+\item Last, we recursively apply step~\ref{step:recurse} until we have
+  emptied the list of sub-goals---which may never happen. When we do
+  manage to resolve all sub-goals, we can return a complete proof term.
 \end{enumerate}
 
 Partial proofs are represented by the |Proof′| type, which is a pair
@@ -277,76 +240,81 @@ Finally, we define a function |solve| which builds up the tree, given
 a hint database. This function is implemented with two accumulating
 parameters, representing the current substitution and the current
 partial proof, respectively.
-In the base case, these are instantiated to the empty substitution and
+These are initialized to the empty substitution and
 a single proof obligation---as described above.
 \begin{code}
   solve : Goal m → HintDB → SearchTree Proof
   solve g rules = solveAcc (just (m , nil)) (1 , g ∷ [] , head)
 \end{code}
-In the recursive construction, there are three important cases: if
-unification is impossible, and therefore the current substitution
-|nothing|, we fail; if the partial proof is complete, i.e. has no more
-holes, we can stop the search and construct a |leaf|; otherwise, we
-continue the proof search by constructing a node with one child for
-every possible node, by applying the stepping function.
+The actual work is done by the |solveAcc| function, that distinguishes
+three important cases: if unification is impossible, and therefore the
+current substitution |nothing|, we fail; if the partial proof is
+complete, i.e. has no more holes, we can stop the search and construct
+a |leaf|; otherwise, we continue the proof search by constructing a
+node with one child for every possible node, by applying the
+function |step|.
 \begin{code}
-  solveAcc : Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → SearchTree Proof
+  solveAcc : Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) 
+    → SearchTree Proof
   solveAcc  nothing         _                     = node [] -- fail
   solveAcc  (just (n , s))  (0 , [] , p)          = leaf (p [])
   solveAcc  (just (n , s))  (suc k , g ∷ gs , p)  = node (map step rules)
 \end{code}
-The stepping function itself looks daunting, but what it does is
-relatively simple.\footnote{
-  Note that it is defined within a where clause of |solveAcc| and
-  therefore has access to all its variables.
-}
-First, it is given a rule to try and apply. Because this rule has a
-number of free variables of its own, all terms---the rule's premises
-and conclusion, the current goals, the current substitution---have to
-be injected into a larger domain which includes all the current
-variables \emph{and} the new rule's variables. This alone accounts for
-most of the code in the where clauses.
-Second, now that the terms are compatible, we attempt to find a most
-general unifier (|mgu|) for the current goal and the rule's
-conclusion. Note that if this fails, |unifyAcc| will return |nothing|
-and cause |solveAcc| to fail on the next recursive call.
+This |step| function is defined in Figure~\ref{fig:step}. It may seem
+daunting, but what it does is relatively simple.\footnote{ Note that
+  it is defined within a where clause of |solveAcc| and therefore has
+  access to all its variables.  } First, it is given a rule which it
+tries to apply. This rule may have a number of free variables of its
+own. As a result, all terms---the rule's premises and conclusion, the
+current goals, the current substitution---have to be injected into a
+larger domain which includes all the current variables \emph{and} the
+new rule's variables. This alone accounts for most of the code in the
+where clauses.  Second, now that the terms are compatible, we attempt
+to find a most general unifier (|mgu|) for the current goal and the
+rule's conclusion. Note that if this fails, |unifyAcc| will return
+|nothing| and cause |solveAcc| to fail on the next recursive call.
 Finally, we build up a new partial proof, updating the previous one
-with a new constructor for the given rule.
-All these values in hand, we recursively call |solveAcc| to (lazily)
-generate the rest of the search tree.
+with a new constructor for the given rule.  With all these values in
+hand, we recursively call |solveAcc| to (lazily) generate the rest of
+the search tree.
+
+\begin{figure}
+  \centering\normalsize
 \begin{code}
   step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
   step (δ′ , r) = ♯ solveAcc mgu prf
     where
-      prf : Proof′ (δ′ + δ + m)
+      v : ℕ
+      v = δ′ + δ + m
+      prf : Proof′ v
       prf = arity r + k , prm′ ++ gs′ , p′
         where
-          gs′   : Vec (Goal (δ′ + δ + m)) k
+          gs′   : Vec (Goal v) k
           gs′   = inject δ′ gs
-          prm′  : Vec (Goal (δ′ + δ + m)) (arity r)
+          prm′  : Vec (Goal v) (arity r)
           prm′  = map (raise (δ + m)) (fromList (premises r))
           p′    : Vec Proof (arity r + k) → Proof
           p′    = p ∘ con′ r
 
-      mgu : Maybe (∃[ n ] (Subst (δ′ + δ + m) n))
+      mgu : Maybe (∃[ n ] (Subst v n))
       mgu = unifyAcc g′ cnc′ s′
         where
-          g′    : PsTerm (δ′ + δ + m)
+          g′    : PsTerm v
           g′    = inject δ′ g
-          cnc′  : PsTerm (δ′ + δ + m)
+          cnc′  : PsTerm v
           cnc′  = raise (δ + m) (conclusion r)
-          s′    : ∃[ n ] Subst (δ′ + δ + m) n
+          s′    : ∃[ n ] Subst v n
           s′    = n + δ′ , injectSubst δ′ s
 \end{code}
-\todo{We should try to clean up this code a bit. Introducing a
-  separate name for |δ′ + δ + m| would really help keep the type
-  signatures manageable}
+  \caption{The |step| function}
+  \label{fig:step}
+\end{figure}
 
 \subsection*{Searching for proofs}
 
 After all this construction, we are left with a simple tree structure,
 which we can traverse in search of solutions. For instance, we can
-define a simple bounded depth-first traversal as follows:
+define a bounded depth-first traversal.
 \begin{code}
   dfs : (depth : ℕ) → SearchTree A → List A
   dfs    zero       _         = []
@@ -355,22 +323,10 @@ define a simple bounded depth-first traversal as follows:
   dfs (  suc k)  (  fork xs)  = concatMap (λ x → dfs k (♭ x)) xs
 \end{code}
 It is fairly straightforward to define other traversal strategies,
-such as a breadth-first search, which traverses the search tree in
-layers.
-Similarly, we could define a function which traverses the search tree
-aided by several heuristics.
-
-If we are willing to make further changes, we could also represent a
-hint database as a list of \emph{pairs} of rules and functions of the
-type |HintDB → HintDB|, such that after a rule |r| is selected in the
-construction phase, it can update the hint database that is passed
-down the tree.
-
-This would make it relatively easy to implement, for instance, a
-linear proof search, where every rule is applied at most once---we
-would only have to pass in a function which deleted the selected rule
-from the hint database.
-We will further investigate this possibility in section~\ref{sec:extensible}.
+such as a breadth-first search.  Similarly, we could define a function
+which traverses the search tree aided by some heuristic. We will
+explore further variations on search strategies in
+Section~\ref{sec:extensible}.
 
 %%% Local Variables:
 %%% mode: latex
