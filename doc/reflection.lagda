@@ -409,10 +409,11 @@ the examples in Section~\ref{sec:motivation}:
   ... | []      = quoteError searchSpaceExhausted
   ... | (p ∷ _) = intros (reify p)
 \end{code}
-The |auto| function takes the goal type, and splits it into a goal and
-a list of premises which may be used to construct this goal. It then
-proceeds by calling the |solve| function with the given hint database
-and a new hint database constructed from the premises, and
+The |auto| function takes the goal type, splits it into a goal and a
+list of premises which may be used to construct this goal, and converts
+both to |PsTerm|s.
+It then proceeds by calling the |solve| function with the given hint
+database and a new hint database constructed from the premises, and
 searches the proof tree up to the given |depth|.
 If this proof search succeeds, the |Result| is converted to an
 |AgTerm|, a witness that the original goal is inhabited.
