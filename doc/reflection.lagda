@@ -389,9 +389,9 @@ Next, we define a function to produce an |AgTerm| from a
 just use Agda's |quoteTerm| construct:
 \begin{code}
 quoteError : Message → Term
-quoteError searchSpaceExhausted  = 
+quoteError searchSpaceExhausted  =
   quoteTerm (throw searchSpaceExhausted)
-quoteError unsupportedSyntax     = 
+quoteError unsupportedSyntax     =
   quoteTerm (throw unsupportedSyntax)
 \end{code}
 
@@ -409,18 +409,18 @@ the examples in Section~\ref{sec:motivation}:
   ... | []      = quoteError searchSpaceExhausted
   ... | (p ∷ _) = intros (reify p)
 \end{code}
-The |auto| function converts the |Term| to a |PsTerm|, the return
-type of the goal, and a list of arguments that may be used to
-construct this term. It then proceeds by calling the |searchToDepth|
-function with the argument hint database. If this proof search
-succeeds, the |Result| is converted to an |AgTerm|, a witness that
-the original goal is inhabited. There are three places that this
-function may fail: the conversion to a |PsTerm| may fail, for
-instance because of unsupported syntax; the proof search may not find
-any result; or the final conversion to an |AgTerm| may fail
-unexpectedly. This last case should never be triggered, provided the
-|toProofTerm| function is only called on the result of our proof
-search.
+The |auto| function collects the goal type, and a list of the types of
+the arguments that may be used to construct this goal, and converts
+these types to |PsTerm|s. It then proceeds by calling the
+|solve| function with the given hint database and the hint database
+constructed from the goal type's paramters, and subsequently searches
+the resulting proof tree up to the given depth.
+If this proof search succeeds, the |Result| is converted to an
+|AgTerm|, a witness that the original goal is inhabited.
+There are two places where this function may fail: the conversion to a
+|PsTerm| may fail, for instance because of unsupported syntax; the
+proof search may not find any result; or the final conversion to an
+|AgTerm| may fail unexpectedly.
 
 
 %%% Local Variables:
