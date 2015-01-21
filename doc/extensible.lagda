@@ -69,9 +69,9 @@ proofs using the sublist relation.
 Our |auto| tactic quickly finds a proof for the following lemma:
 \begin{code}
   lemma₁  : ws ⊆ 1 ∷ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ 1 ∷ 2 ∷ zs
-  lemma₁  = tactic (auto dfs 7 hintdb)
+  lemma₁  = tactic (auto dfs 10 hintdb)
 \end{code}
-The following lemma, however, is false. 
+The following lemma, however, is false.
 \begin{code}
   lemma₂  : ws ⊆ 1 ∷ xs → xs ⊆ ys → ys ⊆ zs → ws ⊆ 2 ∷ zs
   lemma₂  = tactic (auto dfs 10 hintdb)
