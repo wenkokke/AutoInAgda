@@ -63,6 +63,7 @@ matching or function arguments. For example, the following call to the
   trivial e = tactic (auto 5 hints)
 \end{code}
 The variable |e|, necessary to complete the proof is not part of the
+
 hint database. The |tactic| keyword in the upcoming Agda release
 addresses this, by providing both the current goal and a list of the
 terms bound in the local context as arguments to the tactic functions.

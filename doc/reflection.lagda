@@ -389,9 +389,9 @@ Next, we define a function to produce an |AgTerm| from a
 just use Agda's |quoteTerm| construct:
 \begin{code}
 quoteError : Message → Term
-quoteError searchSpaceExhausted  = 
+quoteError searchSpaceExhausted  =
   quoteTerm (throw searchSpaceExhausted)
-quoteError unsupportedSyntax     = 
+quoteError unsupportedSyntax     =
   quoteTerm (throw unsupportedSyntax)
 \end{code}
 
@@ -401,26 +401,25 @@ Finlaly, we can present the definition of the |auto| function used in
 the examples in Section~\ref{sec:motivation}:
 \begin{code}
   auto : ℕ → HintDB → AgTerm → AgTerm
-  auto depth rules type
-    with agda2goal×premises type
+  auto depth rules goalType
+    with agda2goal×premises goalType
   ... | inj₁ msg = quoteError msg
   ... | inj₂ ((n , g) , args)
     with dfs depth (solve g (args ++ rules))
   ... | []      = quoteError searchSpaceExhausted
   ... | (p ∷ _) = intros (reify p)
 \end{code}
-The |auto| function converts the |Term| to a |PsTerm|, the return
-type of the goal, and a list of arguments that may be used to
-construct this term. It then proceeds by calling the |searchToDepth|
-function with the argument hint database. If this proof search
-succeeds, the |Result| is converted to an |AgTerm|, a witness that
-the original goal is inhabited. There are three places that this
-function may fail: the conversion to a |PsTerm| may fail, for
-instance because of unsupported syntax; the proof search may not find
-any result; or the final conversion to an |AgTerm| may fail
-unexpectedly. This last case should never be triggered, provided the
-|toProofTerm| function is only called on the result of our proof
-search.
+The |auto| function takes the goal type, splits it into a goal and a
+list of premises which may be used to construct this goal, and converts
+both to |PsTerm|s.
+It then proceeds by calling the |solve| function with the given hint
+database and a new hint database constructed from the premises, and
+searches the proof tree up to the given |depth|.
+If this proof search succeeds, the |Result| is converted to an
+|AgTerm|, a witness that the original goal is inhabited.
+There are two places where this function may fail: the conversion to a
+|PsTerm| may fail because of unsupported syntax; or the
+proof search may not find any result.
 
 
 %%% Local Variables:
