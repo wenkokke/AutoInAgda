@@ -39,17 +39,18 @@ the product type, taken from Agda's standard library:
   A × B = Σ A (λ _ → B)
 \end{code}
 Here a (non-dependent) pair is defined as a special case of the
-type |Σ|, representing dependent pairs. We can define the obvious |Show|
-instance for such pairs:
+type |Σ|, representing dependent pairs. Now consider 
+the following trivial lemma:
 \begin{code}
-  Show× : Show A -> Show B -> Show (A × B)
+  andIntro : (A : Set) -> (B : Set) -> A × B
 \end{code}
-Somewhat surprisingly, trying to use this rule to create an instance
-of the |Show| `class' fails. The |quoteGoal| construct always returns
-the goal in normal form, which exposes the higher-order nature of
-|A × B|.  Converting the goal |Show (A × (λ _ → B))| to a |PrologTerm|
-will raises the `exception' |unsupportedSyntax|; the goal type
-contains a lambda which we cannot handle.
+Somewhat surprisingly, trying to prove this lemma using our |auto|
+function, providing the constructor of |Σ| types as a hint, fails. The
+|quoteGoal| construct always returns the goal in normal form, which
+exposes the higher-order nature of |A × B|.  Converting the goal |(A ×
+(λ _ → B))| to a |PrologTerm| will raises the `exception'
+|unsupportedSyntax|; the goal type contains a lambda which we cannot
+handle.
 
 Furthermore, there are some limitations on the hints that may be
 stored in the hint database. At the moment, we construct every hint by
@@ -62,10 +63,9 @@ matching or function arguments. For example, the following call to the
   trivial e = tactic (auto 5 hints)
 \end{code}
 The variable |e|, necessary to complete the proof is not part of the
-hint database. We hope that this could be easily fixed by providing a
-variation of the |quoteGoal| construct that returns both the term
-representing to the current goal and a list of the terms bound in the
-local context.
+hint database. The |tactic| keyword in the upcoming Agda release
+addresses this, by providing both the current goal and a list of the
+terms bound in the local context as arguments to the tactic functions.
 
 %% REASON:
 %%  This section was removed because it is no longer a restriction,
@@ -147,6 +147,16 @@ abstract over certain patterns and debugging
 proof automation is not easy. The programmable proof automation,
 written using reflection, presented here may not be as mature as Coq's
 Ltac language, but addresses  these issues.
+
+More recently, \cite{malecha} have designed a higher-order reflective
+programming language (MirrorCore) and an associated tactic language
+(Rtac). MirrorCore defines a unification algorithm -- similar to the
+one we have (re)implemented in this paper. Alternative implementations
+of several familiar Coq tactics, such as |eauto| and |setoid_rewrite|,
+have been developed using Rtac. The authors have identified several
+similar advantages of `programming' tactics, rather than using
+built-in primitives that we mention in this paper, such as
+manipulating and assembling first-class hint databases.
 
 \paragraph{Idris}
 The dependently typed programming language Idris also has a collection
