@@ -41,6 +41,10 @@ the product type, taken from Agda's standard library:
 Here a (non-dependent) pair is defined as a special case of the
 type |Σ|, representing dependent pairs. We can define the obvious |Show|
 instance for such pairs:
+\pepijn{
+  This |Show| instance comes somewhat out of the blue, seeing as
+  how we've removed the typeclass example from the paper.
+}
 \begin{code}
   Show× : Show A -> Show B -> Show (A × B)
 \end{code}
@@ -66,35 +70,10 @@ hint database. We hope that this could be easily fixed by providing a
 variation of the |quoteGoal| construct that returns both the term
 representing to the current goal and a list of the terms bound in the
 local context.
-
-%% REASON:
-%%  This section was removed because it is no longer a restriction,
-%%  since quoteContext was implemented.
-%%
-%%Another restriction is that it is not currently possible to pass
-%%arguments to a hint database manually. For instance, see the following
-%%definition of |even+|:
-%%\begin{code}
-%%even+ : Even n → Even m → Even (n + m)
-%%even+ (isEven0) = quoteGoal g in unquote (auto 5 [] g)
-%%even+ (isEven+2 e) = quoteGoal g in unquote hole
-%%\end{code}
-%%Directly trying to add |e| to a hint database results in the error
-%%message ``\textbf{quote}: not a defined name''.
-%%Using |quoteTerm| on |e| returns |var 0 []|, which we could
-%%potentially use to construct a rule for the usage of |e|. However,
-%%there is currently no function in the Reflection API that enables us
-%%to obtain the type corresponding to a |Term|, and thus no way of
-%%constructing a rule based on |e|.
-%%A last resort, binding the variable |e| to a name in a where-clause,
-%%gives quite unexpected results: the invocation of |auto| is accepted
-%%through Agda's interactive interface, and can be shown to reduce to
-%%the correct definition:
-%%\begin{code}
-%%  λ z → isEven+2 (even+ind e z)
-%%\end{code}
-%%However, when recompiling the code using Agda's batch type-checker, it
-%%is rejected. \pepijn{Batch type-checker?}
+\pepijn{
+  We \emph{did} implement |quoteContext|, so we should probably write
+  about it.
+}
 
 \paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
