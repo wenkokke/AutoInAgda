@@ -39,7 +39,7 @@ describes a transformation that may modify the hint database after a
 certain hint has been applied.
 
 Using this interface, we can implement alternative hint databases. For
-instance, we could implement a `linear' proof search function to
+instance, we could implement a `linear' proof search function that
 removes a rule from the hint database after it has been
 applied. Alternatively, we may want to assign priorities to our
 hints. To illustrate one possible application of this interface, we
@@ -85,7 +85,7 @@ tree up to the search depth -- resulting in an exponental running time.
 
 We will use a variation of the |auto| tactic to address this
 problem. Upon constructing the new hint database, users may assign
-limits to the number times certain hints may be used. By limiting the
+limits to the number of times certain hints may be used. By limiting the
 usage of transitivity, our tactic will fail quicker.
 
 To begin with, we choose the representation of our hints: a pair of a

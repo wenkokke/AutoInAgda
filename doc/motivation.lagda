@@ -14,7 +14,7 @@ Agda has a \emph{reflection} mechanism\footnote{Note that Agda's
   procedure for some class of problems.} for compile time
 metaprogramming in the style of Lisp~\citep{lisp-macros},
 MetaML~\citep{metaml}, and Template
-Haskell~\citep{template-haskell}. This reflection mechanisms make it
+Haskell~\citep{template-haskell}. This reflection mechanism makes it
 possible to convert a program fragment into its corresponding abstract
 syntax tree and vice versa. We will introduce Agda's reflection
 mechanism here with several short examples, based on the explanation
@@ -42,13 +42,17 @@ opposed to Agda's implicit arguments). The body of the lambda consists
 of the variable identified by the De Bruijn index 0, applied to an
 empty list of arguments.
 
-More generally, the |quote| language construct allows users to access
-the internal representation of an identifier, a value of a built-in
-type |Name|. Users can subsequently request the type or definition of
-such names.
+The |quote| language construct allows users to access the internal
+representation of an identifier, a value of a built-in type
+|Name|. Users can subsequently request the type or definition of such
+names.
+\review{I don't see how quote is more general than quoteTerm. If
+  anything it seems like it would be the other way around.}
+
+\review{Mention that unquoted terms have to be type checked.}
 
 Dual to quotation, the |unquote| mechanism allows users to splice in a
-|Term|, replacing it with a its concrete syntax. For example, we could
+|Term|, replacing it with its concrete syntax. For example, we could
 give a convoluted definition of the |K| combinator as follows:
 \begin{code}
   const : ∀ {A B} → A  → B → A
@@ -113,7 +117,7 @@ propositions more robust against such changes.
 
 Coq's proof search tactics, such as |auto|, can be customized with a
 \emph{hint database}, a collection of related lemmas. In our
-example, |auto| would be able to prove the |simple| lemma, provided it
+example, |auto| would be able to prove the |trivial| lemma, provided
 the hint database contains at least the constructors of the |Even|
 data type and the |even+| lemma.
 In

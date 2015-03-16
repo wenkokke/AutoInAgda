@@ -47,3 +47,10 @@
   {\boolean{showNotes}}
   {\marginNote{\textcolor{blue}{\textbf{Pepijn:~}#1}}}
   {}}
+
+
+\newcommand{\review}[1]{
+\ifthenelse
+  {\boolean{showNotes}}
+  {\marginNote{\textcolor{red}{\textbf{Review:~}#1}}}
+  {}}
