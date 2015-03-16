@@ -30,7 +30,8 @@ environment and manually construct a proof term step by step.
 This paper tries to combine the best of both worlds by implementing a
 library for proof search \emph{within} Agda itself. In other words, we
 have defined a \emph{program} for the automatic \emph{construction} of
-\emph{mathematical} proofs. More specifically, this paper makes the several novel contributions.
+\emph{mathematical} proofs. More specifically, this paper makes
+several novel contributions.
 
 \begin{itemize}
 \item %
@@ -78,7 +79,6 @@ advantages over most existing approaches to proof automation:
   of \emph{proofs}. Debugging complex tactics in Coq requires a great
   deal of expertise -- we hope that implementing tactics as a library
   will make this process easier.
-\item 
 \end{itemize}
 
 For the moment, however, we would like to defer discussing the various

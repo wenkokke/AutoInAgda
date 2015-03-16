@@ -1,6 +1,11 @@
 \section{Adding reflection}
 \label{sec:reflection}
 
+\review{You mention that you still need to convert between AgTerm and
+  PsTerm. But equally important in this section will be the conversion
+  between Proof and AgTerm (and implicitly, between AgTerm and Rules),
+  right? Maybe better mention these aspects at the beginning as well.}
+
 To complete the definition of our |auto| function, we still need to
 convert between Agda's built-in |Term| data type and the
 data type required by our unification and resolution algorithms, |PsTerm|. This
@@ -10,7 +15,8 @@ does expose some of the limitations and design choices of the |auto| function.
 
 The first thing we will need are
 concrete definitions for the |TermName| and |RuleName| data types,
-which were parameters to the development presented in the previous sections.
+which were parameters to the development presented in the previous
+section. \pepijn{Check if it was actually the previous section.}
 It would be desirable to identify both types with Agda's |Name| type,
 but unfortunately Agda does not assign a name to the function
 space type operator, |_→_|; nor does Agda assign names to locally bound variables.
@@ -20,18 +26,17 @@ To address this, we define two new data types |TermName| and |RuleName|.
 \begin{code}
 data TermName : Set where
   name  : Name → TermName
-  tvar  : ℕ → TermName
+  pvar  : ℕ → TermName
   impl  : TermName
 \end{code}
-The |TermName| data type has three constructors. The |pname|
+The |TermName| data type has three constructors. The |name|
 constructor embeds Agda's built-in |Name| in the |TermName| type.
 The |pvar| constructor describes locally bound variables, represented by
 their De Bruijn index. Note that the |pvar| constructor has nothing to
 do with |PsTerm|'s |var| constructor: it is not used to construct
 a Prolog variable, but rather to be able to refer to a local variable
 as a Prolog constant.
-Finally, |pimpl| explicitly represents the Agda
-function space.
+Finally, |impl| explicitly represents the Agda function space.
 
 We define the |RuleName| type in a similar fashion:
 \begin{code}
@@ -49,7 +54,7 @@ may fail to find the desired proof. Furthermore, the conversion from
 |AgTerm| to |PsTerm| may also fail for various reasons. To
 handle such errors, we will work in the |Error| monad defined below:
 \begin{code}
-  Error : (A : Set) → Set a
+  Error : (A : Set a) → Set a
   Error A = Message ⊎ A
 \end{code}
 Upon failure, the |auto| function will produce an error message. The
@@ -74,7 +79,7 @@ The implementation is reasonably straightforward. We compare the
 numbers |n| and |m|, and use the |inject| function to weaken the
 appropriate bound variable. It is straightforward to use this |match|
 function to define similar operations on two terms or a term and a
-lists of terms.
+list of terms.
 
 
 \subsection*{Constructing terms}
@@ -85,7 +90,8 @@ We now turn our attention to the conversion of an |AgTerm| to a
 First of all, the |AgTerm| type represents all (possibly higher-order)
 terms, whereas the |PsTerm| type is necessarily first-order.  We
 mitigate this problem by allowing the conversion to 'fail', by
-producing a term of the wrong type, as we saw in the introduction.
+producing a term of the type |Exception|, as we saw in the
+introduction. \pepijn{Check if we mention |Exception| in the introduction.}
 
 Secondly, the |AgTerm| data type uses natural numbers to represent
 variables. The |PsTerm| data type, on the other hand, represents
@@ -129,11 +135,11 @@ here, as the definition is straightforward:
 \begin{code}
   convertChildren : ℕ → List (Arg Term) → Error (∃ (List ∘ PsTerm))
 \end{code}
-Next, the |fromDef| function constructs a first-order constant from an
+Next, the |convertName| function constructs a first-order constant from an
 Agda |Name| and list of terms:
 \begin{code}
   convertName : Name → ∃ (λ n → List (PsTerm n)) → ∃ PsTerm
-  convertName f (n , ts) = n , con (pname f) ts
+  convertName f (n , ts) = n , con (name f) ts
 \end{code}
 
 Lastly, the |convertVar| function converts a natural number,
@@ -157,11 +163,11 @@ if the variable is bound \emph{outside} of the goal type, however, we
 compute a skolem constant.
 
 To convert between an |AgTerm| and |PsTerm| we simply call the
-|convert4Term| function, initializing the number of binders
+|convert| function, initializing the number of binders
 encountered to |0|.
 \begin{code}
   agda2term : AgTerm → Error (∃ PsTerm)
-  agda2term t = convert4Term 0 t
+  agda2term t = convert 0 t
 \end{code}
 
 
@@ -184,15 +190,13 @@ In our Agda implementation, we can define such a rule manually:
 \begin{code}
 Even+ : Rule 2
 Even+ = record {
-  name        =  rname even+
-  conclusion  =  con  (pname Even)
-                      (con (pname _+_)
-                         (var (# 0) ∷ var (# 1) ∷ [])
-                      ∷ [])
-  premises    =  con  (pname Even)
-                      (var (# 0) ∷ [])
-                 ∷ con (pname Even)
-                      (var (# 1) ∷ [])
+  name        =  name even+
+  conclusion  =  con  (name (quote Even)) (
+                 con  (name (quote _+_)) (var (# 0) ∷ var (# 1) ∷ [])
+                 ∷  []
+                 )
+  premises    =     con  (name (quote Even)) (var (# 0) ∷ [])
+                 ∷  con  (name (quote Even)) (var (# 1) ∷ [])
                  ∷  []
   }
 \end{code}
@@ -205,24 +209,30 @@ This generation of rules is done in two steps. First, we will convert a
   name2term : Name → Error (∃ PsTerm)
   name2term = agda2term ∘ unel ∘ type
 \end{code}
-The |type| construct converts a |Name| to the |AgTerm| representing
+The |type| construct maps a |Name| to the |AgTerm| representing
 its type; the |unel| function discards any information about sorts; the
 |agda2term| was defined previously.
 
 In the next step, we process this |PsTerm|. The |split|
 function, defined below, splits a |PsTerm| at every top-most
 occurrence of the function symbol |impl|. Note that it would be
-possible to define this function directly on |AgTerm| data type,
+possible to define this function directly on the |AgTerm| data type,
 but defining it on the |PsTerm| data type is much cleaner as we
 may assume that any unsupported syntax has already been removed.
 \begin{code}
   split  : PsTerm n → ∃ (λ k → Vec (PsTerm n) (suc k))
-  split (con pimpl (t₁ ∷ t₂ ∷ [])) = Product.map suc (_∷_ t₁) (split t₂)
+  split (con impl (t₁ ∷ t₂ ∷ [])) = Product.map suc (_∷_ t₁) (split t₂)
   split t = (0 , t ∷ [])
 \end{code}
 
 Using all these auxiliary functions, we now define
 the |name2rule| function below that constructs a |Rule| from an Agda |Name|.
+\review{What is the type of initLast? From the name I would have
+  expected |Vec A (suc n) -> Vec A n × A|, but there is a third
+  component in the result.}
+\pepijn{That's a decent point. While one can look this up, it may be
+  worth mentioning that the discarded argument it a witness to the
+  correctness of |initLast|. Or mention from where we import it.}
 \begin{code}
   name2rule : Name → Error (∃ Rule)
   name2rule nm with name2term nm
@@ -233,7 +243,7 @@ the |name2rule| function below that constructs a |Rule| from an Agda |Name|.
 \end{code}
 We convert a name to its corresponding |PsTerm|, which is split
 into a vector of terms using |split|.  The last element of this
-vector is the conclusion of the rule; the initial prefix constitutes
+vector is the conclusion of the rule; the prefix constitutes
 the premises.
 
 \subsection*{Constructing goals}
@@ -266,9 +276,9 @@ implementation of |convertVar|.
   ... | (k , ts)            with initLast ts
   ... | (prems , goal , _)  = inj₂ ((n , goal) , toPremises k prems)
 \end{code}
-Fortunately, we can reuse many of the other function we have defined
-above, and, using the |split| and |initLast| function, we can get our
-hands on the list of arguments |args| and the desired return type
+Fortunately, we can reuse many of the other functions we have defined
+above, and, using the |split| and |initLast| functions, we can get our
+hands on the list of premises |prems| and the desired return type
 |goal|. The only missing piece of the puzzle is a function, |toPremises|,
 which converts a list of |PsTerm|s to a |Rules| list.
 \begin{code}
@@ -287,7 +297,7 @@ Now that we can compute Prolog terms, goals and rules from an Agda
 Section~\ref{sec:prolog}. The only remaining problem is to convert the
 witness computed by our proof search back to an |AgTerm|, which can
 be unquoted to produce the desired proof. This is done by the
-|fromProof| function that traverses its argument |ProofTerm|; the only
+|reify| function that traverses its argument |Proof|; the only
 interesting question is how it handles the variables and names it
 encounters.
 
@@ -311,11 +321,11 @@ arguments.
       toArg : AgTerm → Arg AgTerm
       toArg = arg (arg-info visible relevant)
 \end{code}
-If the rule being applied is constructed using an |name|, we do
+If the rule being applied is constructed using a |name|, we do
 disambiguate whether the rule name refers to a function or a
 constructor. The |definition| function, defined in Agda's reflection
-library, returns information about how the piece of abstract syntax to
-which its argument |Name| corresponds. For the sake of brevity, we restrict
+library, tells you how a name was defined (i.e. as a function name,
+constructor, etc). For the sake of brevity, we restrict
 the definition here to only handle defined functions and data
 constructors. It is easy enough to extend with further branches for
 postulates, primitives, and so forth.
@@ -356,9 +366,9 @@ raised, and the rule is simply ignored. Our actual implementation
 requires an implicit proof argument that all the names in the argument
 list can be quoted successfully. If you define such proofs to compute
 the trivial unit record as evidence, Agda will fill them in
-automatically in every call to the |hintdb| function on constant
+automatically in every call to the |_<<_| function on constant
 arguments. This simple form of proof automation is pervasive in Agda
-programs~\cite{oury,swierstra-more}.
+programs~\citep{oury,swierstra-more}.
 
 This is the simplest possible form of hint database. In principle,
 there is no reason not to define alternative versions that assign
@@ -375,7 +385,7 @@ way we wish.
 Lastly, we need to decide how to report error messages. Since we are
 going to return an |AgTerm|, we need to transform the |Message|
 type we saw previously into an |AgTerm|. When unquoted, this term
-will cause an type error, reporting the reason for failure. To
+will cause a type error, reporting the reason for failure. To
 accomplish this, we introduce a dependent type, indexed by a |Message|:
 \begin{code}
 data Exception : Message → Set where
@@ -397,7 +407,7 @@ quoteError unsupportedSyntax     =
 
 \subsection*{Putting it all together}
 
-Finlaly, we can present the definition of the |auto| function used in
+Finally, we can present the definition of the |auto| function used in
 the examples in Section~\ref{sec:motivation}:
 \begin{code}
   auto : ℕ → HintDB → AgTerm → AgTerm
@@ -415,7 +425,7 @@ both to |PsTerm|s.
 It then proceeds by calling the |solve| function with the given hint
 database and a new hint database constructed from the premises, and
 searches the proof tree up to the given |depth|.
-If this proof search succeeds, the |Result| is converted to an
+If this proof search succeeds, the |Proof| is converted to an
 |AgTerm|, a witness that the original goal is inhabited.
 There are two places where this function may fail: the conversion to a
 |PsTerm| may fail because of unsupported syntax; or the

@@ -31,7 +31,7 @@ In addition to variables, represented by the finite type |Fin n|, we
 will allow first-order constants encoded as a name with a list of
 arguments.
 
-For instance, if we choose to instantiate |PsName| with the following
+For instance, if we choose to instantiate |TermName| with the following
 |Arith| data type, we can encode numbers and simple arithmetic
 expressions:
 \begin{code}
@@ -50,7 +50,7 @@ such as |x + 1|. We use the prefix operator |#| to convert from
 natural numbers to finite types:
 \begin{code}
 AddOne : PsTerm 1
-AddOne = con Add (var (# 0) ∷ con One [] ∷ [])
+AddOne = con Add (var (# 0) ∷ One ∷ [])
 \end{code}
 Note that this representation of terms is untyped. There is no check
 that enforces addition is provided precisely two arguments. Although
@@ -65,7 +65,7 @@ Instead, we restrict ourselves to presenting the interface that we will use:
   unify  : (t₁ t₂ : PsTerm m) → Maybe (∃[ n ] Subst m n)
 \end{code}
 The |unify| function takes two terms |t₁| and |t₂| and tries to
-compute a sustitution---the most general unifier. Substitutions are
+compute a substitution---the most general unifier. Substitutions are
 indexed by two natural numbers |m| and |n|. A substitution of type
 |Subst m n| can be applied to a |PsTerm m| to produce a value of type
 |PsTerm n|.
@@ -97,12 +97,15 @@ terms for its premises, and a term for its conclusion:
       name        : RuleName
       premises    : List (PsTerm n)
       conclusion  : PsTerm n
+
+    arity : ℕ
+    arity = length premises
 \end{code}
 Once again the data-type is quantified over the number of variables
 used in the rule. Note that the variables are shared between the
 premises and the conclusion.
 
-Using our newly defined |Rule| we can give a simple definition of
+Using our newly defined |Rule| type we can give a simple definition of
 addition. In Prolog, this would be written as follows.
 \begin{verbatim}
   add(0, X, X).
@@ -187,7 +190,7 @@ finitely branching rose tree.
     node  : List (∞ (SearchTree A)) → SearchTree A
 \end{code}
 For our purposes, the type parameter |A| will be instantiated with a
-type representing proof terms: a type which exists of applications of
+type representing proof terms: a type which consists of applications of
 rules, with a sub-proof for every parameter.
 \begin{code}
   data Proof : Set where
@@ -220,13 +223,16 @@ function from |k| proof terms to a proof term.
   Proof′ : ℕ → Set
   Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
 \end{code}
+\review{I think the "Goal" type should be "PsTerm" now.}
+\pepijn{Should we reintroduce that alias, or should we replace all
+  occurrences of Goal by PsTerm? I'm in favor of the first.}
 This means that the initial partial proof for a goal |g| is
 represented as the triple |(1 , g ∷ [] , head)|.
 
 In order to simplify working with these partial proof terms, we define
 a smart constructor for proof terms based on vectors of proofs. More
 specifically, |con′| will, given a rule |r| and a vector of proof
-terms, take |arity r| proofs off of the proof vector apply the proof
+terms, take |arity r| proofs off of the proof vector, apply the proof
 constructor |con|, and cons the resulting term back into the proof
 vector.
 \begin{code}
@@ -240,8 +246,13 @@ Finally, we define a function |solve| which builds up the tree, given
 a hint database. This function is implemented with two accumulating
 parameters, representing the current substitution and the current
 partial proof, respectively.
-These are initialized to the empty substitution and
+These are initialized to the identity substitution and
 a single proof obligation---as described above.
+\review{One can only guess that HintDB will turn out to be a list of
+  Rules eventually (because everything else does not make sense, given
+  how "solve" passes its HintDB argument off to a "map" with "step :
+  Rule -> ..." as the higher-order argument). I found it confusing
+  that this connection was not made explicit then and there}
 \begin{code}
   solve : Goal m → HintDB → SearchTree Proof
   solve g rules = solveAcc (just (m , nil)) (1 , g ∷ [] , head)
@@ -254,7 +265,7 @@ a |leaf|; otherwise, we continue the proof search by constructing a
 node with one child for every possible node, by applying the
 function |step|.
 \begin{code}
-  solveAcc : Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) 
+  solveAcc : Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m)
     → SearchTree Proof
   solveAcc  nothing         _                     = node [] -- fail
   solveAcc  (just (n , s))  (0 , [] , p)          = leaf (p [])
@@ -318,9 +329,8 @@ define a bounded depth-first traversal.
 \begin{code}
   dfs : (depth : ℕ) → SearchTree A → List A
   dfs    zero       _         = []
-  dfs (  suc k)     fail      = []
-  dfs (  suc k)  (  retn x)   = return x
-  dfs (  suc k)  (  fork xs)  = concatMap (λ x → dfs k (♭ x)) xs
+  dfs (  suc k)  (  leaf x)   = return x
+  dfs (  suc k)  (  node xs)  = concatMap (λ x → dfs k (♭ x)) xs
 \end{code}
 It is fairly straightforward to define other traversal strategies,
 such as a breadth-first search.  Similarly, we could define a function

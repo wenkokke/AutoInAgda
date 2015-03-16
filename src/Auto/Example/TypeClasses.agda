@@ -1,13 +1,14 @@
 open import Auto
-open import Data.Maybe
-open import Data.List using (_∷_; [])
-open import Data.String using (String; _++_)
+open import Function using (const)
 open import Data.Bool using (Bool; true; false)
 open import Data.Bool.Show as Bool using ()
+open import Data.List using (_∷_; [])
+open import Data.Maybe
 open import Data.Nat using (ℕ; suc; zero)
 open import Data.Nat.Show as Nat using ()
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Data.String using (String; _++_)
 open import Data.Sum renaming (_⊎_ to Either; inj₁ to left; inj₂ to right)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl)
 
 module Auto.Example.TypeClasses where
 
@@ -32,10 +33,10 @@ rules = [] << quote instShowEither << quote instShowBool << quote instShowNat
   where
     instShowBool : Show Bool
     instShowBool = mkShow Bool.show
-    
+
     instShowNat : Show ℕ
     instShowNat = mkShow Nat.show
-    
+
     instShowEither : {A B : Set} → Show A → Show B → Show (Either A B)
     instShowEither {A} {B} instShowA instShowB = mkShow showEither
       where
@@ -65,7 +66,7 @@ example₁ = show (left true) ++ show (right 4)
 --------------------------------------------------------------------------------
 module DefaultPair where
 
-  open import Data.Product using (_×_; _,_)  
+  open import Data.Product using (_×_; _,_)
 
   instShowPair : {A B : Set} → Show A → Show B → Show (A × B)
   instShowPair {A} {B} showA showB = record { show = showPair }
@@ -77,8 +78,8 @@ module DefaultPair where
   inst = unquote (auto 5 (rules << quote instShowPair) g)
     where
       g = quoteTerm (Show (Bool × ℕ))
-  
-      
+
+
 
 --------------------------------------------------------------------------------
 -- * So we're forced to use a custom pair, which isn't derived from         * --
@@ -104,3 +105,26 @@ module CustomPair where
 
 
 
+--------------------------------------------------------------------------------
+-- * This fails due to something super weird which I haven't encountered    * --
+-- * before at all...                                                       * --
+--------------------------------------------------------------------------------
+module AbstractPair where
+
+  open import Data.Product as Σ using (Σ)
+
+  abstract
+    _×_ : (A B : Set) → Set
+    A × B = Σ A (const B)
+
+    instShowPair : ∀ {A B} → Show A → Show B → Show (A × B)
+    instShowPair {A} {B} showA showB = record { show = showPair }
+      where
+        showPair : A × B → String
+        showPair (proj₁ Σ., proj₂) = show proj₁ ++ "," ++ show proj₂
+
+    _,_ : {A B : Set} (x : A) (y : B) → A × B
+    _,_ = Σ._,_
+
+  --inst : Show (Bool × ℕ)
+  --inst = tactic (auto 5 (rules << quote instShowPair))
