@@ -1,0 +1,488 @@
+
+The paper describes a proof search algorithm implemented in Agda. The algorithm
+is hooked up to Agda's reflection mechanism making it possible to use as a
+tactic for searching for (first-order) proofs inside Agda.
+
+GENERAL COMMENTS
+
+I believe internalizing the tactic language is the right approach to automation
+for dependently typed languages so it's nice to see papers exploring this. The
+implementation of the proof search is quite elegant and well-presented and makes
+for a nice example of dependently typed programming.
+
+The main thing that I feel is missing from the paper is a discussion on
+performance. It is mentioned in the introduction that Ltac tactics can suffer
+from efficiency problems, but nowhere in the paper is it discussed whether the
+internal approach, in general, and the given implementation, in particular, are
+likely to do better. The authors admit that the implementation is not mature,
+which is not a problem in itself, but I would like to know roughly what its
+performance is and what could be done to improve it.
+
+Performance discussion notwithstanding I still recommend this paper for
+publication.
+
+MINOR COMMENTS
+
+I'm a little annoyed that many of the typos from the ICFP submission are still
+present. Please reread those reviews and fix the typos listed.
+
+Section 1
+
+  There's an empty bullet point at the end of the 'advantages' list.
+
+Section 2
+
+  "This reflection mechanism[/s] make[s] it..."
+
+  "[The/More generally, the] quote language construct..."
+    I don't see how quote is more general than quoteTerm. If anything it seems
+    like it would be the other way around.
+
+  Mention that unquoted terms have to be type checked.
+
+Section 3
+
+  "proof terms: a type which [consists/exists] of applications of rules"
+
+  "These are initialized to the [identity/empty] substitution"
+
+Section 4
+
+  There is a mismatch between the constructor names of 'TermName' in the
+  definition and in the text (name/pname, tvar/pvar, impl/pimpl).
+
+  Error should either have type Set a -> Set a, or Set -> Set.
+
+  'convert' is referred to as 'conver4Term' in several places
+
+  In the manual definition of Even+ there are missing 'quote's for the arguments
+  to pname and rname.
+
+  "The type construct [maps/converts] a Name to the AgTerm..."
+
+  What is the type of initLast? From the name I would have expected
+  Vec A (suc n) -> Vec A n × A, but there is a third component in the result.
+
+  "using the split and initLast function[s], we can get our hand on the list of
+  [premises prems/arguments args] and the desired return type goal."
+
+  Missing parens around the citations of Oury/Swierstra 2008 and Swierstra 2010.
+
+Section 6
+
+  "the file [/does] no longer needs to recompute the proof terms"
+
+
+----------------------- REVIEW 2 ---------------------
+PAPER: 6
+TITLE: Auto in Agda: Programming proof search using reflection
+AUTHORS: Pepijn Kokke and Wouter Swierstra
+
+
+----------- REVIEW ----------- 
+
+The paper develops a proof search
+tactic for the Agda programming language / proof assistant.
+
+Based on built-in reflection capabilities, an open subgoal is
+converted into a simplified term format, similarly this happens to
+available lemmas (hints), then a Prolog-style resolution algorithm is
+run to try finding a proof term, and if one is found it is turned back
+into a proper Agda term that fills the original hole/subgoal. The
+tactic is not yet as sophisticated as it could be, but the authors
+claim a key benefit is its programmability: everything is first-class,
+the user can apply their usual programming techniques, in particular
+to interact with the search tree and to implement custom management of
+the collection of hints. Much of the paper is devoted to details of
+the implementation of the tactic (in Agda itself), explaining design
+decision along the way.
+
+I think this is a nice contribution to the mathematics of program
+construction. It has the potential to be a useful tool in proof
+developments, and highlights programmability as one key aspect of
+Agda's proof theory approach. The paper is generally well written, but
+I would have preferred a more high-level stance on some points. One
+nuisance is that there are quite a few inconsistencies within the
+paper. It seems like a number of refactorings (mainly renamings) were
+applied late in the process, but were not consistently reflected
+throughout the whole paper. I am convinced that this can be fixed with
+appropriate care. I list such issues as I noticed below, but the
+authors are asked to check beyond just those listed instances
+themselves. Limitations of the implementation in its current state are
+explained adequately, and related work is taken into account.
+
+Comments to authors:
+
+
+Sometimes you defer details to later in the paper. In general, that is
+okay, but at some places I felt understanding would be improved if you
+offered a bit more explanation, or at least a pointer, more early
+on. For example, the relationship between Rules and the hints remains
+vague for quite a while. So on page 10 one can only guess that HintDB
+will turn out to be a list of Rules eventually (because everything
+else does not make sense, given how "solve" passes its HintDB argument
+off to a "map" with "step : Rule -> ..." as the higher-order
+argument). I found it confusing that this connection was not made
+explicit then and there.
+
+At the beginning of Section 4, you mention that you still need to
+convert between AgTerm and PsTerm. But equally important in this
+section will be the conversion between Proof and AgTerm (and
+implicitly, between AgTerm and Rules), right? Maybe better mention
+these aspects at the beginning as well.
+
+A more general comment about Section 4 is that it becomes quite
+low-level at places. You do motivate at the beginning that you go
+through even the details of the "plumbing" since that exposes design
+choices of the auto function and its limitations, such as for which
+language features of Agda (which subset of its syntax) the tactic
+actually works. True, this information comes up along the way, for
+example by inspection of the "convert" function to see for which cases
+it remains undefined, and similarly by inspecting the "reiy"
+function. But I think it would be more useful to the reader to give a
+declarative account of which syntax the tactic works for in terms of
+goals and hints and resulting proofs. For example, you could describe
+these by some grammars.
+
+During the discussion in Section 6, I wasn't sure why it would be
+"somewhat surprisingly" that proving the "andIntro" lemma fails with
+the tactic. At least without you showing how a proof would (have to)
+look like, I cannot appreciate this surprise. I suspect that simply by
+the form of the constructors of Sigma types it would be not surprising
+that a first order term will not prove this lemma. Can you give a more
+convincing (more truly surprising) example here?
+
+Somewhere early in the paper you say that working with a typed
+representation of terms would not offer additional safety for the
+proof search procedure. In the Metatheory paragraph in Section 6 you
+seem to contradict that. Anyway, what I would be additionally
+interested in here is to hear about whether a typed representation
+might also help the effectiveness of the tactic. (Since fewer
+potential proof terms would need to be considered?)
+
+
+Inconsistencies:
+
+page 5:
+     The "simple" lemma (with that identifier) does not exist. Mean the "trivial" lemma?
+
+page 6:
+     The "PsName" type does not exist. Mean "TermName"?
+
+page 7:
+     I don't see how the "AddOne" term can be type-correct. The "One" in there has type PsTerm 0, but should have type TermName to be allowed to appear where it appears.
+
+page 9:
+     I think the "Goal" type should be "PsTerm" now.
+
+page 10:
+     The "arity" function is not defined.
+
+page 11:
+     The "fail", "retn", "fork" constructors here do not correspond to anything from the "SearchTree" definition.
+
+page 12:
+     The "pname", "pvar", "pimpl" constructors are mentioned in the text, but it seems they are now actually called "name", "tvar", "impl", see the code for defining the TermName type. The apparently old names "pname" and "pvar" also appear again later in the text.
+
+page 14:
+     The function "name2term" is mentioned but not shown; I guess it is what is now called "convertName". Also, functions "convertChildren", "fromDef", "convert4Term" are mentioned; I think these are also now differently named.
+
+page 15:
+     "rname" and "pname" are now called something else.
+
+page 16:
+     What is the "initLast" function?
+     The constructor "rvar" does not exist.
+
+page 17:
+     What you mention as "fromProof" here, now seems to be the function "reify". And "ProofTerm" is now "Proof". Again, there is mention of constructor "rvar", which does not exist.
+
+page 18:
+     The "hintdb" function, does it exist with that name?
+
+page 19:
+     A "Result" type is mentioned, but not defined.
+
+page 23:
+     Again, what is "Result"? And what is "searchToDepth"? I suspect these have other names now.
+
+
+Typos etc.:
+
+page 1:
+     makes the several -> makes several
+
+page 2:
+     What about the empty item in the second enumeration?
+
+page 3:
+     This reflection mechanisms -> fix grammar
+     with a its concrete syntax -> fix grammar
+
+page 5:
+     provided it the hint -> fix grammar
+
+page 7:
+     sustitution
+     newly defined Rule -> newly defined Rule type
+
+page 8:
+     the RuleName and TermName -> the RuleName and TermName types
+
+page 9:
+     which exists of -> which consists of
+
+page 10:
+     ... off the proof vector apply -> add comma after "vector"
+
+page 12:
+     in the previous sections -> in the previous section (I think, here)
+
+page 13:
+     a lists of terms -> fix grammar
+     I wasn't sure what "by producing a term of the wrong type, as we saw in the introduction" is meant to refer to.
+
+page 15:
+     on AgTerm data type -> on the AgTerm data type
+
+page 16:
+     What is "the initial prefix" of a vector?
+     of the other function -> of the other functions
+
+page 17:
+     an name -> a name
+     half sentence with "about how the ..." -> fix grammar
+
+page 18:
+     is pervasive in Agda programs Oura and Swierstra -> fix how the reference is given
+     an type error -> a type error
+
+page 19:
+     Finlaly
+
+page 20:
+     function to removes -> function that removes
+
+page 21:
+     number times -> number of times
+
+page 23:
+     Something wrong with line breaks in the "The variable ..." sentence. Also, comma missing in that sentence after "proof".
+     This difficult -> This is difficult
+     I couldn't understand what the sentence "If the call ..." is trying to say. What could be replaced by what?
+     does no longer needs to -> fix grammar
+
+page 24:
+     Comma missing after "primitives" toward the end of the second paragraph.
+
+
+----------------------- REVIEW 3 ---------------------
+PAPER: 6
+TITLE: Auto in Agda: Programming proof search using reflection
+AUTHORS: Pepijn Kokke and Wouter Swierstra
+
+
+----------- REVIEW -----------
+
+This paper presents the author's implementation of automatic proof
+searching for Agda, in Agda, taking advantage of Agda's reflection
+mechanism. The core of the system is a Prolog-like unification and
+proof search engine. Users may specify a database of hints to be used,
+depth of the search, and may supply their own hints database format,
+and proof searching strategy.
+
+This paper feels to me more like a manual for those who wants to hack
+into the system they implemented, than a paper to be published in a
+conference. While plenty of technical details are discussed, this
+paper needs to provide more motivation and context:
+
+* the readers need to know, for example, the fundamental difference
+  between PsTerm and AgTerm, and why we need these two
+  types. Information like "Agda does not assign a name to the function
+  space type operator _->_", "AgTerm... uses natural numbers to
+  represent variables. PsTerm ... uses finite type Fin n" appear to be
+  rather technical details. Certainly, PsTerm is invented to be use in
+  McBride's unification algorithm. For what terms does it work? The
+  paper vaguely said that the terms have to be first order. But are
+  Pi-types first order?
+
+* What subset of Agda terms does PsTerm cover? The function "convert"
+  might be part of the answer, but it is cluttered with details like
+  convertVar, while the readers might not even know what Agda syntax
+  do constructors including var, con, def, and pi represents. E.g. Is
+  "var" a bound or free variable? A type variables or a value? Or all?
+
+* For what types can we expect the author's proof searching to work?
+In the examples we have seen that it is able to find a proof for Even
+n -> Even (n + 2) (even though there is an arrow -> in the type). What
+if - the datatype has functional components, e.g. con : (forall n
+. Even n -> P) -> Q.  - Or types like (P -> Q) -> R.  - Can it find a
+proof of, say, x < z, given hints x < y, y < z, and transitivity:
+forall a b c -> a < b -> b > c -> a -> c. Definition of the relation
+_<_, however, involves function space, e.g. x < y = forall a . a Elem
+x -> a Elem y. (While functions are involved, to search for the proof
+we do not need to expand the definition of _<_.)
+
+I also have doubts on the claimed advantage over Agsy, a proof
+searching mechanism currently implemented for Agda in Haskell:
+
+* The authors wrote that Agsy is less customizable. It seems to me
+  more like a problem with the interface than a fundamental
+  deficiency. Surely Agsy can be extended to take a list of hints as a
+  parameter, or to provide APIs for users to implement their own
+  search strategy (in Haskell).
+
+* The advantage of Agda, a dependently typed language, over Haskell,
+  could be that dependent types may be used to guarantee more
+  properties. We don't see much use of dependent type in the
+  implementation the author presented: functions like convert, solve,
+  etc, are not too different from what one would do in a Haskell
+  implementation. The only advantages might be that Agda guarantees
+  termination, and that PsTerm keeps track of the number of bound
+  variables.
+
+
+Other Comments
+==============
+
+p3, near "idTerm". It is perhaps better to mention earlier that quoted terms are untyped.
+
+p3, bottom, "replacing it with a its.." -> "replacing it with its..".
+
+p5, top, "to prove the simple lemma". Do you mean "trivial"? In here and in many other places the authors appear to get their identifier names wrong. Please check them again.
+
+p5, near "hints : hintDB". I wondered whether the definition of even+ is expanded before added to the database. It only became clear later that only a name is added. It is better to clarify that here.
+
+p5, "pass them to the hindb function" You mean "hints"?
+
+p6, "instantiate PsName" -> "TermName"?
+
+p12, "nor does Agda assign names to locally bound variables." Does Agda use de Bruijn indices? What would that be a problem, since you seem to use de Bruijn indices in PsTerm too? In fact, the readers haven't seen a example of "locally bound variables" yet, and are not sure what they refer too.
+
+p12, middle of page, "pvar" -> "tvar"?
+
+p14, "a list of Term arugments" -> "AgTerm"?
+
+p14, "the fromDef function" -> "convertName"?
+
+p14, "the convert4Term function" -> "convert"?
+
+p15, definition of name2Term. This is the first time we see the use of the function "type". It is better to mention it earlier, so that the readers know that the auto function has access to the whole environment (so it may lookup types of identifiers), rather than only the information supplied as its arguments.
+
+p19, definition of Strategy. Briefly describe what the returned list represents (e.g. a list of goals to search for, in left-to-right order?).
+
+p20, definition of hintdb. What are refl and trans? (Certainly not refl and trans for PropositionalEquality.)
+
+p23, "have a such a Name" -> "have such a Name".
+
+p23, "... variable e, necessary to complete the proof, is not part of the hint database". What if we remove e in the LHS of trivial, and ask the system to find a proof for Even n -> Even (n+2)? Also, eliminate the newline.
+
+
+----------------------- REVIEW 4 ---------------------
+PAPER: 6
+TITLE: Auto in Agda: Programming proof search using reflection
+AUTHORS: Pepijn Kokke and Wouter Swierstra
+
+
+----------- REVIEW -----------
+This paper discusses the implementation of a Prolog interpreter in
+Agda and the application of that interpreter to proof automation. The
+implementation uses dependent types to ensure that terms only
+reference the appropriate number of variables and use this constraint
+to guarantee co-termination based on induction of the number of
+variables. The interpreter produces an abstract search tree lazily
+that can be explored with different strategies. The system is combined
+with Agda's reflection mechanism to turn proof contexts into Prolog
+programs such that the result of a query is a proof term.
+
+The paper does not contain an evaluation of the system, although it
+mentions a few successful proofs that can be completed by the
+interpreter. It has a short example of how the finer control of the
+search is useful for constructing a proof. It would be very
+interesting to see a thorough evaluation.
+
+I believe the product of the paper is useful and the general idea is
+very powerful. The conclusion sums it up well by saying that "Any
+external language for proof automation renounces [the philosophy] that
+the construction of programs and proofs is the same activity." In that
+sense, I find the system quite beautiful.
+
+However, I feel like the paper is not a great paper describing this
+idea. My speculation is that the "obvious" way to do proof automation
+is with Prolog and there's no "big idea" or insight to Prolog
+nowadays, except the challenging of satisfying the totality guarantees
+of Agda. As a result, the paper is extremely code heavy and idea
+light.
+
+Worse, I don't like the way that the code is presented. When long
+functions, like `convert` and `step`, are presented, there is a giant
+block of code and then a giant block of prose describing what
+happens. I believe that a small tweak of interleaving the cases and
+their explanation could go a long way. As it stands, these parts of
+the paper have a "shock and awe" quality rather than teaching me how I
+could implement this same idea in some other context.
+
+The conversion functions in particular would be far more informative
+if the paper showed how they are called on the examples (Even n ->
+Even m -> Even (n+m)), etc, and what their result it.
+
+But the biggest problem is that the paper doesn't clearly separate
+what in the code is a good idea, what is an engineering trick, and
+what is wart required to satisfy Agda. A discussion at that level
+would be very informative and useful.
+
+A final two concerns I have is that the positives and negatives are
+not explained up to my taste.
+
+(A) Two separate instances in the paper (page 13 and page 22) discuss
+how the term conversion process fails because of
+higher-order-ness. This restriction is not clearly explained. What
+exact terms are problematic? Why is this? How does this compare to
+Coq? Is the problem that Coq performs substitution and Agda uses
+closures and can't unfurl them back into syntax? Is there any way to
+tell how many Coq proofs would fail because of this restriction? What
+is to be done about this?
+
+(B) The power of the hint database being a first-class value is
+triumphed multiple times and explained in detail once. I understand
+rhetorically and philosophically why this is beautiful compared to
+Coq's ugly global mutable store. But, is this really the only example?
+I can't imagine how to figure out that `trans` should be allowed N
+times but not N - K or N + K times. Perhaps there is a "proof
+automation debugger" that helps the user see unproductive patterns and
+tweak the search strategy around them. I'd like this point to be
+discussed more.
+
+In summary, I feel like this paper has so many flaws but it is also so
+clearly important in the development and history of dependently type
+programming languages. I feel like because of my passion for the
+topic, I am being too harsh and expecting too much. Although I rank it
+as a 1, I could easily see myself ranking it as a 3 if I were to
+restrict my attention to the passion it causes and my expectation of
+its usefulness.
+
+Typos
+
+page 5: "provided it the"
+
+page 5: descriptions of hints says it will pass the list to the hintdb
+function, but the code sample doesn't use it.
+
+page 8: show the definition of Zero, Succ, and particularly Add before
+showing the encoding of the rules
+
+page 10: the description of con' can't be parsed by me
+
+page 12: the code refers to "impl" but the prose refers to the "pimpl"
+
+page 14: the sentence starting "The conversion of a pi node" is
+missing an article later on
+
+page 23: accidentally inserted \\ into the text in the third paragraph
+
+page 23: "This difficult with"
+
+Final note
+
+Is the proof automation useful for deriving programs? It is very
+exciting in Coq to use auto to infer computational content.
