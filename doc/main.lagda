@@ -9,7 +9,7 @@
 \title{Auto in Agda}
 \subtitle{Programming proof search using reflection}
 
-\author{Pepijn Kokke\inst{1} \and Wouter Swierstra\inst{1}}
+\author{Pepijn Kokke \and Wouter Swierstra}
 
 \institute{Universiteit Utrecht\\ \email{pepijn.kokke@@gmail \quad w.s.swierstra@@uu.nl}}
 

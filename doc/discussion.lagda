@@ -45,12 +45,12 @@ the following trivial lemma:
   andIntro : (A : Set) -> (B : Set) -> A × B
 \end{code}
 Somewhat surprisingly, trying to prove this lemma using our |auto|
-function, providing the constructor of |Σ| types as a hint, fails. The
-|quoteGoal| construct always returns the goal in normal form, which
-exposes the higher-order nature of |A × B|.  Converting the goal |(A ×
-(λ _ → B))| to a |PrologTerm| will raises the `exception'
-|unsupportedSyntax|; the goal type contains a lambda which we cannot
-handle.
+function, providing the non-dependent `constructor' of |_×_|
+($\_,′\_$) as a hint, fails. The |quoteGoal| construct always returns
+the goal in normal form, which exposes the higher-order nature of |A ×
+B|. Converting the goal |(A × (λ _ → B))| to a |PrologTerm| will
+raises the `exception' |unsupportedSyntax|; the goal type contains a
+lambda which we cannot handle.
 
 \review{During the discussion in Section 6, I wasn't sure why it would
   be "somewhat surprisingly" that proving the "andIntro" lemma fails
