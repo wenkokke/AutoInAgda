@@ -80,7 +80,7 @@ module Unification
     ... | no  xs≠ys = no (xs≠ys ∘ proj₂ ∘ ∷-inj)
     ... | yes xs=ys = yes (cong₂ _∷_ x=y xs=ys)
 
-  
+
   -- defining thick and thin
   thin : {n : ℕ} → Fin (suc n) → Fin n → Fin (suc n)
   thin  zero    y      = suc y
@@ -152,10 +152,6 @@ module Unification
   flexFlex {suc n} x y | nothing = (suc n , nil)
   flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
 
-  -- TODO ask Wouter/Ulf about problems with new notation...
-  -- why are naturals represented as literals in the agda abstract syntax?
-  -- for floats, chars and strings it makes sense since they HAVE NO agda
-  -- representation
   mutual
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))
     unifyAcc (lit x₁) (lit x₂) (n , nil) with x₁ ≟-Literal x₂
@@ -176,9 +172,9 @@ module Unification
     unifyAccChildren : ∀ {n} → (ts₁ ts₂ : List (Term n)) → ∃ (Subst n) → Maybe (∃ (Subst n))
     unifyAccChildren []         []       acc = just acc
     unifyAccChildren []         _        _   = nothing
-    unifyAccChildren _          []       _   = nothing
+
+unifyAccChildren _          []       _   = nothing
     unifyAccChildren (t₁ ∷ ts₁) (t₂ ∷ ts₂) acc = unifyAcc t₁ t₂ acc >>= unifyAccChildren ts₁ ts₂
 
   unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ (Subst m))
   unify {m} t₁ t₂ = unifyAcc t₁ t₂ (m , nil)
-
