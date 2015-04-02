@@ -180,8 +180,38 @@ term, then gives the type error message above. It is up to the
 programmer to fix this, either by providing a manual proof or
 diagnosing why no proof could be found.
 
+\todo{Summarize working of auto:
+
+* Quote goal to Agda Term;
+* Convert Agda Term to PSTerm
+* Proof search with hint database
+* Convert proof to Agda Term
+* Unquote agda term
+
+Proof search uses unification, must be first order
+
+Bounded depth, proof must be constructed from hints in db (and context?)
+no recursive function calls created automatically
+
+
+
+But the biggest problem is that the paper doesn't clearly separate
+what in the code is a good idea, what is an engineering trick, and
+what is wart required to satisfy Agda. A discussion at that level
+would be very informative and useful.
+
+Tricks + Warts
+* Finite types, shifting indices, Generation of fresh variables
+* 'Plumbing' reflection-conversion
+* Proof obligations? regarding syntax
+* constructing incomplete proofs
+
+}
+
 The remainder of this paper will explain how this |auto| function is
 implemented.
+
+
 
 %%% Local Variables:
 %%% mode: latex

@@ -182,6 +182,8 @@ all the variables that they contain.
 \subsection*{Constructing the search tree}
 \label{subsec:searchtrees}
 
+\todo{Wouter: reread, refactor and rewrite}
+
 Our search tree is simply a (potentially) infinitely deep, but
 finitely branching rose tree.
 \begin{code}
