@@ -52,24 +52,7 @@ B|. Converting the goal |(A × (λ _ → B))| to a |PrologTerm| will
 raises the `exception' |unsupportedSyntax|; the goal type contains a
 lambda which we cannot handle.
 
-\review{During the discussion in Section 6, I wasn't sure why it would
-  be "somewhat surprisingly" that proving the "andIntro" lemma fails
-  with the tactic. At least without you showing how a proof would
-  (have to) look like, I cannot appreciate this surprise. I suspect
-  that simply by the form of the constructors of Sigma types it would
-  be not surprising that a first order term will not prove this
-  lemma. Can you give a more convincing (more truly surprising)
-  example here?}
-\pepijn{No, we cannot. We can, however, emphasise that the surprise is
-  in the fact that |_×_| is a first-order term, and only becomes
-  higher-order once it's unfolded. Perhaps we could use Agda's
-  |abstract| feature to get the proof to work for a more surprising
-  surprise. I'll check that now... Nope, it fails due to the abstract
-  with a super, super weird error message because for some reason
-  |auto| reduces to an uninstantiated variable... or something like
-  that... check the examples (Auto/Example/Even.agda) if you want to
-  see for yourself.}
-
+\todo{No longer relevant; tactic also takes context}
 Furthermore, there are some limitations on the hints that may be
 stored in the hint database. At the moment, we construct every hint by
 quoting an Agda |Name|. Not all useful hints, however, have such a
@@ -213,6 +196,15 @@ with the philosophy of type theory. Paraphrasing
 Martin-L\"of~\citep{martin-lof}, it no longer seems possible to
 distinguish the discipline of \emph{programming} from the
 \emph{construction} of mathematics.
+
+\todo{Wouter; Reviewer 1: Discuss performance}
+
+\todo{Wouter: Discuss debugging proof automation}
+
+\todo{Pepijn: check latest Agda}
+
+\todo{Compileert literate agda? Does it type check?}
+
 
 % This is super useful: consider the problem of having |trans| in a hint
 % database.

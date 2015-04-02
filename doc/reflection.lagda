@@ -13,6 +13,9 @@ is an essential piece of plumbing, necessary to provide the desired proof
 automation.  While not conceptually difficult, this
 does expose some of the limitations and design choices of the |auto| function.
 
+\todo{Wouter: rewrite, refactor, clean up?}
+\todo{Wouter: high-level plmubing picture, please skip this section}
+
 The first thing we will need are
 concrete definitions for the |TermName| and |RuleName| data types,
 which were parameters to the development presented in the previous
