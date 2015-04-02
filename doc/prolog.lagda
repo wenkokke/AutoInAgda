@@ -235,6 +235,7 @@ specifically, |con′| will, given a rule |r| and a vector of proof
 terms, take |arity r| proofs off of the proof vector, apply the proof
 constructor |con|, and cons the resulting term back into the proof
 vector.
+\review{the description of con' can't be parsed by me}
 \begin{code}
   con′ : (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
   con′ r xs = new ∷ rest

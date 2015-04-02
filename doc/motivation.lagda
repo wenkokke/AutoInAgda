@@ -127,13 +127,14 @@ implement a similar tactic as an ordinary function in Agda.
 
 Before we can use our |auto| function, we need to construct a hint
 database:
+\review{I wondered whether the definition of even+ is expanded before added to the database. It only became clear later that only a name is added. It is better to clarify that here.}
 \begin{code}
   hints : HintDB
   hints =
     [] << quote isEven0 << quote isEven+2 << quote even+
 \end{code}
 To construct such a database, we |quote| any terms that we wish to
-include in it and pass them to the |hintdb| function, that constructs
+include in it and pass them to the |_<<_| function, that constructs
 a hint database from an appropriate sequence of names.  We will
 describe the implementation of the |hintdb| function further in
 Section~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
