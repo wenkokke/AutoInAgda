@@ -72,7 +72,7 @@ lambda which we cannot handle.
 
 Furthermore, there are some limitations on the hints that may be
 stored in the hint database. At the moment, we construct every hint by
-quoting an Agda |Name|. Not all useful hints, however, have a such a
+quoting an Agda |Name|. Not all useful hints, however, have such a
 |Name|, such as any variables locally bound in the context by pattern
 matching or function arguments. For example, the following call to the
 |auto| function fails to produce the desired proof:
@@ -84,42 +84,14 @@ The variable |e|, necessary to complete the proof is not part of the
 hint database. The |tactic| keyword in the upcoming Agda release
 addresses this, by providing both the current goal and a list of the
 terms bound in the local context as arguments to the tactic functions.
-
-%% REASON:
-%%  This section was removed because it is no longer a restriction,
-%%  since quoteContext was implemented.
-%%
-%%Another restriction is that it is not currently possible to pass
-%%arguments to a hint database manually. For instance, see the following
-%%definition of |even+|:
-%%\begin{code}
-%%even+ : Even n → Even m → Even (n + m)
-%%even+ (isEven0) = quoteGoal g in unquote (auto 5 [] g)
-%%even+ (isEven+2 e) = quoteGoal g in unquote hole
-%%\end{code}
-%%Directly trying to add |e| to a hint database results in the error
-%%message ``\textbf{quote}: not a defined name''.
-%%Using |quoteTerm| on |e| returns |var 0 []|, which we could
-%%potentially use to construct a rule for the usage of |e|. However,
-%%there is currently no function in the Reflection API that enables us
-%%to obtain the type corresponding to a |Term|, and thus no way of
-%%constructing a rule based on |e|.
-%%A last resort, binding the variable |e| to a name in a where-clause,
-%%gives quite unexpected results: the invocation of |auto| is accepted
-%%through Agda's interactive interface, and can be shown to reduce to
-%%the correct definition:
-%%\begin{code}
-%%  λ z → isEven+2 (even+ind e z)
-%%\end{code}
-%%However, when recompiling the code using Agda's batch type-checker, it
-%%is rejected. \pepijn{Batch type-checker?}
+\review{What if we remove e in the LHS of trivial, and ask the system to find a proof for Even n -> Even (n+2)? Also, eliminate the newline.}
 
 \paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
 entirely. This is not always desirable. We may want to return an
 incomplete proof, that still has open holes that the user must
-complete. This difficult with the current implementation of Agda's
-reflection mechanism: it cannot generate an incomplete |Term|.
+complete. The difficulty lies with the current implementation of Agda's
+reflection mechanism, as it cannot generate an incomplete |Term|.
 
 In the future, it may be interesting to explore how to integrate proof
 automation, as described in this paper, better with Agda's IDE. For

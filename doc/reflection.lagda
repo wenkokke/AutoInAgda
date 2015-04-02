@@ -120,7 +120,7 @@ variables and constructors or defined terms respectively. The
 arguments to constructors or defined terms are processed using the
 |convertChildren| function defined below.
 The conversion of a |pi| node binding an explicit argument proceeds by
-converting the domain and codomain. If both conversions succeed, the
+converting the domain and then codomain. If both conversions succeed, the
 resulting terms are |match|ed and a |PsTerm| is constructed using
 |impl|.
 Implicit arguments and instance arguments are ignored by this conversion
@@ -205,6 +205,7 @@ definition from the |Name| representing |even+|.
 
 This generation of rules is done in two steps. First, we will convert a
 |Name| to its corresponding |PsTerm|:
+\review{This is the first time we see the use of the function "type". It is better to mention it earlier, so that the readers know that the auto function has access to the whole environment (so it may lookup types of identifiers), rather than only the information supplied as its arguments.}
 \begin{code}
   name2term : Name → Error (∃ PsTerm)
   name2term = agda2term ∘ unel ∘ type
