@@ -127,7 +127,9 @@ implement a similar tactic as an ordinary function in Agda.
 
 Before we can use our |auto| function, we need to construct a hint
 database:
-\review{I wondered whether the definition of even+ is expanded before added to the database. It only became clear later that only a name is added. It is better to clarify that here.}
+\review{I wondered whether the definition of even+ is expanded before
+  added to the database. It only became clear later that only a name
+  is added. It is better to clarify that here.}
 \begin{code}
   hints : HintDB
   hints =
@@ -135,11 +137,18 @@ database:
 \end{code}
 To construct such a database, we |quote| any terms that we wish to
 include in it and pass them to the |_<<_| function, that constructs
-a hint database from an appropriate sequence of names.  We will
-describe the implementation of the |hintdb| function further in
-Section~\ref{sec:hintdbs}. Note, however, that unlike Coq, the hint
-data base is a \emph{first-class} value that can be manipulated,
-inspected, or passed as an argument to a function.
+a hint database from an appropriate sequence of names.
+We will describe the implementation of the |_<<_| function further in
+Section~\ref{sec:hintdbs}. For now it should suffice to say that, in
+the case of |even+|, after the |quote| construct obtains an Agda
+|Name|, |_<<_| uses the Agda function |type| to look up the type
+associated with |even+|, and generates a derivation rule which states
+that given two proofs of |Even n| and |Even m|, applying the rule
+|even+| will result in a proof of |Even (n + m)|.
+
+Note, however, that unlike Coq, the hint data base is a
+\emph{first-class} value that can be manipulated, inspected, or passed
+as an argument to a function.
 
 We now give an alternative proof of the |trivial| lemma using the
 |auto| tactic and the hint database defined above:
@@ -180,34 +189,58 @@ term, then gives the type error message above. It is up to the
 programmer to fix this, either by providing a manual proof or
 diagnosing why no proof could be found.
 
-\todo{Summarize working of auto:
+\vspace{1ex}
+\noindent%
+When calling the |auto| tactic, the following things happen:
+\begin{enumerate}
+\item the |tactic| keyword converts the goal type to an Agda
+  reflection term (|AgTerm|\footnote{
+    The terms from Agda's |Reflection| module are called |Term|, but
+    to avoid confusion with several term data types we shall refer to
+    them as |AgTerm| for the remainder of this paper.
+  });
+\item\label{step:firstorder} we check if the term is first-order---if
+  it isn't, we throw an exception;
+\item we convert the |AgTerm| to a first-order term data type (|PsTerm|);
+\item we split the term into a list of premises and a goal term---the
+  premises are added to the hint database as axioms;
+\item we lazily build up a proof tree by unification, using the
+  inference rules in the hint database;
+\item\label{step:dfs} we search through the proof tree with bounded
+  depth-first search;
+\item if a proof is found, this is converted back to an
+  |AgTerm|---otherwise we throw an exception;
+\item finally, the |unquote| keyword converts this |AgTerm| back to
+  Agda---type-checking it in the process.
+\end{enumerate}
+In step~\ref{step:firstorder} we mention that our terms have to be
+first order. Why is this, and what does it mean? \pepijn{Mention
+  McBride's paper and Miller's paper as possible future extension;
+  describe what first-order means in terms of Agda.}.
 
-* Quote goal to Agda Term;
-* Convert Agda Term to PSTerm
-* Proof search with hint database
-* Convert proof to Agda Term
-* Unquote agda term
+Furthermore, in step~\ref{step:dfs} we mention that the proof tree is
+searched with bounded depth-first search. The reason for this is that
+the proof tree is potentially infinite, and therefore we have to bound
+the search. \pepijn{Mention that this is normal in e.g. Coq's auto
+  tactic.}
 
-Proof search uses unification, must be first order
+Lastly, it should be mentioned that there is currently no way to obtain
+a reference to the function being defined. Therefore, it is not
+possible to derive recursive functions automatically.
 
-Bounded depth, proof must be constructed from hints in db (and context?)
-no recursive function calls created automatically
+% But the biggest problem is that the paper doesn't clearly separate
+% what in the code is a good idea, what is an engineering trick, and
+% what is wart required to satisfy Agda. A discussion at that level
+% would be very informative and useful.
+%
+% Tricks + Warts
+% * Finite types, shifting indices, Generation of fresh variables
+% * 'Plumbing' reflection-conversion
+% * Proof obligations? regarding syntax
+% * constructing incomplete proofs
 
-
-
-But the biggest problem is that the paper doesn't clearly separate
-what in the code is a good idea, what is an engineering trick, and
-what is wart required to satisfy Agda. A discussion at that level
-would be very informative and useful.
-
-Tricks + Warts
-* Finite types, shifting indices, Generation of fresh variables
-* 'Plumbing' reflection-conversion
-* Proof obligations? regarding syntax
-* constructing incomplete proofs
-
-}
-
+\vspace{1ex}
+\noindent%
 The remainder of this paper will explain how this |auto| function is
 implemented.
 
