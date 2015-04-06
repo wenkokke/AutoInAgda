@@ -67,7 +67,12 @@ The variable |e|, necessary to complete the proof is not part of the
 hint database. The |tactic| keyword in the upcoming Agda release
 addresses this, by providing both the current goal and a list of the
 terms bound in the local context as arguments to the tactic functions.
-\review{What if we remove e in the LHS of trivial, and ask the system to find a proof for Even n -> Even (n+2)? Also, eliminate the newline.}
+\review{What if we remove e in the LHS of trivial, and ask the system
+  to find a proof for Even n -> Even (n+2)? Also, eliminate the
+  newline.}
+\pepijn{Do we want to mention that we can now easily pattern-match,
+  rewrite the paper to include the most recent version of |tactic|,
+  etc? Or should we just delete this section?}
 
 \paragraph{Refinement}
 The |auto| function returns a complete proof term or fails
@@ -111,7 +116,11 @@ depth, |dfs| should find it; any |Proof| returned by
   potential proof terms would need to be considered?)}
 \pepijn{Nope, because we compute on the types... so typing the
   metatheory wouldn't really allow us to make anything simpler, it
-  would just give a richer structure for the `Proof` objects.}
+  would just give a richer structure for the `Proof` objects. What I
+  mean here is that we could encode the proof structure as a list of
+  subgoals, and the partial proof as a function from a heterogeneous
+  list whose types are indexed by those subgoals, to a value whose
+  type is equal to the top-level goal.}
 
 
 
@@ -203,18 +212,15 @@ distinguish the discipline of \emph{programming} from the
 
 \todo{Pepijn: check latest Agda}
 
-\todo{Compileert literate agda? Does it type check?}
-
 
 % This is super useful: consider the problem of having |trans| in a hint
 % database.
-
-
+%
 % Using the techniques described in this paper, it is possible to write
 % many other pieces of proof automation. Automated rewriting, for
 % example. Or a high-level, first-class tactic language: try this piece
 % of automation, and if that fails try something else.
-
+%
 % This is the way forward for proof automation.
 
 %%% Local Variables:
