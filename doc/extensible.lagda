@@ -10,7 +10,10 @@ variations and extensions to the |auto| tactic described above.
 The simplest change we can make is to abstract over the search
 strategy used by the |auto| function. In the interest of readability
 we will create a simple alias for the types of search strategies.
-\review{Briefly describe what the returned list represents (e.g. a list of goals to search for, in left-to-right order?).}
+\review{Briefly describe what the returned list represents (e.g. a
+  list of goals to search for, in left-to-right order?).}
+\pepijn{It represents a list of the leafs of the SearchTree, in an
+  order which is determined by the strategy.}
 \begin{code}
   Strategy = (depth : ℕ) → SearchTree A → List A
 \end{code}
@@ -63,10 +66,12 @@ transitive.
 
 Using these rules, we can build up a small hint database to generate
 proofs using the sublist relation.
-\review{What are refl and trans? (Certainly not refl and trans for PropositionalEquality.)}
+\review{What are refl and trans? (Certainly not refl and trans for
+  PropositionalEquality.)}
+\pepijn{Does adding the |⊂-|-prefix clarify this?}
 \begin{code}
   hintdb  : HintDB
-  hintdb  = ε << quote drop << quote keep << quote refl << quote trans
+  hintdb  = ε << quote drop << quote keep << quote ⊂-refl << quote ⊂-trans
 \end{code}
 Our |auto| tactic quickly finds a proof for the following lemma:
 \begin{code}

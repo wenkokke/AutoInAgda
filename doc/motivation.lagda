@@ -46,10 +46,6 @@ The |quote| language construct allows users to access the internal
 representation of an identifier, a value of a built-in type
 |Name|. Users can subsequently request the type or definition of such
 names.
-\review{I don't see how quote is more general than quoteTerm. If
-  anything it seems like it would be the other way around.}
-
-\review{Mention that unquoted terms have to be type checked.}
 
 Dual to quotation, the |unquote| mechanism allows users to splice in a
 |Term|, replacing it with its concrete syntax. For example, we could
@@ -60,7 +56,9 @@ give a convoluted definition of the |K| combinator as follows:
 \end{code}
 The language construct |unquote| is followed by a value of type
 |Term|. In this example, we manually construct a |Term| representing
-the |K| combinator and splice it in the definition of |const|.
+the |K| combinator and splice it in the definition of |const|. The
+|unquote| construct then type-checks the given term, and turns it into
+the definition |λ x → λ y → x|.
 
 The final piece of the reflection mechanism that we will use is the
 |quoteGoal| construct. The usage of |quoteGoal| is best illustrated
@@ -127,24 +125,22 @@ implement a similar tactic as an ordinary function in Agda.
 
 Before we can use our |auto| function, we need to construct a hint
 database:
-\review{I wondered whether the definition of even+ is expanded before
-  added to the database. It only became clear later that only a name
-  is added. It is better to clarify that here.}
 \begin{code}
   hints : HintDB
   hints =
     [] << quote isEven0 << quote isEven+2 << quote even+
 \end{code}
-To construct such a database, we |quote| any terms that we wish to
-include in it and pass them to the |_<<_| function, that constructs
-a hint database from an appropriate sequence of names.
-We will describe the implementation of the |_<<_| function further in
-Section~\ref{sec:hintdbs}. For now it should suffice to say that, in
-the case of |even+|, after the |quote| construct obtains an Agda
-|Name|, |_<<_| uses the Agda function |type| to look up the type
-associated with |even+|, and generates a derivation rule which states
-that given two proofs of |Even n| and |Even m|, applying the rule
-|even+| will result in a proof of |Even (n + m)|.
+To construct such a database, we use |quote| to obtain the names of any
+terms that we wish to include in it and pass them to the |_<<_|
+function.
+We will describe the implementation of |_<<_| in more detail in
+Section~\ref{sec:hintdbs}.
+For now it should suffice to say that, in the case of |even+|, after
+the |quote| construct obtains an Agda |Name|, |_<<_| uses the built-in
+function |type| to look up the type associated with |even+|, and
+generates a derivation rule which states that given two proofs of
+|Even n| and |Even m|, applying the rule |even+| will result in a
+proof of |Even (n + m)|.
 
 Note, however, that unlike Coq, the hint data base is a
 \emph{first-class} value that can be manipulated, inspected, or passed
@@ -199,8 +195,8 @@ When calling the |auto| tactic, the following things happen:
     to avoid confusion with several term data types we shall refer to
     them as |AgTerm| for the remainder of this paper.
   });
-\item\label{step:firstorder} we check if the term is first-order---if
-  it isn't, we throw an exception;
+\item\label{step:firstorder} we check if the term is of a first-order
+  type---if it isn't, we throw an exception;
 \item we convert the |AgTerm| to a first-order term data type (|PsTerm|);
 \item we split the term into a list of premises and a goal term---the
   premises are added to the hint database as axioms;
@@ -214,9 +210,9 @@ When calling the |auto| tactic, the following things happen:
   Agda---type-checking it in the process.
 \end{enumerate}
 In step~\ref{step:firstorder} we mention that our terms have to be
-first order. Why is this, and what does it mean? \pepijn{Mention
-  McBride's paper and Miller's paper as possible future extension;
-  describe what first-order means in terms of Agda.}.
+of first order types. Why is this, and what does it mean?
+\pepijn{Mention McBride's paper and Miller's paper as possible future
+  extension; describe what first-order means in terms of Agda.}.
 
 Furthermore, in step~\ref{step:dfs} we mention that the proof tree is
 searched with bounded depth-first search. The reason for this is that

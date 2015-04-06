@@ -209,6 +209,7 @@ definition from the |Name| representing |even+|.
 This generation of rules is done in two steps. First, we will convert a
 |Name| to its corresponding |PsTerm|:
 \review{This is the first time we see the use of the function "type". It is better to mention it earlier, so that the readers know that the auto function has access to the whole environment (so it may lookup types of identifiers), rather than only the information supplied as its arguments.}
+\pepijn{Did this!}
 \begin{code}
   name2term : Name → Error (∃ PsTerm)
   name2term = agda2term ∘ unel ∘ type
