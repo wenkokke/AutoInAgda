@@ -197,7 +197,7 @@ Martin-L\"of~\citep{martin-lof}, it no longer seems possible to
 distinguish the discipline of \emph{programming} from the
 \emph{construction} of mathematics.
 
-\todo{Wouter; Reviewer 1: Discuss performance}
+\todo{Wouter: Reviewer 1--Discuss performance}
 
 \todo{Wouter: Discuss debugging proof automation}
 
@@ -216,7 +216,6 @@ distinguish the discipline of \emph{programming} from the
 % of automation, and if that fails try something else.
 
 % This is the way forward for proof automation.
-
 
 %%% Local Variables:
 %%% mode: latex
