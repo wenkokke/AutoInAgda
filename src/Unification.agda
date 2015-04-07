@@ -1,14 +1,14 @@
-open import Function using (_∘_)
-open import Data.Nat as Nat using (ℕ; suc; zero)
-open import Data.Fin as Fin using (Fin; suc; zero)
-open import Data.Fin.Properties as FinProps renaming (_≟_ to _≟-Fin_)
-open import Data.Maybe as Maybe using (Maybe; just; nothing; monad)
-open import Data.List as List using (List; _∷_; []; monad)
-open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)
-open import Data.Product as Prod using (∃; _×_; _,_; proj₁; proj₂)
-open import Category.Monad using (module RawMonad)
-open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; cong; cong₂)
+open import Function                              using (_∘_)
+open import Category.Monad                        using (module RawMonad)
+open import Data.Fin                              using (Fin; suc; zero)
+open import Data.Fin.Properties                   renaming (_≟_ to _≟-Fin_)
+open import Data.List    as List                  using (List; _∷_; [])
+open import Data.List.Properties                  renaming (∷-injective to ∷-inj)
+open import Data.Maybe   as Maybe                 using (Maybe; just; nothing)
+open import Data.Nat                              using (ℕ; suc; zero)
+open import Data.Product as Prod                  using (∃; _×_; _,_; proj₁; proj₂)
+open import Relation.Nullary                      using (Dec; yes; no)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong₂)
 
 module Unification
   (Name    : Set) (_≟-Name_    : (x y : Name)    → Dec (x ≡ y))
@@ -36,20 +36,15 @@ module Unification
   lit-inj : ∀ {n x₁ x₂} → lit {n} x₁ ≡ lit {n} x₂ → x₁ ≡ x₂
   lit-inj refl = refl
 
---ext-inj : ∀ {n x₁ x₂ t₁ t₂} → ext {n} x₁ t₁ ≡ ext {n} x₂ t₂ → x₁ ≡ x₂ × t₁ ≡ t₂
---ext-inj refl = refl , refl
-
   mutual
     _≟-Term_ : ∀ {n} → (t₁ t₂ : Term n) → Dec (t₁ ≡ t₂)
     _≟-Term_ (var _)  (lit _)   = no (λ ())
     _≟-Term_ (var _)  (con _ _) = no (λ ())
---  _≟-Term_ (var _)  (ext _ _) = no (λ ())
     _≟-Term_ (var x₁) (var x₂) with x₁ ≟-Fin x₂
     ... | yes x₁=x₂ = yes (cong var x₁=x₂)
     ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ var-inj)
     _≟-Term_ (con _ _)    (var _)   = no (λ ())
     _≟-Term_ (con _ _)    (lit _)   = no (λ ())
---  _≟-Term_ (con _ _)    (ext _ _) = no (λ ())
     _≟-Term_ (con s₁ ts₁) (con s₂ ts₂) with s₁ ≟-Name s₂
     ... | no  s₁≠s₂ = no (s₁≠s₂ ∘ proj₁ ∘ con-inj)
     ... | yes s₁=s₂ rewrite s₁=s₂ with ts₁ ≟-Terms ts₂
@@ -57,18 +52,9 @@ module Unification
     ... | yes ts₁=ts₂ = yes (cong (con s₂) ts₁=ts₂)
     _≟-Term_ (lit _)  (var _)   = no (λ ())
     _≟-Term_ (lit _)  (con _ _) = no (λ ())
---  _≟-Term_ (lit _)  (ext _ _) = no (λ ())
     _≟-Term_ (lit x₁) (lit x₂) with x₁ ≟-Literal x₂
     ... | yes x₁=x₂ = yes (cong lit x₁=x₂)
     ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ lit-inj)
---  _≟-Term_ (ext _ _)   (var _)        = no (λ ())
---  _≟-Term_ (ext _ _)   (con _ _)      = no (λ ())
---  _≟-Term_ (ext _ _)   (lit _)        = no (λ ())
---  _≟-Term_ (ext x₁ t₁) (ext x₂ t₂) with x₁ ≟-Fin x₂
---  ... | no  x₁≠x₂ = no (x₁≠x₂ ∘ proj₁ ∘ ext-inj)
---  ... | yes x₁=x₂ rewrite x₁=x₂ with t₁ ≟-Term t₂
---  ... | no  t₁≠t₂ = no (t₁≠t₂ ∘ proj₂ ∘ ext-inj)
---  ... | yes t₁=t₂ = yes (cong (ext x₂) t₁=t₂)
 
     _≟-Terms_ : ∀ {n} (xs ys : List (Term n)) → Dec (xs ≡ ys)
     _≟-Terms_ [] [] = yes refl
@@ -131,9 +117,9 @@ module Unification
   _for_ t x y | nothing = t
 
   -- substitution application (**sub** in McBride, 2003)
-  apply : ∀ {m n} → Subst m n → Fin m → Term n
-  apply nil = var
-  apply (snoc s t x) = (apply s) ◇ (t for x)
+  sub : ∀ {m n} → Subst m n → Fin m → Term n
+  sub nil = var
+  sub (snoc s t x) = (sub s) ◇ (t for x)
 
   -- composes two substitutions
   _++_ : ∀ {l m n} → Subst m n → Subst l m → Subst l n
@@ -172,8 +158,7 @@ module Unification
     unifyAccChildren : ∀ {n} → (ts₁ ts₂ : List (Term n)) → ∃ (Subst n) → Maybe (∃ (Subst n))
     unifyAccChildren []         []       acc = just acc
     unifyAccChildren []         _        _   = nothing
-
-unifyAccChildren _          []       _   = nothing
+    unifyAccChildren _          []       _   = nothing
     unifyAccChildren (t₁ ∷ ts₁) (t₂ ∷ ts₂) acc = unifyAcc t₁ t₂ acc >>= unifyAccChildren ts₁ ts₂
 
   unify : ∀ {m} → (t₁ t₂ : Term m) → Maybe (∃ (Subst m))

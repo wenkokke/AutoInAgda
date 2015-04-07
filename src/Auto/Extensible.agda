@@ -1,4 +1,4 @@
-open import Auto.Core 
+open import Auto.Core
 open import Data.List    using (_∷_; []; length)
 open import Data.Nat     using (ℕ; zero; suc)
 open import Data.Product using (_,_)

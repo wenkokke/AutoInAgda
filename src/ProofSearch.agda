@@ -1,29 +1,26 @@
-open import Level using (_⊔_)
-open import Function using (id; const; _∘_; _$_)
-open import Coinduction using (∞; ♯_; ♭)
-open import Algebra.Structures using (IsMonoid)
-open import Data.Nat as Nat using (ℕ; suc; zero; _≤_; z≤n; s≤s; decTotalOrder)
-open import Data.Nat.Properties as NatProps using (commutativeSemiring; distributiveLattice)
-open import Data.Fin as Fin using (Fin; suc; zero)
-open import Data.Fin.Properties as FinProps renaming (_≟_ to _≟-Fin_)
-open import Data.Maybe as Maybe using (Maybe; just; nothing)
-open import Data.List as List using (List; _∷_; []; [_]; _++_; length; concat; map; foldr; concatMap)
-open import Data.List.Properties as ListProps renaming (∷-injective to ∷-inj)
-open import Data.Vec as Vec using (Vec; _∷_; [])
-open import Data.Sum as Sum using (_⊎_; inj₁; inj₂)
-open import Data.Product as Prod using (∃; ∃₂; _×_; _,_; proj₁; proj₂)
-open import Algebra using (module CommutativeSemiring; module DistributiveLattice)
-open import Category.Monad using (module RawMonad)
-open import Relation.Nullary using (Dec; yes; no)
-open import Relation.Binary as Rel using (module DecTotalOrder)
-open import Relation.Binary.PropositionalEquality as P using (_≡_; refl; sym; trans; cong; cong₂)
+open import Level                                 using (_⊔_)
+open import Algebra                               using (module CommutativeSemiring; module DistributiveLattice)
+open import Function                              using (id; const; _∘_; _$_)
+open import Coinduction                           using (∞; ♯_; ♭)
+open import Data.Fin        as Fin                using (Fin; suc; zero)
+open import Data.List       as List               using (List; _∷_; []; [_]; _++_; length; concat; foldr; concatMap)
+open import Data.Maybe                            using (Maybe; just; nothing)
+open import Data.Nat                              using (ℕ; suc; zero; _≤_; z≤n; s≤s; decTotalOrder)
+open import Data.Nat.Properties                   using (commutativeSemiring; distributiveLattice)
+open import Data.Product                          using (∃; _×_; _,_)
+open import Data.Sum                              using (_⊎_; inj₁; inj₂)
+open import Data.Vec        as Vec                using (Vec; _∷_; []; fromList)
+open import Relation.Nullary                      using (Dec; yes; no)
+open import Relation.Binary                       using (module DecTotalOrder)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
+
 
 module ProofSearch
   (RuleName : Set)
   (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y))
   (Literal  : Set) (_≟-Literal_  : (x y : Literal)  → Dec (x ≡ y))
   where
- 
+
   open import Unification TermName _≟-TermName_ Literal _≟-Literal_ public hiding (_++_)
 
 
@@ -35,9 +32,6 @@ module ProofSearch
     ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b ⊔ a)
     ∃-syntax = ∃
     syntax ∃-syntax (λ x → B) = ∃[ x ] B
-
-    instance
-      ListMonad = List.monad
 
   -- introduce rules
   record Rule (n : ℕ) : Set where
@@ -61,9 +55,9 @@ module ProofSearch
 
 
   -- open instances relevant to definitions of difference, inject and raise
-  open CommutativeSemiring NatProps.commutativeSemiring using (_+_; +-comm; +-assoc)
-  open DistributiveLattice NatProps.distributiveLattice using (_∧_; ∧-comm)
-  open DecTotalOrder       Nat.decTotalOrder            using (total)
+  open CommutativeSemiring commutativeSemiring using (_+_; +-comm)
+  open DistributiveLattice distributiveLattice using (_∧_; ∧-comm)
+  open DecTotalOrder       decTotalOrder       using (total)
 
 
   -- compute the difference between two natural numbers, given an
@@ -83,7 +77,7 @@ module ProofSearch
       inject : ∀ {m} n → T m → T (m + n)
 
     inject≤ : ∀ {m n} → m ≤ n → T m → T n
-    inject≤ {m} {n} p t = P.subst T (sym (Δ-correct p)) (inject (Δ p) t)
+    inject≤ {m} {n} p t = subst T (sym (Δ-correct p)) (inject (Δ p) t)
 
   open Inject {{...}} using (inject; inject≤)
 
@@ -94,7 +88,7 @@ module ProofSearch
       raise : ∀ {m} n → T m → T (n + m)
 
     raise≤ : ∀ {m n} → m ≤ n → T m → T n
-    raise≤ {m} {n} p t = P.subst T (sym (trans (Δ-correct p) (+-comm m (Δ p)))) (raise (Δ p) t)
+    raise≤ {m} {n} p t = subst T (sym (trans (Δ-correct p) (+-comm m (Δ p)))) (raise (Δ p) t)
 
   open Raise {{...}} using (raise; raise≤)
 
@@ -189,7 +183,7 @@ module ProofSearch
   ----------------------------------------------------------------------------
   -- * define search trees, proofs and partial proofs                     * --
   ----------------------------------------------------------------------------
-  
+
   -- simple alias to set apart the goal term
   Goal = Term
 
@@ -201,14 +195,14 @@ module ProofSearch
   -- representation of a failed branch
   fail : ∀ {A} → SearchTree A
   fail = node []
-  
+
   data Proof : Set where
      con : (name : RuleName) (args : List Proof) → Proof
 
   -- representation of an incomplete proof
   Proof′ : ℕ → Set
   Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
-  
+
   con′ : ∀ {n k} (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
   con′ {n} {k} r xs = head ∷ rest
     where
@@ -223,53 +217,37 @@ module ProofSearch
   ----------------------------------------------------------------------------
 
   module Extensible (isHintDB : IsHintDB) where
-  
+
     open IsHintDB isHintDB
 
-    -- build search tree for a goal term
     solve : ∀ {m} → Goal m → HintDB → SearchTree Proof
-    solve {m} g = solveAcc {0} {m} (just (m , nil)) (1 , g ∷ [] , Vec.head)
+    solve {m} g = solveAcc {m} (1 , g ∷ [] , Vec.head)
       where
-        solveAcc : ∀ {δ m} → Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m) → HintDB → SearchTree Proof
-        solveAcc nothing _ _ = fail
-        solveAcc (just (n , s)) (0 , [] , p) _ = leaf (p [])
-        solveAcc {δ} {m} (just (n , s)) (suc k , g ∷ gs , p) db = node (steps (getHints db))
+        solveAcc : ∀ {m} → Proof′ m → HintDB → SearchTree Proof
+        solveAcc {m} (0     ,     [] , p) _  = leaf (p [])
+        solveAcc {m} (suc k , g ∷ gs , p) db = node (steps (getHints db))
           where
-            step : ∃[ δ′ ] (Hint δ′) → ∞ (SearchTree Proof)
-            step (δ′ , h) = ♯ solveAcc {δ′ + δ} {m} mgu prf db′
+          step : ∃[ δ ] (Hint δ) → ∞ (SearchTree Proof)
+          step (δ , h) = ♯ tree
+            where
+            r = getRule h
+
+            tree : SearchTree Proof
+            tree with unify (inject δ g) (raise m (conclusion r))
+            ... | nothing        = node []
+            ... | just (n , mgu) = solveAcc {n} prf (getTr h db)
               where
-                r   = getRule h
-                db′ = getTr h db
-                
-                lem : δ′ + δ + m ≡ δ + m + δ′
-                lem = trans (+-assoc δ′ δ m) (+-comm δ′ (δ + m))
-                
-                prf : Proof′ (δ′ + δ + m)
-                prf = arity r + k , prm′ Vec.++ gs′ , p′
-                  where
-                    gs′  : Vec (Goal (δ′ + δ + m)) k
-                    gs′  rewrite lem = inject δ′ gs
-                    prm′ : Vec (Goal (δ′ + δ + m)) (arity r)
-                    prm′ rewrite lem = Vec.map (raise (δ + m)) (Vec.fromList (premises r))
-                    p′   : Vec Proof (arity r + k) → Proof
-                    p′   = p ∘ con′ r
-                    
-                mgu : Maybe (∃[ n ] (Subst (δ′ + δ + m) n))
-                mgu = unifyAcc g′ cnc′ s′
-                  where
-                    g′   : Term (δ′ + δ + m)
-                    g′   rewrite lem = inject δ′ g
-                    cnc′ : Term (δ′ + δ + m)
-                    cnc′ rewrite lem = raise (δ + m) (conclusion r)
-                    s′   : ∃[ n ] Subst (δ′ + δ + m) n
-                    s′   rewrite lem = n + δ′ , injectSubst δ′ s
-  
-            -- equivalent to `map step` due to termination checker
-            steps : List (∃ Hint) → List (∞ (SearchTree Proof))
-            steps []       = []
-            steps (h ∷ hs) = step h ∷ steps hs
-  
-  
+              prf : Proof′ n
+              prf = arity r + k , gs′ , (p ∘ con′ r)
+                where
+                prm′ = raise m (Vec.fromList (premises r))
+                gs′  = Vec.map (replace (sub mgu)) (prm′ Vec.++ inject δ gs)
+
+          -- equivalent to `map step` due to termination checker
+          steps : List (∃ Hint) → List (∞ (SearchTree Proof))
+          steps []       = []
+          steps (h ∷ hs) = step h ∷ steps hs
+
   ----------------------------------------------------------------------------
   -- * define various search strategies                                   * --
   ----------------------------------------------------------------------------
@@ -282,7 +260,7 @@ module ProofSearch
   dfs (suc k) (leaf x)  = x ∷ []
   dfs (suc k) (node xs) = concatMap (λ x → dfs k (♭ x)) xs
 
-  
+
   bfs : Strategy
   bfs depth t = concat (Vec.toList (bfsAcc depth t))
     where
@@ -293,9 +271,8 @@ module ProofSearch
       empty : ∀ {A : Set} {k} → Vec (List A) k
       empty {k = zero}  = []
       empty {k = suc k} = [] ∷ empty
-  
+
       bfsAcc : ∀ {A} (depth : ℕ) → SearchTree A → Vec (List A) depth
       bfsAcc  zero   _         = []
       bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
-      bfsAcc (suc k) (node xs) = [] ∷ foldr merge empty (map (λ x → bfsAcc k (♭ x)) xs)
-
+      bfsAcc (suc k) (node xs) = [] ∷ foldr merge empty (List.map (λ x → bfsAcc k (♭ x)) xs)
