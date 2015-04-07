@@ -77,14 +77,6 @@ For the remainder of the paper, we will write |∃[ x ] B| to mean a
 type |B| with occurrences of an existentially quantified variable |x|,
 or |∃ (λ x → B)| in full.
 
-Occasionally we will use a more general function |unifyAcc|, which
-takes a substitution as an additional parameter. It applies this
-substitution to |t₁| and |t₂| before attempting to unify.
-\begin{code}
-  unifyAcc  : (t₁ t₂ : PsTerm m)
-            → ∃[ n ] Subst m n → Maybe (∃[ n ] Subst m n)
-\end{code}
-
 
 \subsection*{Inference rules}
 \label{subsec:rules}
@@ -223,14 +215,8 @@ containing our list of sub-goals (of length |k|) combined with a
 function from |k| proof terms to a proof term.
 \begin{code}
   Proof′ : ℕ → Set
-  Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
+  Proof′ m = ∃[ k ] Vec (PsTerm m) k × (Vec Proof k → Proof)
 \end{code}
-\review{I think the "Goal" type should be "PsTerm" now.}
-\pepijn{Should we reintroduce that alias, or should we replace all
-  occurrences of Goal by PsTerm? I'm in favor of the first.}
-This means that the initial partial proof for a goal |g| is
-represented as the triple |(1 , g ∷ [] , head)|.
-
 In order to simplify working with these partial proof terms, we define
 a smart constructor for proof terms based on vectors of proofs. More
 specifically, |con′| will, given a rule |r| and a vector of proof
@@ -257,72 +243,53 @@ a single proof obligation---as described above.
   Rule -> ..." as the higher-order argument). I found it confusing
   that this connection was not made explicit then and there}
 \begin{code}
-  solve : Goal m → HintDB → SearchTree Proof
-  solve g rules = solveAcc (just (m , nil)) (1 , g ∷ [] , head)
+  solve : (goal : PsTerm m) → HintDB → SearchTree Proof
+  solve g rules = solveAcc (1 , g ∷ [] , head)
 \end{code}
-The actual work is done by the |solveAcc| function, that distinguishes
-three important cases: if unification is impossible, and therefore the
-current substitution |nothing|, we fail; if the partial proof is
-complete, i.e. has no more holes, we can stop the search and construct
-a |leaf|; otherwise, we continue the proof search by constructing a
-node with one child for every possible node, by applying the
-function |step|.
+The actual work is done by the |solveAcc| function, which distinguishes
+two cases: if the partial proof is complete, i.e. has no more holes,
+we can stop the search and construct a |leaf|; otherwise, we search by
+constructing a node with one child for every inference rule.
 \begin{code}
-  solveAcc : Maybe (∃[ n ] Subst (δ + m) n) → Proof′ (δ + m)
-    → SearchTree Proof
-  solveAcc  nothing         _                     = node [] -- fail
-  solveAcc  (just (n , s))  (0 , [] , p)          = leaf (p [])
-  solveAcc  (just (n , s))  (suc k , g ∷ gs , p)  = node (map step rules)
+  solveAcc : Proof′ (δ + m) → SearchTree Proof
+  solveAcc  (0      ,      []  , p)  = leaf (p [])
+  solveAcc  (suc k  , g ∷  gs  , p)  = node (map step rules)
 \end{code}
-This |step| function is defined in Figure~\ref{fig:step}. It may seem
-daunting, but what it does is relatively simple.\footnote{ Note that
-  it is defined within a where clause of |solveAcc| and therefore has
-  access to all its variables.  } First, it is given a rule which it
-tries to apply. This rule may have a number of free variables of its
-own. As a result, all terms---the rule's premises and conclusion, the
-current goals, the current substitution---have to be injected into a
-larger domain which includes all the current variables \emph{and} the
-new rule's variables. This alone accounts for most of the code in the
-where clauses.  Second, now that the terms are compatible, we attempt
-to find a most general unifier (|mgu|) for the current goal and the
-rule's conclusion. Note that if this fails, |unifyAcc| will return
-|nothing| and cause |solveAcc| to fail on the next recursive call.
-Finally, we build up a new partial proof, updating the previous one
-with a new constructor for the given rule.  With all these values in
-hand, we recursively call |solveAcc| to (lazily) generate the rest of
-the search tree.
+The recursive construction of the proof tree is done by applying the
+|step| function to the list of rules. Note that |step| is defined in a
+|where| clause of |solveAcc|, and the therefore has access to all its
+variables.
 
-\begin{figure}
-  \centering\normalsize
+First, it is given a rule which it tries to apply. This rule may have
+a number of free variables of its own. As a result, all goals have to
+be injected into a larger domain which includes all current variables
+\emph{and} the new rule's variables. The rule's premises and
+conclusion are then raised into this larger domain, in order to
+guarantee freshness of the rule variables.
+
+Second, now that the terms are compatible, we attempt to find a most
+general unifier (|mgu|) for the current goal and the rule's
+conclusion.
+If this fails, we simply return a node with no children, terminating
+this branch.
+However, if this succeeds, we build up a new partial proof, updating
+the previous one by adding the rule's premises to the sub-goals,
+applying the unifier to the goals, and adding a new constructor for
+the given rule.  With all these values in hand, we recursively call
+|solveAcc| to (lazily) generate the rest of the search tree.
 \begin{code}
-  step : ∃[ δ′ ] Rule δ′ → ∞ (SearchTree Proof)
-  step (δ′ , r) = ♯ solveAcc mgu prf
+step : ∃[ δ ] (Rule δ) → ∞ (SearchTree Proof)
+step (δ , r)
+     with unify (inject δ g) (raise m (conclusion r))
+...  | nothing         = ♯ node [] -- fail
+...  | just (n , mgu)  = ♯ solveAcc prf′ db
+  where
+  prf′ : Proof′ n
+  prf′ = arity r + k , gs′ , (p ∘ con′ r)
     where
-      v : ℕ
-      v = δ′ + δ + m
-      prf : Proof′ v
-      prf = arity r + k , prm′ ++ gs′ , p′
-        where
-          gs′   : Vec (Goal v) k
-          gs′   = inject δ′ gs
-          prm′  : Vec (Goal v) (arity r)
-          prm′  = map (raise (δ + m)) (fromList (premises r))
-          p′    : Vec Proof (arity r + k) → Proof
-          p′    = p ∘ con′ r
-
-      mgu : Maybe (∃[ n ] (Subst v n))
-      mgu = unifyAcc g′ cnc′ s′
-        where
-          g′    : PsTerm v
-          g′    = inject δ′ g
-          cnc′  : PsTerm v
-          cnc′  = raise (δ + m) (conclusion r)
-          s′    : ∃[ n ] Subst v n
-          s′    = n + δ′ , injectSubst δ′ s
+    gs′ : Vec (Goal n) (arity r + k)
+    gs′ = map (apply mgu) (raise m (fromList (premises r)) ++ inject δ gs)
 \end{code}
-  \caption{The |step| function}
-  \label{fig:step}
-\end{figure}
 
 \subsection*{Searching for proofs}
 

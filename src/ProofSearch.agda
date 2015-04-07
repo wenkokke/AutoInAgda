@@ -227,26 +227,22 @@ module ProofSearch
         solveAcc {m} (0     ,     [] , p) _  = leaf (p [])
         solveAcc {m} (suc k , g ∷ gs , p) db = node (steps (getHints db))
           where
-          step : ∃[ δ ] (Hint δ) → ∞ (SearchTree Proof)
-          step (δ , h) = ♯ tree
-            where
-            r = getRule h
-
-            tree : SearchTree Proof
-            tree with unify (inject δ g) (raise m (conclusion r))
-            ... | nothing        = node []
-            ... | just (n , mgu) = solveAcc {n} prf (getTr h db)
+            step : ∃[ δ ] (Hint δ) → ∞ (SearchTree Proof)
+            step (δ , h) with unify (inject δ g) (raise m (conclusion (getRule h)))
+            ... | nothing        = ♯ node [] -- fail
+            ... | just (n , mgu) = ♯ solveAcc {n} prf (getTr h db)
               where
-              prf : Proof′ n
-              prf = arity r + k , gs′ , (p ∘ con′ r)
-                where
-                prm′ = raise m (Vec.fromList (premises r))
-                gs′  = Vec.map (replace (sub mgu)) (prm′ Vec.++ inject δ gs)
+                prf : Proof′ n
+                prf = arity (getRule h) + k , gs′ , (p ∘ con′ (getRule h))
+                  where
+                    prm′ = raise m (Vec.fromList (premises (getRule h)))
+                    gs′  = Vec.map (replace (sub mgu)) (prm′ Vec.++ inject δ gs)
 
-          -- equivalent to `map step` due to termination checker
-          steps : List (∃ Hint) → List (∞ (SearchTree Proof))
-          steps []       = []
-          steps (h ∷ hs) = step h ∷ steps hs
+
+            -- equivalent to `map step` due to termination checker
+            steps : List (∃ Hint) → List (∞ (SearchTree Proof))
+            steps []       = []
+            steps (h ∷ hs) = step h ∷ steps hs
 
   ----------------------------------------------------------------------------
   -- * define various search strategies                                   * --
