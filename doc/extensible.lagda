@@ -11,7 +11,7 @@ The simplest change we can make is to abstract over the search
 strategy used by the |auto| function. In the interest of readability
 we will create a simple alias for the types of search strategies.
 A |Strategy| represents a function which searches a |SearchTree| up to
-|depth|, and returns a list of the leafs (or |Proof|s) found in the
+|depth|, and returns a list of the leaves (or |Proof|s) found in the
 |SearchTree| in an order which is dependent on the search strategy.
 \begin{code}
   Strategy = (depth : ℕ) → SearchTree A → List A
@@ -22,7 +22,6 @@ The changed type of the |auto| function now becomes.
 \end{code}
 This will allow us to choose whether to pass in |dfs|, breadth-first
 search or even a custom user-provided search strategy.
-
 
 \subsection*{Custom hint databases}
 
@@ -87,50 +86,46 @@ the full search depth---resulting in an exponental running time.
 We will use a variation of the |auto| tactic to address this
 problem. Upon constructing the new hint database, users may assign
 limits to the number of times certain hints may be used. By limiting the
-usage of transitivity, our tactic will fail quicker.
+usage of transitivity, our tactic will fail more quickly.
 
 To begin with, we choose the representation of our hints: a pair of a
-rule and a `count' that describes how often the rule may still be
+rule and a `counter' that records how often the rule may still be
 applied:
 \begin{code}
   record Hint (k : ℕ) : Set where
     field
-      rule   : Rule k
-      count  : Count
+      rule     : Rule k
+      counter  : Counter
 \end{code}
-These |count| values will either be a natural number (with a number |n|
-meaning that the rule can still be used |n| times) or |⊤| (meaning
-that the usage of the rule is unrestricted).
+These |counter| values will either be a natural number |n|,
+representing that the rule can still be used at most |n|
+times; or |⊤|, when the usage of the rule is unrestricted.
 \begin{code}
-  Count : Set
-  Count = ℕ ⊎ ⊤
+  Counter : Set
+  Counter = ℕ ⊎ ⊤
 \end{code}
-For this to work we will define a decrementing function, |decrCount|,
-which will decrement a count: if we are given a natural number, we
-return its predecessor; if we are given top, we return top; and
-finally, if the count is |0| or |1| then the rule should be removed,
-and we will return |nothing|.
+Next, we define a decrementing function, |decrCounter|, that returns
+|nothing| when a rule can no longer be applied:
 \begin{code}
-  decrCount : Count → Maybe Count
-  decrCount (inj₁ 0)   = nothing
-  decrCount (inj₁ 1)   = nothing
-  decrCount (inj₁ x)   = just (inj₁ (pred x))
-  decrCount (inj₂ tt)  = just (inj₂ tt)
+  decrCounter : Counter → Maybe Counter
+  decrCounter (inj₁ 0)   = nothing
+  decrCounter (inj₁ 1)   = nothing
+  decrCounter (inj₁ x)   = just (inj₁ (pred x))
+  decrCounter (inj₂ tt)  = just (inj₂ tt)
 \end{code}
 Given a hint |h|, the transition function will now simply find the
-position of |h| in the hint database and decrement the hint's count,
+position of |h| in the hint database and decrement the hint's counter,
 removing it from the database if necessary.
 
-The default insertion function (|_<<_|) will still assume that a rule
-can be applied endlessly. However, we will define a new insertion
-function which will allow the user to specify how often a rule should
-be allowed in a derivation.
+We can redefine the default insertion function (|_<<_|) to allow
+unrestricted usage of a rule. However, we will define a new insertion
+function which will allow the user to limit the usage of a rule during proof search:
 \begin{code}
   _<<[_]_ : HintDB → ℕ → Name → HintDB
   db <<[ 0 ] _ = db
   db <<[ x ] n with (name2rule n)
   db <<[ x ] n | inj₁ msg     = db
-  db <<[ x ] n | inj₂ (k , r) = db ++ [ k , record { rule = r , count = inj₁ x } ]
+  db <<[ x ] n | inj₂ (k , r) = db ++ [ k , record { rule = r , counter = inj₁ x } ]
 \end{code}
 We now revisit our original hint database and limit the number
 of times transitivity may be applied:
