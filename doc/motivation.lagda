@@ -127,8 +127,7 @@ Before we can use our |auto| function, we need to construct a hint
 database:
 \begin{code}
   hints : HintDB
-  hints =
-    [] << quote isEven0 << quote isEven+2 << quote even+
+  hints = [] << quote isEven0 << quote isEven+2 << quote even+
 \end{code}
 To construct such a database, we use |quote| to obtain the names of any
 terms that we wish to include in it and pass them to the |_<<_|
