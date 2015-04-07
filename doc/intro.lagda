@@ -32,7 +32,6 @@ library for proof search \emph{within} Agda itself. In other words, we
 have defined a \emph{program} for the automatic \emph{construction} of
 \emph{mathematical} proofs. More specifically, this paper makes
 several novel contributions.
-
 \begin{itemize}
 \item %
   We show how to implement a Prolog interpreter in the style of
@@ -54,11 +53,9 @@ several novel contributions.
   finally, \emph{unquote} the resulting proof term, thereby proving
   the desired lemma.
 \end{itemize}
-
 Although Agda already has built-in proof search
 functionality~\citep{lindblad}, our approach has several key
 advantages over most existing approaches to proof automation:
-
 \begin{itemize}
 \item Our library is highly customizable. We may parametrize our
   tactics over the search depth, hint database, or search
@@ -80,7 +77,6 @@ advantages over most existing approaches to proof automation:
   deal of expertise -- we hope that implementing tactics as a library
   will make this process easier.
 \end{itemize}
-
 We will compare our library with the various alternative forms of
 proof automation in greater depth in Section~\ref{sec:discussion},
 after we have presented our development.
