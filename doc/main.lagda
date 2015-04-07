@@ -38,7 +38,7 @@
 \paragraph{Acknowledgements}
 We would like to thank the Software Technology Reading Club at the
 Universiteit Utrecht, and all our anonymous reviewers for their helpful
-feedback.
+feedback -- we hope we have done their feedback justice.
 
 \bibliographystyle{plainnat}
 \bibliography{main}
