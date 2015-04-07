@@ -127,11 +127,13 @@ Before we can use our |auto| function, we need to construct a hint
 database:
 \begin{code}
   hints : HintDB
-  hints = [] << quote isEven0 << quote isEven+2 << quote even+
+  hints = ε << quote isEven0 << quote isEven+2 << quote even+
 \end{code}
 To construct such a database, we use |quote| to obtain the names of any
-terms that we wish to include in it and pass them to the |_<<_|
-function.
+terms that we wish to include in it and pass them to the right-hand
+side of the |_<<_| function, which will insert them into a hint
+database to the left. Note that |ε| represents the empty hint
+database.
 We will describe the implementation of |_<<_| in more detail in
 Section~\ref{sec:hintdbs}.
 For now it should suffice to say that, in the case of |even+|, after

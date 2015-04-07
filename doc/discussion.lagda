@@ -210,7 +210,10 @@ distinguish the discipline of \emph{programming} from the
 
 \todo{Wouter: Discuss debugging proof automation}
 
-\todo{Pepijn: check latest Agda}
+\pepijn{The |auto| tactic currently works under the latest release of
+  Agda; however, the changes to |tactic| have not yet been
+  released. Therefore, I feel |auto| will probably break soon (for a
+  while, at least).}
 
 
 % This is super useful: consider the problem of having |trans| in a hint
