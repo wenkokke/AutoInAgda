@@ -237,11 +237,9 @@ parameters, representing the current substitution and the current
 partial proof, respectively.
 These are initialized to the identity substitution and
 a single proof obligation---as described above.
-\review{One can only guess that HintDB will turn out to be a list of
-  Rules eventually (because everything else does not make sense, given
-  how "solve" passes its HintDB argument off to a "map" with "step :
-  Rule -> ..." as the higher-order argument). I found it confusing
-  that this connection was not made explicit then and there}
+Note that while we will give a more general definition for hint databases
+in Section~\ref{sec:extensible}, for the below definitions we will
+treat |HintDB| as it if were a list of |Rule|s.
 \begin{code}
   solve : (goal : PsTerm m) → HintDB → SearchTree Proof
   solve g rules = solveAcc (1 , g ∷ [] , head)
@@ -257,7 +255,7 @@ constructing a node with one child for every inference rule.
 \end{code}
 The recursive construction of the proof tree is done by applying the
 |step| function to the list of rules. Note that |step| is defined in a
-|where| clause of |solveAcc|, and the therefore has access to all its
+where-clause of |solveAcc|, and the therefore has access to all its
 variables.
 
 First, it is given a rule which it tries to apply. This rule may have
@@ -282,7 +280,7 @@ step : ∃[ δ ] (Rule δ) → ∞ (SearchTree Proof)
 step (δ , r)
      with unify (inject δ g) (raise m (conclusion r))
 ...  | nothing         = ♯ node [] -- fail
-...  | just (n , mgu)  = ♯ solveAcc prf′ db
+...  | just (n , mgu)  = ♯ solveAcc prf′
   where
   prf′ : Proof′ n
   prf′ = arity r + k , gs′ , (p ∘ con′ r)
