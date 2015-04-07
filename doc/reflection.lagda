@@ -19,7 +19,7 @@ does expose some of the limitations and design choices of the |auto| function.
 The first thing we will need are
 concrete definitions for the |TermName| and |RuleName| data types,
 which were parameters to the development presented in the previous
-section. \pepijn{Check if it was actually the previous section.}
+section.
 It would be desirable to identify both types with Agda's |Name| type,
 but unfortunately Agda does not assign a name to the function
 space type operator, |_→_|; nor does Agda assign names to locally bound variables.
@@ -94,7 +94,7 @@ First of all, the |AgTerm| type represents all (possibly higher-order)
 terms, whereas the |PsTerm| type is necessarily first-order.  We
 mitigate this problem by allowing the conversion to 'fail', by
 producing a term of the type |Exception|, as we saw in the
-introduction. \pepijn{Check if we mention |Exception| in the introduction.}
+introduction.
 
 Secondly, the |AgTerm| data type uses natural numbers to represent
 variables. The |PsTerm| data type, on the other hand, represents
@@ -208,8 +208,6 @@ definition from the |Name| representing |even+|.
 
 This generation of rules is done in two steps. First, we will convert a
 |Name| to its corresponding |PsTerm|:
-\review{This is the first time we see the use of the function "type". It is better to mention it earlier, so that the readers know that the auto function has access to the whole environment (so it may lookup types of identifiers), rather than only the information supplied as its arguments.}
-\pepijn{Did this!}
 \begin{code}
   name2term : Name → Error (∃ PsTerm)
   name2term = agda2term ∘ unel ∘ type

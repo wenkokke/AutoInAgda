@@ -10,10 +10,9 @@ variations and extensions to the |auto| tactic described above.
 The simplest change we can make is to abstract over the search
 strategy used by the |auto| function. In the interest of readability
 we will create a simple alias for the types of search strategies.
-\review{Briefly describe what the returned list represents (e.g. a
-  list of goals to search for, in left-to-right order?).}
-\pepijn{It represents a list of the leafs of the SearchTree, in an
-  order which is determined by the strategy.}
+A |Strategy| represents a function which searches a |SearchTree| up to
+|depth|, and returns a list of the leafs (or |Proof|s) found in the
+|SearchTree| in an order which is dependent on the search strategy.
 \begin{code}
   Strategy = (depth : ℕ) → SearchTree A → List A
 \end{code}
@@ -27,7 +26,7 @@ search or even a custom user-provided search strategy.
 
 \subsection*{Custom hint databases}
 
-Alternatively, we have developed a variant of the |auto| tactic
+In addition, we have developed a variant of the |auto| tactic
 described in the paper that allows users to define their own type of
 hint database, provided they can implement the following interface:
 \begin{code}
@@ -42,9 +41,9 @@ to evolve during the proof search. The user-defined |getTr| function
 describes a transformation that may modify the hint database after a
 certain hint has been applied.
 
-Using this interface, we can implement alternative hint databases. For
-instance, we could implement a `linear' proof search function that
-removes a rule from the hint database after it has been
+Using this interface, we can implement many variations on proof
+search. For instance, we could implement a `linear' proof search
+function that removes a rule from the hint database after it has been
 applied. Alternatively, we may want to assign priorities to our
 hints. To illustrate one possible application of this interface, we
 will describe a hint database implementation that limits the usage of
@@ -62,16 +61,11 @@ Agda tutorial~\citep{agda-tutorial}:
     keep : xs ⊆ ys  → x ∷  xs ⊆ x ∷ ys
 \end{code}
 It is easy to show that the sublist relation is both reflexive and
-transitive.
-
-Using these rules, we can build up a small hint database to generate
-proofs using the sublist relation.
-\review{What are refl and trans? (Certainly not refl and trans for
-  PropositionalEquality.)}
-\pepijn{Does adding the |⊂-|-prefix clarify this?}
+transitive---and using these simple proofs, we can build up a small
+hint database to search for proofs on the sublist relation.
 \begin{code}
   hintdb  : HintDB
-  hintdb  = ε << quote drop << quote keep << quote ⊂-refl << quote ⊂-trans
+  hintdb  = ε << quote drop << quote keep << quote ⊆-refl << quote ⊆-trans
 \end{code}
 Our |auto| tactic quickly finds a proof for the following lemma:
 \begin{code}
@@ -87,8 +81,8 @@ Indeed, this example does not type check and our tactic reports that
 the search space is exhausted.  As noted by \citet{chlipala} when
 examining tactics in Coq, |auto| will nonetheless spend a considerable
 amount of time trying to construct a proof. As the |trans| rule is
-always applicable, the proof search will construct the full search
-tree up to the search depth -- resulting in an exponental running time.
+always applicable, the proof search will construct a search tree up to
+the full search depth---resulting in an exponental running time.
 
 We will use a variation of the |auto| tactic to address this
 problem. Upon constructing the new hint database, users may assign
