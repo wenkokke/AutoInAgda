@@ -20,7 +20,7 @@ syntax tree and vice versa. We will introduce Agda's reflection
 mechanism here with several short examples, based on the explanation
 in previous work~\citep{van-der-walt}. A more complete overview can be
 found in the Agda release notes~\citep{agda-relnotes-228} and Van der
-Walt's thesis~\citep{vdWalt:Thesis:2012}.
+Walt's thesis~\citeyearpar{vdWalt:Thesis:2012}.
 
 The type |Term : Set| is the central type provided by the reflection mechanism.
 It defines an abstract syntax tree for Agda terms. There are several
@@ -43,7 +43,7 @@ of the variable identified by the De Bruijn index 0, applied to an
 empty list of arguments.
 
 The |quote| language construct allows users to access the internal
-representation of an identifier, a value of a built-in type
+representation of an \emph{identifier}, a value of a built-in type
 |Name|. Users can subsequently request the type or definition of such
 names.
 
@@ -96,7 +96,7 @@ Note that we omit universally quantified implicit arguments from the
 typeset version of this paper, in accordance with convention used by
 Haskell~\citep{haskell-report} and Idris~\citep{idris}.
 
-As shown by Van der Walt and Swierstra~\citep{van-der-walt}, it is easy
+As shown by Van der Walt and Swierstra~\citeyearpar{van-der-walt}, it is easy
 to decide the |Even| property for closed terms using proof by
 reflection. The interesting terms, however, are seldom closed.  For
 instance, if we would like to use the |even+| lemma in the proof
@@ -186,44 +186,37 @@ term, then gives the type error message above. It is up to the
 programmer to fix this, either by providing a manual proof or
 diagnosing why no proof could be found.
 
-\vspace{1ex}
-\noindent%
-When calling the |auto| tactic, the following things happen:
+\paragraph{Overview}
+
+The remainder of this paper describes how the |auto| function is
+implemented. Before delving into the details of its implementation,
+however, we will give a high-level overview of the steps involved:
 \begin{enumerate}
-\item the |tactic| keyword converts the goal type to an Agda
-  reflection term (|AgTerm|\footnote{
-    The terms from Agda's |Reflection| module are called |Term|, but
-    to avoid confusion with several term data types we shall refer to
-    them as |AgTerm| for the remainder of this paper.
-  });
-\item\label{step:firstorder} we check if the term is of a first-order
-  type---if it isn't, we throw an exception;
-\item we convert the |AgTerm| to a first-order term data type (|PsTerm|);
-\item we split the term into a list of premises and a goal term---the
-  premises are added to the hint database as axioms;
-\item we lazily build up a proof tree by unification, using the
-  inference rules in the hint database;
-\item\label{step:dfs} we search through the proof tree with bounded
-  depth-first search;
-\item if a proof is found, this is converted back to an
-  |AgTerm|---otherwise we throw an exception;
-\item finally, the |unquote| keyword converts this |AgTerm| back to
-  Agda---type-checking it in the process.
+\item The |tactic| keyword converts the goal type to an abstract
+  syntax tree, i.e., a value of type |Term|. In what follows we will
+  use |AgTerm| to denote such terms, to avoid confusion with several
+  other term data types that we use.
+\item Next, we check the goal term. If it is a function type, we add
+  the arguments to the hint database, implicitly introducing
+  additional lambdas to the proof term. At this point we check that
+  the remaining goal and all the arguments we wish to add to the hint
+  database are a first-order. If this check fails, we produce a dummy
+  `proof term' not unlike the |searchSpaceExhausted| term we saw
+  above. We require terms to be first-order to ensure that the
+  unification algorithm, used in later steps for proof search, is
+  decidable. If the goal term is first-order, we convert it to our own
+  term data type for proof search, |PsTerm|.
+\item The key proof search algorithm, presented in the next section,
+  then tries to apply the hints from the hint database to prove the
+  goal. This process coinductively generates a (potentially infinite)
+  search tree. A simple bounded depth-first search through this tree
+  tries to find a series of hints that can be used to prove the goal.
+\item If such a proof is found, this is converted back to an
+  |AgTerm|; otherwise, we produce an erroneous term describing that
+  the search space has been exhausted. Finally, the |unquote| keyword
+  type checks the generated |AgTerm| and splices it back into our
+  development.
 \end{enumerate}
-In step~\ref{step:firstorder} we mention that our terms have to be
-of first order types. Why is this, and what does it mean?
-\pepijn{Mention McBride's paper and Miller's paper as possible future
-  extension; describe what first-order means in terms of Agda.}.
-
-Furthermore, in step~\ref{step:dfs} we mention that the proof tree is
-searched with bounded depth-first search. The reason for this is that
-the proof tree is potentially infinite, and therefore we have to bound
-the search. \pepijn{Mention that this is normal in e.g. Coq's auto
-  tactic.}
-
-Lastly, it should be mentioned that there is currently no way to obtain
-a reference to the function being defined. Therefore, it is not
-possible to derive recursive functions automatically.
 
 % But the biggest problem is that the paper doesn't clearly separate
 % what in the code is a good idea, what is an engineering trick, and
@@ -236,10 +229,8 @@ possible to derive recursive functions automatically.
 % * Proof obligations? regarding syntax
 % * constructing incomplete proofs
 
-\vspace{1ex}
-\noindent%
-The remainder of this paper will explain how this |auto| function is
-implemented.
+\noindent The remainder of this paper will explain how these steps in
+greater detail.
 
 
 

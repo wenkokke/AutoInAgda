@@ -81,9 +81,9 @@ advantages over most existing approaches to proof automation:
   will make this process easier.
 \end{itemize}
 
-For the moment, however, we would like to defer discussing the various
-alternative forms of proof automation until after we have presented
-our work (Section~\ref{sec:discussion}).
+We will compare our library with the various alternative forms of
+proof automation in greater depth in Section~\ref{sec:discussion},
+after we have presented our development.
 
 All the code described in this paper is freely available from
 GitHub.\footnote{

@@ -216,6 +216,7 @@ distinguish the discipline of \emph{programming} from the
   while, at least).}
 
 
+\todo{no recursive lemmas using auto}
 % This is super useful: consider the problem of having |trans| in a hint
 % database.
 %
