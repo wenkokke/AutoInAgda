@@ -99,19 +99,19 @@ depth, i.e.\ the number of |Π|-types it has encountered, and uses this
 information to ensure a correct conversion. We sketch the definition
 of the main function below:
 \begin{code}
-    convert : (depth : ℕ) → AgTerm → Error (∃ PsTerm)
-    convert d (var i [])    = inj₂ (convertVar d i)
-    convert d (con n args)  = convertName n ∘ convert d ⟨$⟩ args
-    convert d (def n args)  = convertName n ∘ convert d ⟨$⟩ args
-    convert d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
-      with convert d t₁ | convert (suc d) t₂
+    convert : (binders : ℕ) → AgTerm → Error (∃ PsTerm)
+    convert b (var i [])    = inj₂ (convertVar b i)
+    convert b (con n args)  = convertName n ∘ convert b ⟨$⟩ args
+    convert b (def n args)  = convertName n ∘ convert b ⟨$⟩ args
+    convert b (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
+      with convert b t₁ | convert (suc b) t₂
     ... | inj₁ msg        | _         = inj₁ msg
     ... | _               | inj₁ msg  = inj₁ msg
     ... | inj₂ (n₁ , p₁)  | inj₂ (n₂ , p₂)
       with match p₁ p₂
     ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
-    convert d (pi (arg _ _) (el _ t₂)) = convert (suc d) t₂
-    convert d _             = inj₁ unsupportedSyntax
+    convert b (pi (arg _ _) (el _ t₂)) = convert (suc b) t₂
+    convert b _             = inj₁ unsupportedSyntax
 \end{code}
 We define special functions, |convertVar| and |name2term|, to convert
 variables and constructors or defined terms respectively. The
@@ -273,7 +273,7 @@ Fortunately, we can reuse many of the other functions we have defined
 above, and, using the |split| and |initLast| functions, we can get our
 hands on the list of premises |prems| and the desired return type
 |goal|. The only missing piece of the puzzle is a function, |toPremises|,
-which converts a list of |PsTerm|s to a hint database containing rules 
+which converts a list of |PsTerm|s to a hint database containing rules
 for the arguments of our goal.
 \begin{code}
   toPremises : ∀ {k} → ℕ → Vec (PsTerm n) k → HintDB
@@ -297,7 +297,7 @@ encounters.
 The |Proof| may contain two kinds of variables: locally bound
 variables, |rvar i|, or variables storing an Agda |Name|, |name n|.
 Each of these variables is treated differently in the |reify|
-function. 
+function.
 \begin{code}
   reify : Proof → AgTerm
   reify (con (rvar i) ps) = var i []
