@@ -108,7 +108,7 @@ Unfortunately, the named equivalents in our Agda implementation given
 in Figure~\ref{fig:rules} are a bit more verbose. Note that we have,
 for the sake of this example, instantiated the |RuleName| and
 |TermName| to |String| and |Arith| respectively.
-\begin{figure}
+\begin{figure}[t]
   \centering
   \normalsize
 \begin{code}
@@ -140,6 +140,13 @@ AddStep = record {
   \label{fig:rules}
 \end{figure}
 
+A \emph{hint database} is nothing more than a list of rules. As the
+individual rules may have different numbers of variables, we
+existentially quantify these:
+\begin{code}
+HintDB : Set
+HintDB = List (∃[ n ] Rule n)
+\end{code}
 
 \subsection*{Generalised injection and raising}
 \label{subsec:injectandraise}
@@ -232,10 +239,7 @@ the `unflattening' of a rose tree.
 We can now finally return to our proof search algorithm. The
 |solveAcc| function forms the heart of the search procedure. Given a
 hint database and the current partially complete proof, it produces a
-|SearchTree| containing completed proofs. Note that while we will give
-a complete definition for hint databases in
-Section~\ref{sec:extensible}, for the moment, we will treat |HintDB|
-as a list of |Rule|s.
+|SearchTree| containing completed proofs. 
 \begin{code}
   solveAcc : HintDB -> PartialProof (δ + m) → SearchTree Proof
   solveAcc  rules  (0      ,      []  , p)  = leaf (p [])
