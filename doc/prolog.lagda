@@ -18,18 +18,17 @@ the type of terms is indexed by the number of variables a given term
 may contain. Doing so enables the formulation of the unification
 algorithm by structural induction on the number of free variables.
 For this to work, we will use the following definition of
-terms\footnote{
-  We will use the name |PsTerm| to stand for \emph{proof search term}
-  to differentiate them from Agda's \emph{reflection terms}, or |AgTerm|.
-}:
+terms
 \begin{code}
 data PsTerm (n : ℕ) : Set where
   var  : Fin n → PsTerm n
   con  : TermName → List (PsTerm n) → PsTerm n
 \end{code}
-In addition to variables, represented by the finite type |Fin n|, we
-will allow first-order constants encoded as a name with a list of
-arguments.
+We will use the name |PsTerm| to stand for \emph{proof search term} to
+differentiate them from the terms from Agda's \emph{reflection}
+mechanism, |AgTerm|.  In addition to variables, represented by the
+finite type |Fin n|, we will allow first-order constants encoded as a
+name with a list of arguments.
 
 For instance, if we choose to instantiate |TermName| with the following
 |Arith| data type, we can encode numbers and simple arithmetic
@@ -81,8 +80,10 @@ or |∃ (λ x → B)| in full.
 \subsection*{Inference rules}
 \label{subsec:rules}
 
-We encode inference rules as records containing a rule name, a list of
-terms for its premises, and a term for its conclusion:
+The hints in the hint database will form \emph{inference rules} that
+we may use to prove a goal term. We represent such rules as records
+containing a rule name, a list of terms for its premises, and a term
+for its conclusion:
 \begin{code}
   record Rule (n : ℕ) : Set where
     field
@@ -94,8 +95,8 @@ terms for its premises, and a term for its conclusion:
     arity = length premises
 \end{code}
 Once again the data-type is quantified over the number of variables
-used in the rule. Note that the variables are shared between the
-premises and the conclusion.
+used in the rule. Note that the number of variables in the
+premises and the conclusion is the same.
 
 Using our newly defined |Rule| type we can give a simple definition of
 addition. In Prolog, this would be written as follows.
@@ -143,8 +144,8 @@ AddStep = record {
 \subsection*{Generalised injection and raising}
 \label{subsec:injectandraise}
 
-Before we can implement some form of proof search, we define a pair of
-auxiliary functions. During proof resolution, we will need to work
+Before we can implement some form of proof search, we need to define a pair of
+auxiliary functions. During proof resolution, we will work
 with terms and rules containing a different number of variables. We
 will use the following pair of functions, |inject| and |raise|, to
 weaken bound variables, that is, map values of type |Fin n| to some
@@ -174,119 +175,129 @@ all the variables that they contain.
 \subsection*{Constructing the search tree}
 \label{subsec:searchtrees}
 
-\todo{Wouter: reread, refactor and rewrite}
+Our proof search procedure is consists of two steps. First, we
+coinductively construct a (potentially infinite) search space; next,
+we will perform a bounded depth-first traversal of this space to find
+a proof of our goal.
 
-Our search tree is simply a (potentially) infinitely deep, but
+We will represent the search space as a (potentially) infinitely deep, but
 finitely branching rose tree.
 \begin{code}
   data SearchTree (A : Set) : Set where
     leaf  : A → SearchTree A
     node  : List (∞ (SearchTree A)) → SearchTree A
 \end{code}
-For our purposes, the type parameter |A| will be instantiated with a
-type representing proof terms: a type which consists of applications of
-rules, with a sub-proof for every parameter.
+We will instantiate the type parameter |A| with a
+type representing proof terms. These terms consist of applications of
+rules, with a sub-proof for every premise.
 \begin{code}
   data Proof : Set where
     con : (name : RuleName) (args : List Proof) → Proof
 \end{code}
-We construct our search trees as follows:
-\begin{enumerate}
-\item \label{step:base}
-  We begin with a partial proof term which consists of a single hole,
-  representing a proof obligation for our top-level goal. We represent
-  this as a function from a single proof object to the resulting proof
-  object.
+Unfortunately, during the proof search we will have to work with
+\emph{partially complete} proof terms.
 
-\item \label{step:recurse}
-  Next, for each rule |r| in our hint database, we attempt to unify
-  the conclusion of |r| with the goal. If this succeeds, we add the
-  premises of |r| to the list of sub-goals. In addition, we update the
-  structure of the partial proof, instantiating the hole with our rule
-  |r|, and creating new holes for the premises of |r|.
-
-\item Last, we recursively apply step~\ref{step:recurse} until we have
-  emptied the list of sub-goals---which may never happen. When we do
-  manage to resolve all sub-goals, we can return a complete proof term.
-\end{enumerate}
-
-Partial proofs are represented by the |Proof′| type, which is a pair
-containing our list of sub-goals (of length |k|) combined with a
-function from |k| proof terms to a proof term.
+Such partial completed proofs are represented by the |PartialProof|
+type. In contrast to the |Proof| data type, the |PartialProof| type
+may contain variables, hence the type takes an additional number as
+its argument:
 \begin{code}
-  Proof′ : ℕ → Set
-  Proof′ m = ∃[ k ] Vec (PsTerm m) k × (Vec Proof k → Proof)
+  PartialProof : ℕ → Set
+  PartialProof m = ∃[ k ] Vec (PsTerm m) k × (Vec Proof k → Proof)
 \end{code}
-In order to simplify working with these partial proof terms, we define
-a smart constructor for proof terms based on vectors of proofs. More
-specifically, |con′| will, given a rule |r| and a vector of proof
-terms, take |arity r| proofs off of the proof vector, apply the proof
-constructor |con|, and cons the resulting term back into the proof
-vector.
-\review{the description of con' can't be parsed by me}
+A value of type |PartialProof m| records three separate pieces of
+information:
+\begin{itemize}
+\item a number |k|, representing the number of open subgoals;
+\item a vector of length |k|, recording the subgoals that are still
+  open;
+\item a function that, given a vector of |k| proofs for each of the
+  subgoals, will produce a complete proof of the original goal.
+\end{itemize}
+Next, we define the following auxiliary function to help construct partial
+proof terms:
 \begin{code}
-  con′ : (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
-  con′ r xs = new ∷ rest
+  apply : (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
+  apply r xs = new ∷ rest
     where
       new   = con (name r) (toList (take (arity r) xs))
       rest  = drop (arity r) xs
 \end{code}
-Finally, we define a function |solve| which builds up the tree, given
-a hint database. This function is implemented with two accumulating
-parameters, representing the current substitution and the current
-partial proof, respectively.
-These are initialized to the identity substitution and
-a single proof obligation---as described above.
-Note that while we will give a more general definition for hint databases
-in Section~\ref{sec:extensible}, for the below definitions we will
-treat |HintDB| as it if were a list of |Rule|s.
-\begin{code}
-  solve : (goal : PsTerm m) → HintDB → SearchTree Proof
-  solve g rules = solveAcc (1 , g ∷ [] , head)
-\end{code}
-The actual work is done by the |solveAcc| function, which distinguishes
-two cases: if the partial proof is complete, i.e. has no more holes,
-we can stop the search and construct a |leaf|; otherwise, we search by
-constructing a node with one child for every inference rule.
-\begin{code}
-  solveAcc : Proof′ (δ + m) → SearchTree Proof
-  solveAcc  (0      ,      []  , p)  = leaf (p [])
-  solveAcc  (suc k  , g ∷  gs  , p)  = node (map step rules)
-\end{code}
-The recursive construction of the proof tree is done by applying the
-|step| function to the list of rules. Note that |step| is defined in a
-where-clause of |solveAcc|, and the therefore has access to all its
-variables.
+Given a |Rule| and a list of proofs of subgoals, this |apply| function
+takes the required sub-proofs from the vector, and creates a new proof
+by applying the argument rule to these sub-proofs. The result then consists of
+this new proof, together with any unused sub-proofs. This is essentially
+the `unflattening' of a rose tree.
 
-First, it is given a rule which it tries to apply. This rule may have
-a number of free variables of its own. As a result, all goals have to
-be injected into a larger domain which includes all current variables
-\emph{and} the new rule's variables. The rule's premises and
-conclusion are then raised into this larger domain, in order to
-guarantee freshness of the rule variables.
+We can now finally return to our proof search algorithm. The
+|solveAcc| function forms the heart of the search procedure. Given a
+hint database and the current partially complete proof, it produces a
+|SearchTree| containing completed proofs. Note that while we will give
+a complete definition for hint databases in
+Section~\ref{sec:extensible}, for the moment, we will treat |HintDB|
+as a list of |Rule|s.
+\begin{code}
+  solveAcc : HintDB -> PartialProof (δ + m) → SearchTree Proof
+  solveAcc  rules  (0      ,      []  , p)  = leaf (p [])
+  solveAcc  rules  (suc k  , g ∷  gs  , p)  = node (map step rules)
+\end{code}
+If there are no remaining subgoals, i.e., the list in the second
+component of the |PartialProof| is empty, the search is finished. We
+construct a proof |p []|, and wrap this in the |leaf| constructor of
+the |SearchTree|. If we still have open subgoals, we have more work to
+do. In that case, we will try to apply every rule in our hint database
+to resolve this open goal---our rose tree has as many branches as
+there are hints in the hint database. The real work is done by the
+|step| function, locally defined in a where clause, that given the
+rule to apply, computes the remainder of the |SearchTree|.
 
-Second, now that the terms are compatible, we attempt to find a most
-general unifier (|mgu|) for the current goal and the rule's
-conclusion.
-If this fails, we simply return a node with no children, terminating
-this branch.
-However, if this succeeds, we build up a new partial proof, updating
-the previous one by adding the rule's premises to the sub-goals,
-applying the unifier to the goals, and adding a new constructor for
-the given rule.  With all these values in hand, we recursively call
-|solveAcc| to (lazily) generate the rest of the search tree.
+Before giving the definition of the |step| function, we will try to
+provide some intuition. Given a rule, the |step| function will try to
+unify its conclusion with the current subgoal |g|. When this succeeds,
+the premises of the rule are added to the list of open subgoals. When
+this fails, we return a |node| with no children, indicating that
+applying this rule can never prove our current goal.
+
+Carefully dealing with variables, however, introduces some
+complication, as the code for the |step| function illustrates:
 \begin{code}
 step : ∃[ δ ] (Rule δ) → ∞ (SearchTree Proof)
 step (δ , r)
      with unify (inject δ g) (raise m (conclusion r))
-...  | nothing         = ♯ node [] -- fail
-...  | just (n , mgu)  = ♯ solveAcc prf′
+...  | nothing         = ♯ node []
+...  | just (n , mgu)  = ♯ solveAcc prf
   where
-  prf′ : Proof′ n
-  prf′ = arity r + k , gs′ , (p ∘ con′ r)
+  prf : PartialProof n
+  prf = arity r + k , gs′ , (p ∘ apply r)
     where
     gs′ : Vec (Goal n) (arity r + k)
     gs′ = map (apply mgu) (raise m (fromList (premises r)) ++ inject δ gs)
+\end{code}
+The argument rule may have a number of free variables of its own. As a result,
+all goals have to be injected into a larger domain which includes all
+current variables \emph{and} the new rule's variables. The rule's
+premises and conclusion are then also raised into this larger domain, 
+to guarantee freshness of the rule variables.
+
+The definition of the |step| function attempts to |unify| the current
+subgoal |g| and conclusion of the rule |r|. If this fails, we can
+return |node []| immediately. If this succeeds, however, we build up a
+new partial proof, |prf|. This new partial proof, once again, consists of three parts:
+\begin{itemize}
+\item the number of open subgoals is incremented by |arity r|, i.e., the
+  number of premises of the rule |r|.
+\item the vector of open subgeals |gs| is extended with the premises
+  of |r|, after weakening the variables of appropriately.
+\item the function producing the final |Proof| object will, given the
+  proofs of the premises of |r|, call |apply r| to create the desired
+  |con| node in the final proof object.
+\end{itemize}
+
+The only remaining step, is to kick-off our proof search algorithm
+with a partial proof, consisting of a open subgoal:
+\begin{code}
+  solve : (goal : PsTerm m) → HintDB → SearchTree Proof
+  solve g rules = solveAcc (1 , g ∷ [] , head)
 \end{code}
 
 \subsection*{Searching for proofs}
