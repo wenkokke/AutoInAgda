@@ -26,6 +26,9 @@ module Auto.Example.Even where
   even+  isEven0      e2 = e2
   even+ (isEven+2 e1) e2 = isEven+2 (even+ e1 e2)
 
+  isEven-2 : ∀ {n} → Even (2 + n) → Even n
+  isEven-2 (isEven+2 n) = n
+
   simple : ∀ {n} → Even n → Even (n + 2)
   simple e =  even+ e (isEven+2 isEven0)
 
@@ -57,4 +60,3 @@ module Auto.Example.Even where
   goal₂ = quoteTerm (∃₂ λ m n → Even (m + n))
   fail₂ : unquote (auto 5 rules goal₂) ≡ throw unsupportedSyntax
   fail₂ = refl
-

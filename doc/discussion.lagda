@@ -29,7 +29,7 @@ should be possible to adapt our algorithm to work on second-order
 goals.
 Furthermore, there are plenty of Agda features that are not
 supported or ignored by our quotation functions, such as universe
-polymorphism, instance arguments, and primitive functions. 
+polymorphism, instance arguments, and primitive functions.
 
 Even for definitions that seem completely first-order, our |auto|
 function can fail unexpectedly. Consider the following definition of
@@ -42,18 +42,17 @@ the pair type:
   pair x y = x , y
 \end{code}
 Here a (non-dependent) pair is defined as a special case of the
-dependent pair type |Σ|. Now consider
-the following trivial lemma:
+dependent pair type |Σ|. Now consider the following trivial lemma:
 \begin{code}
   andIntro : (A : Set) -> (B : Set) -> A × B
 \end{code}
 Somewhat surprisingly, trying to prove this lemma using our |auto|
-function, providing the |pair| function as a hint, fails. 
+function, providing the |pair| function as a hint, fails.
 The |quoteGoal| construct always returns
 the goal in normal form, which exposes the higher-order nature of |A ×
-B|. Converting the goal |(A × (λ _ → B))| to a |PrologTerm| will
-raises the `exception' |unsupportedSyntax|; the goal type contains a
-lambda which causes the proof search to fail before it has even started.
+B|. Converting the goal |(A × (λ _ → B))| to a |PsTerm| will raise the
+`exception' |unsupportedSyntax|; the goal type contains a lambda which
+causes the proof search to fail before it has even started.
 
 % \todo{No longer relevant; tactic also takes context}
 % Furthermore, there are some limitations on the hints that may be
@@ -76,7 +75,7 @@ lambda which causes the proof search to fail before it has even started.
 % \pepijn{Do we want to mention that we can now easily pattern-match,
 %   rewrite the paper to include the most recent version of |tactic|,
 %   etc? Or should we just delete this section?}
-% Wouter: I've commented out this section. It's hard to be precise here as 
+% Wouter: I've commented out this section. It's hard to be precise here as
 % long as Agda is still in flux.
 
 \paragraph{Refinement}
@@ -119,11 +118,10 @@ of |auto|. Similarly, a better (static) debugger would be invaluable
 when trying to understand why a call to |auto| failed to produce the
 desired proof.
 
-\todo{Can we use an induction hypothesis in our hint database?}
 
 % Finally, we should mention that a technical limitation in Agda's
 % reflection mechanism prevents us from proving recursive theorems using
-% the |auto| tactic. Ideally, we would like to 
+% the |auto| tactic. Ideally, we would like to
 
 % As it stands, proving soundness of the
 % |auto| function is non-trivial: we would need to define the typing
@@ -196,7 +194,6 @@ Idris code; furthermore, any changes to tactics requires a
 recompilation of the entire Idris system.
 
 \paragraph{Agsy}
-
 Agda already has a built-in `auto' tactic that outperforms the |auto|
 function we have defined here~\citep{lindblad}. It is nicely integrated
 with the IDE and does not require the users to provide an explicit
