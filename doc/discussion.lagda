@@ -229,7 +229,7 @@ construction of programs and proofs is the same activity. Any
 external language for proof automation renounces this philosophy. This
 paper demonstrates that proof automation is not inherently at odds
 with the philosophy of type theory. Paraphrasing
-Martin-L\"of~\citep{martin-lof}, it no longer seems possible to
+Martin-L\"of~\citeyearpar{martin-lof}, it no longer seems possible to
 distinguish the discipline of \emph{programming} from the
 \emph{construction} of mathematics.
 
