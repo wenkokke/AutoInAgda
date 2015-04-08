@@ -194,8 +194,8 @@ however, we will give a high-level overview of the steps involved:
 \begin{enumerate}
 \item The |tactic| keyword converts the goal type to an abstract
   syntax tree, i.e., a value of type |Term|. In what follows we will
-  use |AgTerm| to denote such terms, to avoid confusion with several
-  other term data types that we use.
+  use |AgTerm| to denote such terms, to avoid confusion with the other
+  term data type that we use.
 \item Next, we check the goal term. If it is a function type, we add
   the arguments to the hint database, implicitly introducing
   additional lambdas to the proof term. At this point we check that

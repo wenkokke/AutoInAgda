@@ -239,7 +239,7 @@ the `unflattening' of a rose tree.
 We can now finally return to our proof search algorithm. The
 |solveAcc| function forms the heart of the search procedure. Given a
 hint database and the current partially complete proof, it produces a
-|SearchTree| containing completed proofs. 
+|SearchTree| containing completed proofs.
 \begin{code}
   solveAcc : HintDB -> PartialProof (δ + m) → SearchTree Proof
   solveAcc  rules  (0      ,      []  , p)  = leaf (p [])
@@ -275,18 +275,23 @@ step (δ , r)
   prf = arity r + k , gs′ , (p ∘ apply r)
     where
     gs′ : Vec (Goal n) (arity r + k)
-    gs′ = map (apply mgu) (raise m (fromList (premises r)) ++ inject δ gs)
+    gs′ = map (sub mgu) (raise m (fromList (premises r)) ++ inject δ gs)
 \end{code}
-The argument rule may have a number of free variables of its own. As a result,
-all goals have to be injected into a larger domain which includes all
-current variables \emph{and} the new rule's variables. The rule's
-premises and conclusion are then also raised into this larger domain, 
-to guarantee freshness of the rule variables.
+Note that we use the function |sub| to apply the substitution. This
+function is defined in~\citet{unification}.
+
+The rule given to the |step| function may have a number of free
+variables of its own. As a result, all goals have to be injected into
+a larger domain which includes all current variables \emph{and} the
+new rule's variables. The rule's premises and conclusion are then also
+raised into this larger domain, to guarantee freshness of the rule
+variables.
 
 The definition of the |step| function attempts to |unify| the current
 subgoal |g| and conclusion of the rule |r|. If this fails, we can
 return |node []| immediately. If this succeeds, however, we build up a
-new partial proof, |prf|. This new partial proof, once again, consists of three parts:
+new partial proof, |prf|. This new partial proof, once again, consists
+of three parts:
 \begin{itemize}
 \item the number of open subgoals is incremented by |arity r|, i.e., the
   number of premises of the rule |r|.
