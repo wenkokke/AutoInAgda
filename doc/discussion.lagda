@@ -104,6 +104,17 @@ correct type. As it stands, a bug in our |auto| function could
 potentially produce an ill-typed proof term, that only causes a type
 error when that term is unquoted.
 
+\paragraph{Variables}
+The astute reader will have noticed that the tactic we have
+implemented is closer to Coq's |eauto| tactic than the |auto|
+tactic. The difference between the two tactics lies in the treatment
+of unification variables: |eauto| may introduce new variables during
+unification; |auto| will never do so. It would be fairly
+straightforward to restrict our tactic to only apply hints when all
+variables known. A suitable instantiation algorithm, which we could
+use instead of the more general unification algorithm in this paper,
+has already been developed in previous work~\citep{vannoort}.
+
 \paragraph{Technical limitations}
 
 The |auto| tactic relies on the unification algorithm and proof search

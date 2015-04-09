@@ -229,7 +229,7 @@ however, we will give a high-level overview of the steps involved:
 % * Proof obligations? regarding syntax
 % * constructing incomplete proofs
 
-\noindent The remainder of this paper will explain how these steps in
+\noindent The rest of this paper will explain these steps in
 greater detail.
 
 

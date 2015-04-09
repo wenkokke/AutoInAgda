@@ -1,6 +1,6 @@
 open import Auto
 open import Algebra
-open import Data.List using (_∷_; [];_++_)
+open import Data.List using (_∷_; [];_++_;List)
 open import Data.Nat using (ℕ; suc; zero; _+_)
 open import Data.Product using (_×_; ∃₂; proj₁; proj₂)
 open import Relation.Binary.PropositionalEquality as PropEq using (_≡_; refl; cong; sym)
