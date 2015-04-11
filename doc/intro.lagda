@@ -14,8 +14,8 @@ powerful proof automation~\citep{chlipala}. Having to introduce a
 separate tactic language, however, seems at odds with the spirit of
 type theory, where a single language is used for both proof and
 computation.  Having a separate language for programming proofs has
-its drawbacks. Programmers need to learn another language to automate
-proofs. Debugging Ltac programs can be difficult and the resulting
+its drawbacks: programmers need to learn another language to automate
+proofs, debugging Ltac programs can be difficult, and the resulting
 proof automation may be inefficient~\citep{brabaint}.
 
 Agda does not have Coq's segregation of proof and programming
@@ -23,7 +23,7 @@ language.  Instead, programmers are encouraged to automate proofs by
 writing their own solvers~\citep{ulf-tphols}. In combination with
 Agda's reflection mechanism~\citep{agda-relnotes-228,van-der-walt}, developers can write
 powerful automatic decision procedures~\citep{allais}. Unfortunately,
-not all proofs are easily automated in this fashion. In that case,
+not all proofs are easily automated in this fashion. If this is the case,
 the user is forced to interact with the integrated development
 environment and manually construct a proof term step by step.
 
@@ -31,7 +31,7 @@ This paper tries to combine the best of both worlds by implementing a
 library for proof search \emph{within} Agda itself. In other words, we
 have defined a \emph{program} for the automatic \emph{construction} of
 \emph{mathematical} proofs. More specifically, this paper makes
-several novel contributions.
+several novel contributions:
 \begin{itemize}
 \item %
   We show how to implement a Prolog interpreter in the style of
@@ -62,9 +62,10 @@ advantages over most existing approaches to proof automation:
   strategy. Each of these is itself a first-class Agda value, that may
   be inspected or transformed, depending on the user's needs.
 \item Although we limit ourself in the paper to a simple depth-first
-  search, different proofs may require a different search strategy. To
-  illustrate this point, we will develop a variation of our tactic
-  that limits the number of times certain rules may be applied
+  search, different proofs may require a different search strategy.
+  Such changes are easily made in our library.  To illustrate this
+  point, we will develop a variation of our tactic which allows the
+  user to limit the number of times certain rules may be applied
   (Section~\ref{sec:extensible}).
 \item Users need not learn a new programming language to modify
   existing tactics or develop tactics of their own. They can use a
