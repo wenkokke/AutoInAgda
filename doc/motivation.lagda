@@ -186,8 +186,7 @@ term, then gives the type error message above. It is up to the
 programmer to fix this, either by providing a manual proof or
 diagnosing why no proof could be found.
 
-\paragraph{Overview}
-
+\paragraph{Overview.}
 The remainder of this paper describes how the |auto| function is
 implemented. Before delving into the details of its implementation,
 however, we will give a high-level overview of the steps involved:
