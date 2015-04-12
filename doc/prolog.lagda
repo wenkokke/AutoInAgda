@@ -221,7 +221,7 @@ information:
 \item a function that, given a vector of |k| proofs for each of the
   subgoals, will produce a complete proof of the original goal.
 \end{itemize}
-Next, we define the following auxiliary function to help construct partial
+Next, we define the following function to help construct partial
 proof terms:
 \begin{code}
   apply : (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
@@ -277,8 +277,8 @@ step (δ , r)
     gs′ : Vec (Goal n) (arity r + k)
     gs′ = map (sub mgu) (raise m (fromList (premises r)) ++ inject δ gs)
 \end{code}
-Note that we use the function |sub| to apply the substitution. This
-function is defined in~\citet{unification}.
+Note that we use the function |sub| to apply a substitution to a term. This
+function is defined by McBride~\citeyearpar{unification}.
 
 The rule given to the |step| function may have a number of free
 variables of its own. As a result, all goals have to be injected into
@@ -295,7 +295,7 @@ of three parts:
 \begin{itemize}
 \item the number of open subgoals is incremented by |arity r|, i.e., the
   number of premises of the rule |r|.
-\item the vector of open subgeals |gs| is extended with the premises
+\item the vector of open subgoals |gs| is extended with the premises
   of |r|, after weakening the variables of appropriately.
 \item the function producing the final |Proof| object will, given the
   proofs of the premises of |r|, call |apply r| to create the desired
@@ -303,7 +303,7 @@ of three parts:
 \end{itemize}
 
 The only remaining step, is to kick-off our proof search algorithm
-with a partial proof, consisting of a open subgoal:
+with a partial proof, consisting of a single goal.
 \begin{code}
   solve : (goal : PsTerm m) → HintDB → SearchTree Proof
   solve g rules = solveAcc (1 , g ∷ [] , head)

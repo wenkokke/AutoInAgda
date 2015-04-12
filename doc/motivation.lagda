@@ -186,7 +186,7 @@ term, then gives the type error message above. It is up to the
 programmer to fix this, either by providing a manual proof or
 diagnosing why no proof could be found.
 
-\paragraph{Overview.}
+\paragraph{Overview}
 The remainder of this paper describes how the |auto| function is
 implemented. Before delving into the details of its implementation,
 however, we will give a high-level overview of the steps involved:
@@ -195,12 +195,12 @@ however, we will give a high-level overview of the steps involved:
   syntax tree, i.e., a value of type |Term|. In what follows we will
   use |AgTerm| to denote such terms, to avoid confusion with the other
   term data type that we use.
-\item Next, we check the goal term. If it is a function type, we add
-  the arguments to the hint database, implicitly introducing
-  additional lambdas to the proof term. At this point we check that
-  the remaining goal and all the arguments we wish to add to the hint
-  database are a first-order. If this check fails, we produce a dummy
-  `proof term' not unlike the |searchSpaceExhausted| term we saw
+\item Next, we check the goal term. If it has a functional type, we add
+  the arguments of this function to our hint database, implicitly introducing
+  additional lambdas to the proof term we intend to construct. At this point we check that
+  the remaining type and all its original arguments are
+  are first-order. If this check fails, we produce an error
+  message, not unlike the |searchSpaceExhausted| term we saw
   above. We require terms to be first-order to ensure that the
   unification algorithm, used in later steps for proof search, is
   decidable. If the goal term is first-order, we convert it to our own
