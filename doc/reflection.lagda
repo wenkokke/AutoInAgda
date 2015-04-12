@@ -5,11 +5,11 @@ To complete the definition of our |auto| function, we still need to
 convert between Agda's built-in |AgTerm| data type and the data type
 required by our unification and resolution algorithms,
 |PsTerm|. Similarly, we will need to transform the |Proof| produced by
-our |solve| function to an |AgTerm| that can be unquoted.  These is
-are essential piece of plumbing, necessary to provide the desired
+our |solve| function to an |AgTerm| that can be unquoted.  These
+are essential pieces of plumbing, necessary to provide the desired
 proof automation.  While not conceptually difficult, this does expose
 some of the limitations and design choices of the |auto| function. If
-you are unfamiliar with the inner workings of the Agda reflection
+you are unfamiliar with the precise workings of the Agda reflection
 mechanism, you may want to skim this section.
 
 The first thing we will need are
