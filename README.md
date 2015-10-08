@@ -27,7 +27,7 @@ Some notes:
 
   - the code is released under an [MIT license](code/LICENSE);
 
-  - the paper is compiled using [lhs2TeX](www.andres-loeh.de/lhs2tex/);
+  - the paper is compiled using [lhs2TeX](http://www.andres-loeh.de/lhs2tex/);
 
   - compilation of the paper is facilitated using a
     [rake](http://rake.rubyforge.org/) build script (call `rake paper`).
