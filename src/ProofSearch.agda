@@ -201,7 +201,7 @@ module ProofSearch
 
   -- representation of an incomplete proof
   Proof′ : ℕ → Set
-  Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
+  Proof′ m = ∃[ k ] (Vec (Goal m) k × (Vec Proof k → Proof))
 
   con′ : ∀ {n k} (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
   con′ {n} {k} r xs = head ∷ rest
