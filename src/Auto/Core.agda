@@ -1,7 +1,8 @@
 open import Level                      using (Level)
 open import Function                   using (_∘_; id; flip)
 open import Data.Fin     as Fin        using (fromℕ)
-open import Data.Nat     as Nat        using (ℕ; suc; zero; pred; _+_; _⊔_; decTotalOrder)
+open import Data.Nat     as Nat        using (ℕ; suc; zero; pred; _+_; _⊔_)
+open import Data.Nat.Properties using (≤-decTotalOrder)
 open import Data.List    as List       using (List; []; _∷_; [_]; concatMap; _++_; length; map)
 open import Data.Vec     as Vec        using (Vec; []; _∷_; _∷ʳ_; reverse; initLast; toList)
 open import Data.Product as Prod       using (∃; _×_; _,_; proj₁; proj₂)
@@ -16,7 +17,7 @@ open import Reflection renaming (Term to AgTerm; _≟_ to _≟-AgTerm_)
 
 module Auto.Core where
 
-  open DecTotalOrder Nat.decTotalOrder using (total)
+  open DecTotalOrder ≤-decTotalOrder using (total)
 
   private
     ∃-syntax : ∀ {a b} {A : Set a} → (A → Set b) → Set (b Level.⊔ a)
@@ -143,37 +144,40 @@ module Auto.Core where
   -- variables with an explicit dictionary of the type `ConvertVar`---
   -- passing in `ConvertVar4Term` or `ConvertVar4Goal` will result in
   -- rule-terms or goal-terms, respectively.
-  mutual
-    convert : ConvertVar → (depth : ℕ) → AgTerm → Error (∃ PsTerm)
-    convert cv d (lit (nat n)) = inj₂ (0 , convertℕ n)
-    convert cv d (lit l)       = inj₂ (0 , lit l)
-    convert cv d (var i [])    = inj₂ (cv d i)
-    convert cv d (var i args)  = inj₁ unsupportedSyntax
-    convert cv d (con c args)  = fromDefOrCon c ⟨$⟩ convertChildren cv d args
-    convert cv d (def f args)  = fromDefOrCon f ⟨$⟩ convertChildren cv d args
-    convert cv d (pi (arg (arg-info visible _) (el _ t₁)) (el _ t₂))
-      with convert cv d t₁ | convert cv (suc d) t₂
-    ... | inj₁ msg | _        = inj₁ msg
-    ... | _        | inj₁ msg = inj₁ msg
-    ... | inj₂ (n₁ , p₁) | inj₂ (n₂ , p₂)
-      with match p₁ p₂
-    ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
-    convert cv d (pi (arg _ _) (el _ t₂)) = convert cv (suc d) t₂
-    convert cv d (lam _ _)     = inj₁ unsupportedSyntax
-    convert cv d (pat-lam _ _) = inj₁ unsupportedSyntax
-    convert cv d (sort _)      = inj₁ unsupportedSyntax
-    convert cv d unknown       = inj₁ unsupportedSyntax
 
-    convertChildren :
-      ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
-    convertChildren cv d [] = inj₂ (0 , [])
-    convertChildren cv d (arg (arg-info visible _) t ∷ ts)
-      with convert cv d t | convertChildren cv d ts
-    ... | inj₁ msg      | _              = inj₁ msg
-    ... | _             | inj₁ msg       = inj₁ msg
-    ... | inj₂ (m , p)  | inj₂ (n , ps) with match p ps
-    ... | (p′ , ps′)                      = inj₂ (m ⊔ n , p′ ∷ ps′)
-    convertChildren cv d (arg _ _ ∷ ts)   = convertChildren cv d ts
+  convert : ConvertVar → (depth : ℕ) → AgTerm → Error (∃ PsTerm)
+  convertChildren :
+    ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
+
+
+  convert cv d (lit (nat n)) = inj₂ (0 , convertℕ n)
+  convert cv d (lit l)       = inj₂ (0 , lit l)
+  convert cv d (var i [])    = inj₂ (cv d i)
+  convert cv d (var i args)  = inj₁ unsupportedSyntax
+  convert cv d (con c args)  = fromDefOrCon c ⟨$⟩ convertChildren cv d args
+  convert cv d (def f args)  = fromDefOrCon f ⟨$⟩ convertChildren cv d args
+  convert cv d (pi (arg (arg-info visible _) t₁) (abs _ t₂)) with convert cv d t₁ | convert cv (suc d) t₂
+  ... | inj₁ msg | _        = inj₁ msg
+  ... | _        | inj₁ msg = inj₁ msg
+  ... | inj₂ (n₁ , p₁) | inj₂ (n₂ , p₂)
+    with match p₁ p₂
+  ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
+  convert cv d (pi (arg _ _) (abs _ t₂)) = convert cv (suc d) t₂
+  convert cv d (lam _ _)     = inj₁ unsupportedSyntax
+  convert cv d (pat-lam _ _) = inj₁ unsupportedSyntax
+  convert cv d (sort _)      = inj₁ unsupportedSyntax
+  convert cv d unknown       = inj₁ unsupportedSyntax
+  convert cv d (meta x args) = inj₁ unsupportedSyntax
+
+
+  convertChildren cv d [] = inj₂ (0 , [])
+  convertChildren cv d (arg (arg-info visible _) t ∷ ts)
+    with convert cv d t | convertChildren cv d ts
+  ... | inj₁ msg      | _              = inj₁ msg
+  ... | _             | inj₁ msg       = inj₁ msg
+  ... | inj₂ (m , p)  | inj₂ (n , ps) with match p ps
+  ... | (p′ , ps′)                      = inj₂ (m ⊔ n , p′ ∷ ps′)
+  convertChildren cv d (arg _ _ ∷ ts)   = convertChildren cv d ts
 
 
   -- convert an Agda term to a rule-term.
@@ -205,42 +209,56 @@ module Auto.Core where
       toPremises i (t ∷ ts) = (n , rule (var i) t []) ∷ toPremises (pred i) ts
 
 
+
+
   -- convert an Agda name to an rule-term.
-  name2term : Name → Error (∃ PsTerm)
-  name2term = agda2term ∘ unel ∘ type
-    where
-      unel : Type → AgTerm
-      unel (el _ t) = t
+  name2term : Name → TC (Error (∃ PsTerm))
+  name2term nm = bindTC (getType nm) (λ tp → returnTC (agda2term tp))
+
 
 
   -- convert an Agda name to a rule.
-  name2rule : Name → Error (∃ Rule)
-  name2rule nm with name2term nm
-  ... | inj₁ msg             = inj₁ msg
+  name2ruleHelper : Name → (Error (∃ PsTerm)) → TC (Error (∃ Rule))
+  name2ruleHelper nm name2term_nm with name2term_nm
+  ... | inj₁ msg             = returnTC (inj₁ msg)
   ... | inj₂ (n , t)         with split t
   ... | (k , ts)             with initLast ts
-  ... | (prems , concl , _)  = inj₂ (n , rule (name nm) concl (toList prems))
+  ... | (prems , concl , _)  =  returnTC (inj₂ (n , rule (name nm) concl (toList prems)))
+
+
+
+  -- convert an Agda name to a rule.
+  name2rule : Name → TC (Error (∃ Rule))
+  name2rule nm = bindTC (name2term nm) (name2ruleHelper nm)
+
 
 
   -- function which reifies untyped proof terms (from the
   -- `ProofSearch` module) to untyped Agda terms.
-  mutual
-    reify : Proof → AgTerm
-    reify (con (var i) ps) = var i []
-    reify (con (name n) ps) with definition n
-    ... | function x    = def n (reifyChildren ps)
-    ... | constructor′  = con n (reifyChildren ps)
-    ... | data-type x   = unknown
-    ... | record′ x     = unknown
-    ... | axiom         = unknown
-    ... | primitive′    = unknown
 
-    reifyChildren : List Proof → List (Arg AgTerm)
-    reifyChildren [] = []
-    reifyChildren (p ∷ ps) = toArg (reify p) ∷ reifyChildren ps
-      where
-        toArg : AgTerm → Arg AgTerm
-        toArg = arg (arg-info visible relevant)
+
+  reify : Proof → TC AgTerm
+  reifyChildren : List Proof → TC (List (Arg AgTerm))
+
+  reify (con (var i) ps) = returnTC ((var i []))
+  reify (con (name n) ps) =
+    bindTC (getDefinition n) (λ
+      { (function x) → bindTC (reifyChildren ps) (λ rc → returnTC (def n rc))
+      ; (data-type pars cs) →  bindTC (reifyChildren ps) ((λ rc → returnTC (con n rc)))
+      ; (record′ c _) → returnTC unknown
+      ; (constructor′ d ) → returnTC unknown
+      ; axiom → returnTC unknown
+      ; primitive′ → returnTC unknown} )
+
+
+  reifyChildren [] = returnTC []
+  reifyChildren (p ∷ ps) =
+    bindTC (reify p)
+    (λ rp → bindTC (reifyChildren ps) (λ rcps → returnTC (toArg rp ∷ rcps)))
+    where
+      toArg : AgTerm → Arg AgTerm
+      toArg = arg (arg-info visible relevant)
+
 
 
   -- data-type `Exception` which is used to unquote error messages to

@@ -5,8 +5,8 @@ open import Coinduction                           using (∞; ♯_; ♭)
 open import Data.Fin        as Fin                using (Fin; suc; zero)
 open import Data.List       as List               using (List; _∷_; []; [_]; _++_; length; concat; foldr; concatMap)
 open import Data.Maybe                            using (Maybe; just; nothing)
-open import Data.Nat                              using (ℕ; suc; zero; _≤_; z≤n; s≤s; decTotalOrder)
-open import Data.Nat.Properties                   using (commutativeSemiring; distributiveLattice)
+open import Data.Nat                              using (ℕ; suc; zero; _≤_; z≤n; s≤s)
+open import Data.Nat.Properties                   using (commutativeSemiring; distributiveLattice; ≤-decTotalOrder)
 open import Data.Product                          using (∃; _×_; _,_)
 open import Data.Sum                              using (_⊎_; inj₁; inj₂)
 open import Data.Vec        as Vec                using (Vec; _∷_; []; fromList)
@@ -57,7 +57,7 @@ module ProofSearch
   -- open instances relevant to definitions of difference, inject and raise
   open CommutativeSemiring commutativeSemiring using (_+_; +-comm)
   open DistributiveLattice distributiveLattice using (_∧_; ∧-comm)
-  open DecTotalOrder       decTotalOrder       using (total)
+  open DecTotalOrder       ≤-decTotalOrder       using (total)
 
 
   -- compute the difference between two natural numbers, given an
@@ -201,7 +201,7 @@ module ProofSearch
 
   -- representation of an incomplete proof
   Proof′ : ℕ → Set
-  Proof′ m = ∃[ k ] Vec (Goal m) k × (Vec Proof k → Proof)
+  Proof′ m = ∃[ k ] (Vec (Goal m) k × (Vec Proof k → Proof))
 
   con′ : ∀ {n k} (r : Rule n) → Vec Proof (arity r + k) → Vec Proof (suc k)
   con′ {n} {k} r xs = head ∷ rest
