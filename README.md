@@ -16,7 +16,7 @@
 #### Technical Details
 
 This repository contains the sources for the
-*[Auto In Agda](http://www.staff.science.uu.nl/~swier004/Publications/AutoInAgda.pdf)*.
+*[Auto In Agda](https://wenkokke.github.io/pubs/mpc2015.pdf)*.
 The `paper` sub-directory contains the literate Agda files that make up the paper.
 The `code` sub-directory contains the Agda source code.
 
